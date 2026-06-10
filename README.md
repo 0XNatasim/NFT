@@ -4,70 +4,83 @@ A peer-to-peer NFT trading marketplace for the Monad ecosystem. Users negotiate 
 
 It's a trading desk, not a sniping ground: off-chain signed orders (free to create), offer expirations, private offers, wallet reputation, and no instant floor-sniping mechanics.
 
-## Requirements
+## What you need to run this project
 
-### Functional requirements
+Everything required before you can develop, deploy, and operate Monad Market.
 
-**Trade offers**
-- FR-1: A user can connect a wallet (RainbowKit/wagmi) and browse their owned ERC-721 NFTs on Monad.
-- FR-2: A user (maker) can create a trade offer composed of any combination of: NFTs offered, MON offered, NFTs requested, MON requested. At least one asset must exist on each side; max 20 NFTs per side.
-- FR-3: Offers may optionally target a specific taker wallet; private offers (hidden from public feeds, visible only via direct link / to the parties) require a taker address.
-- FR-4: Every offer has a mandatory expiration timestamp chosen by the maker (1h / 24h / 7d / 30d in the UI; any future timestamp in the order model).
-- FR-5: Offer creation is **gasless**: the maker signs an EIP-712 `TradeOrder`; the signed order is stored off-chain in Supabase. Only settlement and cancellation touch the chain.
-- FR-6: Any eligible counterparty (the designated taker, or anyone for open offers) can accept an offer; acceptance settles the trade atomically on-chain via `fulfillTrade`.
-- FR-7: A maker can cancel an open offer at any time. Cancellation is an on-chain action (`cancelNonce`) so the signature can never be replayed; the API only marks an offer cancelled after reading `nonceUsed` on-chain.
-- FR-8: An offer is marked completed only after the API verifies a successful transaction receipt containing a `TradeExecuted` event with the offer's order hash from the settlement contract.
-- FR-9: Statuses: `open → completed | cancelled | expired`. Expired offers are unfillable on-chain by construction.
+### 1. Tooling (local machine)
 
-**Marketplace & social**
-- FR-10: Homepage shows hero, how-it-works, open-offer feed, recent completed trades, and aggregate stats (trades settled, open offers, MON volume).
-- FR-11: Offer detail page shows both sides of the trade, fee breakdown, accept/cancel actions, and explorer links for settlement/cancellation transactions.
-- FR-12: Account page shows the connected wallet's NFTs, open/completed/cancelled offers, and reputation (completed count, cancelled count, last trade).
-- FR-13: Wanted board lets any connected wallet post "looking for X / offering Y" requests.
+| Requirement | Version | Used for | Install |
+| --- | --- | --- | --- |
+| Node.js | 20+ (22 recommended) | Next.js app, tests | https://nodejs.org |
+| npm | 10+ | dependency management, scripts | ships with Node |
+| Foundry (`forge`, `cast`) | 1.0+ | compiling, testing, deploying the settlement contract | `curl -L https://foundry.paradigm.xyz \| bash && foundryup` |
+| Git | any recent | version control | — |
 
-**Fees (business model)**
-- FR-14: Protocol fee of `feeBps` (default 100 = 1%, hard cap 500 = 5%) is charged on **each MON leg** of a trade; NFT-only swaps pay no percentage fee.
-- FR-15: An owner-configurable `flatSwapFee` (default 0) may be charged on pure NFT↔NFT swaps so swap-only volume can still generate revenue.
-- FR-16: Fees transfer atomically to a configurable `feeRecipient`; if the fee transfer fails the entire trade reverts. Owner may update `feeRecipient`, `feeBps`, and `flatSwapFee` — nothing else.
-- FR-17: The UI shows the exact fee breakdown (per-leg fee, flat fee, taker total, maker escrow requirement) before signing and before accepting.
+> Supabase CLI is optional — you can apply the migration through the Supabase dashboard's SQL editor instead.
 
-**Chain**
-- FR-18: The app targets Monad (testnet `10143` by default) and is mainnet-ready: chain id, RPC URLs, and explorer URLs are environment-driven (`lib/chains/monad.ts`); nothing is hardcoded to Ethereum.
-- FR-19: When the connected wallet is on the wrong network, a persistent banner prompts a one-click switch to Monad; settlement actions are blocked until the network matches.
-- FR-20: All values display in MON (18 decimals).
+### 2. Accounts & services to create
 
-### Smart contract requirements
+| Service | What to create | Why | Cost |
+| --- | --- | --- | --- |
+| **Supabase** (supabase.com) | A project | PostgreSQL database for offers, reputation, wanted board | free tier is fine |
+| **WalletConnect / Reown** (cloud.reown.com) | A project ID | Required by RainbowKit for wallet connections | free |
+| **Alchemy** (alchemy.com) — default provider | An API key with Monad enabled | NFT indexing (wallet NFTs, metadata) | free tier is fine |
+| *or* **Reservoir** (reservoir.tools) | An API key | alternative NFT provider (`NFT_PROVIDER=reservoir`) | free tier |
+| **Vercel** (vercel.com) | A project linked to this repo | hosting the Next.js app | free tier |
+| **A deployer wallet** | Fresh EOA + its private key | deploying the settlement contract | needs testnet MON |
+| **Monad testnet MON** | Faucet funds for the deployer wallet | gas for deployment + testing trades | free (faucet) |
 
-- SC-1: `MonadMarketSettlement.sol` verifies, in order: order non-emptiness and size bounds, expiry, designated taker, no self-trade, nonce unused, EIP-712 signature recovers to the maker, exact taker payment (`takerMonAmount + takerLegFee + flatFee`), sufficient maker escrow, and NFT ownership **and** approval for every item on both sides — before any state change or transfer.
-- SC-2: Settlement follows checks-effects-interactions and is `nonReentrant`; the nonce is consumed and escrow debited before external calls.
-- SC-3: All transfers (NFTs both directions, MON both directions, protocol fee) happen in one transaction; any failure reverts everything.
-- SC-4: Replay protection: per-maker `nonceUsed` mapping; a filled or cancelled nonce can never be reused. Signatures are bound to chain id and contract address via the EIP-712 domain.
-- SC-5: Maker-side MON is funded from a self-managed escrow (`deposit`/`withdraw`). The owner has **no** path to move user NFTs or escrow balances; admin surface is fee configuration only (`Ownable2Step`).
-- SC-6: Events: `TradeExecuted`, `TradeCancelled`, `FeeRecipientUpdated`, `FeeBpsUpdated`, `FlatSwapFeeUpdated`, `EscrowDeposited`, `EscrowWithdrawn`. Custom errors everywhere (no string reverts).
-- SC-7: Forbidden by design: private key storage, backend signing, custodial wallets, admin-controlled asset movement.
+### 3. Setup steps (in order)
 
-### Backend / API requirements
+1. **Clone & install** — `npm install`, then `cp .env.example .env.local`.
+2. **Supabase** — create the project, open *SQL Editor*, run `supabase/migrations/20260610000000_init.sql`. Copy the project URL, anon key, and service-role key into `.env.local`.
+3. **Deploy the contract** — fund the deployer wallet with testnet MON, set the deployment vars (table below), then `npm run contracts:deploy`. Copy the printed address into `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS`.
+4. **Run locally** — `npm run dev` and connect a wallet on Monad testnet.
+5. **Deploy to Vercel** — import the repo, set every variable from the table below in the Vercel project settings, deploy.
 
-- API-1: Endpoints: `GET /api/config`, `GET /api/nfts`, `GET/POST /api/offers`, `GET /api/offers/[id]`, `POST /api/offers/[id]/cancel`, `POST /api/offers/[id]/complete`, `GET /api/stats`, `GET /api/reputation`, `GET/POST /api/wanted`.
-- API-2: Every input is validated with Zod; the backend never trusts the frontend. Maker signatures are re-verified server-side before an order is stored; the server recomputes the order hash.
-- API-3: Status transitions are verified against the chain (receipt events for complete, `nonceUsed` for cancel) — the client cannot forge them.
-- API-4: Mutating routes are rate-limited per IP (offers 10/min, cancel/complete 20/min, wanted 5/min, NFT reads 30/min).
-- API-5: NFT indexing goes through the `NFTProvider` interface (`getWalletNFTs`, `getCollection`, `getToken`, `searchCollection`); the concrete provider (Alchemy default, Reservoir included) is selected by `NFT_PROVIDER` with no provider logic leaking elsewhere.
+### 4. Environment variables
 
-### Data requirements
+All of these live in `.env.example`. ★ = required for the app to function.
 
-- DB-1: Supabase PostgreSQL with migrations under `supabase/migrations/`. Tables: `profiles`, `trade_offers`, `trade_offer_nfts`, `trade_events`, `wallet_reputation`, `wanted_posts`.
-- DB-2: Addresses stored lowercase (enforced by CHECK constraints); `order_hash` unique; `(chain_id, maker_address, nonce)` unique; MON amounts stored as `numeric(78,0)` wei strings.
-- DB-3: Row-level security enabled on all tables; all access flows through the service-role API layer. Every offer lifecycle change is appended to `trade_events`.
+**Public (exposed to the browser, prefix `NEXT_PUBLIC_`)**
 
-### Non-functional requirements
+| Variable | ★ | Value / where to get it |
+| --- | --- | --- |
+| `NEXT_PUBLIC_APP_NAME` | | Display name, e.g. `Monad Market` |
+| `NEXT_PUBLIC_CHAIN_ID` | ★ | `10143` for Monad testnet (change for mainnet) |
+| `NEXT_PUBLIC_MONAD_RPC_URL` | ★ | `https://testnet-rpc.monad.xyz` or your own RPC |
+| `NEXT_PUBLIC_MONAD_EXPLORER_URL` | ★ | `https://testnet.monadexplorer.com` |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | ★ | Project ID from cloud.reown.com |
+| `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | ★ | Printed by `npm run contracts:deploy` (step 3) |
+| `NEXT_PUBLIC_SUPABASE_URL` | ★ | Supabase → Project Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ★ | Supabase → Project Settings → API |
 
-- NFR-1: `npm install`, `npm run dev|build|lint|typecheck|test`, and `npm run contracts:test|contracts:deploy` must all work.
-- NFR-2: Test coverage: Foundry suite (settlement success for all four trade shapes, bad signature, wrong taker, expiry, cancelled nonce, replay, fee math incl. fuzz, fee-transfer atomicity, ownership/approval failures, escrow) plus Vitest suites for fee math parity, API validation, and EIP-712 hashing/signature verification.
-- NFR-3: UI: dark-mode-first, responsive/mobile-friendly, skeleton loading, empty states, error states, toast notifications.
-- NFR-4: Anti-bot posture: no instant buy/floor-sniping mechanic, private and wallet-targeted offers, mandatory expiry, wallet reputation, API rate limiting.
-- NFR-5: TypeScript strict mode; Solidity 0.8.28 with optimizer; no secrets in the repo (`.env.example` only).
+**Server-only (never expose; set in Vercel as plain env vars)**
 
+| Variable | ★ | Value / where to get it |
+| --- | --- | --- |
+| `SUPABASE_SERVICE_ROLE_KEY` | ★ | Supabase → Project Settings → API (service_role). Bypasses RLS — server only. |
+| `NFT_PROVIDER` | ★ | `alchemy` (default) or `reservoir` |
+| `ALCHEMY_API_KEY` | ★ (if alchemy) | Alchemy dashboard → app → API key |
+| `RESERVOIR_API_KEY` | (if reservoir) | Reservoir dashboard |
+| `SIMPLEHASH_API_KEY` | | reserved for a future SimpleHash provider |
+| `MONAD_RPC_URL` | ★ | Server-side RPC (can match the public one) — used for receipt/nonce verification |
+
+**Deployment-only (local shell / CI secrets — never needed by the web app)**
+
+| Variable | ★ | Value |
+| --- | --- | --- |
+| `PRIVATE_KEY_DEPLOYER` | ★ (deploy) | Private key of the funded deployer wallet. Use a fresh wallet; never commit. |
+| `FEE_RECIPIENT_ADDRESS` | ★ (deploy) | Wallet that receives protocol fees (ideally a multisig) |
+| `CONTRACT_OWNER` | (deploy) | Admin of fee settings; defaults to the deployer if unset. Use a multisig for mainnet. |
+
+### 5. Sanity checks
+
+```bash
+npm run typecheck && npm run lint && npm run test   # app: should all pass
+npm run contracts:test                              # 26 Foundry tests should pass
+```
 
 ## Architecture
 
