@@ -1,0 +1,71 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { cn } from "@/lib/utils";
+
+const links = [
+  { href: "/", label: "Market" },
+  { href: "/create", label: "Create Trade" },
+  { href: "/wanted", label: "Wanted" },
+  { href: "/account", label: "Account" },
+];
+
+export function Header() {
+  const pathname = usePathname();
+
+  return (
+    <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
+      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-monad-purple font-bold text-monad-black">
+              M
+            </span>
+            <span className="text-lg font-semibold tracking-tight">
+              Monad <span className="text-monad-purple">Market</span>
+            </span>
+          </Link>
+          <nav className="hidden items-center gap-1 md:flex">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "rounded-md px-3 py-2 text-sm transition-colors",
+                  pathname === link.href
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <ConnectButton
+          showBalance={{ smallScreen: false, largeScreen: true }}
+          chainStatus="icon"
+          accountStatus={{ smallScreen: "avatar", largeScreen: "full" }}
+        />
+      </div>
+      <nav className="flex items-center gap-1 overflow-x-auto border-t border-border px-4 py-2 md:hidden">
+        {links.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={cn(
+              "whitespace-nowrap rounded-md px-3 py-1.5 text-sm",
+              pathname === link.href
+                ? "bg-secondary text-foreground"
+                : "text-muted-foreground"
+            )}
+          >
+            {link.label}
+          </Link>
+        ))}
+      </nav>
+    </header>
+  );
+}
