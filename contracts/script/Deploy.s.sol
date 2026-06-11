@@ -10,7 +10,7 @@ import {MonadMarketSettlement} from "../src/MonadMarketSettlement.sol";
 ///   npm run contracts:deploy
 contract Deploy is Script {
     function run() external {
-        uint256 deployerKey = vm.envUint("PRIVATE_KEY_DEPLOYER");
+        uint256 deployerKey = _deployerKey();
         address feeRecipient = vm.envAddress("FEE_RECIPIENT_ADDRESS");
         address contractOwner = vm.envOr("CONTRACT_OWNER", vm.addr(deployerKey));
 
@@ -22,5 +22,14 @@ contract Deploy is Script {
         console.log("Owner:", contractOwner);
         console.log("Fee recipient:", feeRecipient);
         console.log("Fee bps:", settlement.feeBps());
+    }
+
+    /// Accepts PRIVATE_KEY_DEPLOYER with or without the 0x prefix.
+    function _deployerKey() internal view returns (uint256) {
+        string memory raw = vm.envString("PRIVATE_KEY_DEPLOYER");
+        if (bytes(raw).length >= 2 && bytes(raw)[0] == "0" && (bytes(raw)[1] == "x" || bytes(raw)[1] == "X")) {
+            return vm.parseUint(raw);
+        }
+        return vm.parseUint(string.concat("0x", raw));
     }
 }
