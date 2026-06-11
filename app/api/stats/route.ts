@@ -9,7 +9,7 @@ export async function GET() {
     const [completed, open] = await Promise.all([
       db
         .from("trade_offers")
-        .select("maker_mon_amount, taker_mon_amount", { count: "exact" })
+        .select("maker_mon_amount::text, taker_mon_amount::text", { count: "exact" })
         .eq("status", "completed"),
       db
         .from("trade_offers")

@@ -40,7 +40,11 @@ export function mapOffer(row: any): TradeOffer {
   };
 }
 
-const OFFER_SELECT = "*, trade_offer_nfts(*)";
+// numeric columns must round-trip as strings: PostgREST serialises numeric
+// as a JSON number, which loses precision beyond 2^53 (the nonce is a random
+// 256-bit value). The ::text casts override the lossy defaults from "*".
+const OFFER_SELECT =
+  "*, nonce::text, maker_mon_amount::text, taker_mon_amount::text, trade_offer_nfts(*, token_id::text)";
 
 export async function getOfferById(id: string): Promise<TradeOffer | null> {
   const db = getServiceClient();
