@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignTypedData } from "wagmi";
 import { parseEther, isAddress, type Address } from "viem";
 import { toast } from "sonner";
@@ -35,17 +35,31 @@ function nftKey(n: { contractAddress: string; tokenId: string }) {
 }
 
 export default function CreateTradePage() {
+  return (
+    <Suspense fallback={null}>
+      <CreateTradeForm />
+    </Suspense>
+  );
+}
+
+function CreateTradeForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { address, isConnected, chainId } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
   const { data: walletNfts, isLoading } = useWalletNFTs(address);
 
+  const prefilledTaker = searchParams.get("taker") ?? "";
   const [offeredNfts, setOfferedNfts] = useState<NFTAsset[]>([]);
   const [requestedNfts, setRequestedNfts] = useState<NFTAsset[]>([]);
   const [offeredMon, setOfferedMon] = useState("");
   const [requestedMon, setRequestedMon] = useState("");
-  const [takerAddress, setTakerAddress] = useState("");
-  const [isPrivate, setIsPrivate] = useState(false);
+  const [takerAddress, setTakerAddress] = useState(
+    isAddress(prefilledTaker) ? prefilledTaker : ""
+  );
+  const [isPrivate, setIsPrivate] = useState(
+    searchParams.get("private") === "1" && isAddress(prefilledTaker)
+  );
   const [expirySeconds, setExpirySeconds] = useState(86400);
   const [requestContract, setRequestContract] = useState("");
   const [requestTokenId, setRequestTokenId] = useState("");

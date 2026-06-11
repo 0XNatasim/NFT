@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useAccount } from "wagmi";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Handshake, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
-import { shortAddress } from "@/lib/utils";
 
 interface WantedPost {
   id: string;
@@ -63,12 +64,30 @@ export default function WantedPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const deletePost = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/wanted/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: address }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to delete");
+    },
+    onSuccess: () => {
+      toast.success("Request removed");
+      queryClient.invalidateQueries({ queryKey: ["wanted"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   return (
     <div className="container mx-auto px-4 py-10">
       <h1 className="mb-2 text-3xl font-bold">Wanted board</h1>
       <p className="mb-8 text-muted-foreground">
-        Post what you&apos;re hunting for and what you&apos;re willing to part with.
-        Negotiate, then send a private offer.
+        Post what you&apos;re hunting for. Posts are anonymous — if you can fill a
+        request, send the poster a private offer and they&apos;ll see it on their
+        account.
       </p>
 
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
@@ -119,30 +138,62 @@ export default function WantedPage() {
               <Skeleton key={i} className="h-24 rounded-xl" />
             ))
           ) : posts && posts.length > 0 ? (
-            posts.map((post) => (
-              <Card key={post.id}>
-                <CardContent className="p-4">
-                  <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{shortAddress(post.walletAddress)}</span>
-                    <span>
-                      {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-                    </span>
-                  </div>
-                  <p className="font-medium">
-                    <span className="text-monad-purple">Looking for:</span>{" "}
-                    {post.lookingFor}
-                  </p>
-                  {post.offering && (
-                    <p className="text-sm">
-                      <span className="text-emerald-400">Offering:</span> {post.offering}
+            posts.map((post) => {
+              const isMine =
+                address?.toLowerCase() === post.walletAddress.toLowerCase();
+              return (
+                <Card key={post.id}>
+                  <CardContent className="p-4">
+                    <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-2">
+                        Anonymous trader
+                        {isMine && <Badge variant="secondary">your post</Badge>}
+                      </span>
+                      <span>
+                        {formatDistanceToNow(new Date(post.createdAt), {
+                          addSuffix: true,
+                        })}
+                      </span>
+                    </div>
+                    <p className="font-medium">
+                      <span className="text-monad-purple">Looking for:</span>{" "}
+                      {post.lookingFor}
                     </p>
-                  )}
-                  {post.notes && (
-                    <p className="mt-1 text-sm text-muted-foreground">{post.notes}</p>
-                  )}
-                </CardContent>
-              </Card>
-            ))
+                    {post.offering && (
+                      <p className="text-sm">
+                        <span className="text-emerald-400">Offering:</span>{" "}
+                        {post.offering}
+                      </p>
+                    )}
+                    {post.notes && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {post.notes}
+                      </p>
+                    )}
+                    <div className="mt-3 flex items-center gap-2">
+                      {!isMine && (
+                        <Link
+                          href={`/create?taker=${post.walletAddress}&private=1`}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                        >
+                          <Handshake className="h-3.5 w-3.5" /> Make private offer
+                        </Link>
+                      )}
+                      {isMine && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={deletePost.isPending}
+                          onClick={() => deletePost.mutate(post.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Remove
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
           ) : (
             <EmptyState
               title="Nothing on the board"
