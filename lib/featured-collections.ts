@@ -16,6 +16,11 @@ export const FEATURED_COLLECTIONS: FeaturedCollection[] = [
     logo: "/collections/10ksquad.png",
   },
   {
+    name: "Erebus",
+    address: "0x2a0001f3d4c98881376f8d36b3c61f163d84a095",
+    logo: "/collections/erebus.png",
+  },
+  {
     name: "r3tards",
     address: "0x200723a706de0013316e5cd8eba2b3f53dd90c29",
     logo: "/collections/r3tards.png",
