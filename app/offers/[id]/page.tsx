@@ -144,6 +144,10 @@ export default function OfferDetailPage({
 
   async function handleMakerApprove() {
     if (!offer) return;
+    if (chainId !== MONAD_CHAIN_ID) {
+      toast.error(`Switch your wallet to Monad (chain ${MONAD_CHAIN_ID}) first`);
+      return;
+    }
     setWorking("approve");
     try {
       await ensureApprovals(offer, "maker");
