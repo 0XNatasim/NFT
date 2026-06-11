@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/empty-state";
 import { useWalletNFTs } from "@/hooks/use-market";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
 import { erc721Abi } from "@/lib/contracts/settlement";
+import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import {
   generateNonce,
   getOrderDomain,
@@ -71,6 +72,9 @@ function CreateTradeForm() {
   const [expirySeconds, setExpirySeconds] = useState(86400);
   const [requestContract, setRequestContract] = useState("");
   const [requestTokenId, setRequestTokenId] = useState("");
+  const [offerContract, setOfferContract] = useState("");
+  const [offerTokenId, setOfferTokenId] = useState("");
+  const [addingOffered, setAddingOffered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const makerMonWei = useMemo(() => {
@@ -112,13 +116,68 @@ function CreateTradeForm() {
       tokenId: requestTokenId,
       tokenStandard: "ERC721",
       name: `#${requestTokenId}`,
-      collectionName: null,
+      collectionName:
+        FEATURED_COLLECTIONS.find(
+          (c) => c.address.toLowerCase() === requestContract.toLowerCase()
+        )?.name ?? null,
       imageUrl: null,
     };
     if (requestedNfts.some((n) => nftKey(n) === nftKey(nft))) return;
     setRequestedNfts((prev) => [...prev, nft]);
     setRequestContract("");
     setRequestTokenId("");
+  }
+
+  /** Add an NFT you own by contract + token ID, verified on-chain. */
+  async function addOfferedNftManually() {
+    if (!address || !publicClient) return;
+    if (!isAddress(offerContract)) {
+      toast.error("Enter a valid NFT contract address");
+      return;
+    }
+    if (!/^\d+$/.test(offerTokenId)) {
+      toast.error("Enter a numeric token ID");
+      return;
+    }
+    const nft: NFTAsset = {
+      contractAddress: offerContract.toLowerCase(),
+      tokenId: offerTokenId,
+      tokenStandard: "ERC721",
+      name: `#${offerTokenId}`,
+      collectionName:
+        FEATURED_COLLECTIONS.find(
+          (c) => c.address.toLowerCase() === offerContract.toLowerCase()
+        )?.name ?? null,
+      imageUrl: null,
+    };
+    if (offeredNfts.some((n) => nftKey(n) === nftKey(nft))) {
+      toast.error("Already selected");
+      return;
+    }
+    setAddingOffered(true);
+    try {
+      const owner = await publicClient.readContract({
+        address: nft.contractAddress as Address,
+        abi: erc721Abi,
+        functionName: "ownerOf",
+        args: [BigInt(nft.tokenId)],
+      });
+      if (owner.toLowerCase() !== address.toLowerCase()) {
+        toast.error("You don't own this token");
+        return;
+      }
+      setOfferedNfts((prev) =>
+        prev.length < 20 ? [...prev, nft] : prev
+      );
+      setOfferTokenId("");
+      toast.success(`Added ${nft.collectionName ?? "NFT"} #${nft.tokenId}`);
+    } catch {
+      toast.error(
+        "Couldn't verify this token on-chain — check the contract address and token ID"
+      );
+    } finally {
+      setAddingOffered(false);
+    }
   }
 
   async function handleSign() {
@@ -292,6 +351,54 @@ function CreateTradeForm() {
                   body="We couldn't find ERC-721 NFTs in this wallet on Monad."
                 />
               )}
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  NFT not showing? Add it by contract + token ID (ownership is
+                  verified on-chain):
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {FEATURED_COLLECTIONS.map((c) => (
+                    <Button
+                      key={c.address}
+                      type="button"
+                      size="sm"
+                      variant={
+                        offerContract.toLowerCase() === c.address.toLowerCase()
+                          ? "default"
+                          : "secondary"
+                      }
+                      onClick={() => setOfferContract(c.address)}
+                    >
+                      {c.name}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="NFT contract address (0x…)"
+                    value={offerContract}
+                    onChange={(e) => setOfferContract(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Token ID"
+                    className="w-32"
+                    value={offerTokenId}
+                    onChange={(e) => setOfferTokenId(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={addingOffered}
+                    onClick={addOfferedNftManually}
+                  >
+                    {addingOffered ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Add"
+                    )}
+                  </Button>
+                </div>
+              </div>
               {offeredNfts.length > 0 && (
                 <div className="space-y-1.5 rounded-lg border border-border bg-secondary/30 p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -346,6 +453,23 @@ function CreateTradeForm() {
               <CardTitle>You request</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {FEATURED_COLLECTIONS.map((c) => (
+                  <Button
+                    key={c.address}
+                    type="button"
+                    size="sm"
+                    variant={
+                      requestContract.toLowerCase() === c.address.toLowerCase()
+                        ? "default"
+                        : "secondary"
+                    }
+                    onClick={() => setRequestContract(c.address)}
+                  >
+                    {c.name}
+                  </Button>
+                ))}
+              </div>
               <div className="flex gap-2">
                 <Input
                   placeholder="NFT contract address (0x…)"
