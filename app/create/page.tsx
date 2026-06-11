@@ -160,12 +160,20 @@ function CreateTradeForm() {
           new Set(offeredNfts.map((n) => n.contractAddress.toLowerCase()))
         );
         for (const contract of contracts) {
-          const approved = await publicClient.readContract({
-            address: contract as Address,
-            abi: erc721Abi,
-            functionName: "isApprovedForAll",
-            args: [address, SETTLEMENT_CONTRACT_ADDRESS],
-          });
+          let approved: boolean;
+          try {
+            approved = await publicClient.readContract({
+              address: contract as Address,
+              abi: erc721Abi,
+              functionName: "isApprovedForAll",
+              args: [address, SETTLEMENT_CONTRACT_ADDRESS],
+            });
+          } catch {
+            throw new Error(
+              `Collection ${contract.slice(0, 10)}… doesn't exist on chain ${MONAD_CHAIN_ID}. ` +
+                "Your NFT provider network and NEXT_PUBLIC_CHAIN_ID/RPC are probably pointing at different networks."
+            );
+          }
           if (!approved) {
             toast.info("Approve the collection so the trade can settle…");
             const hash = await writeContractAsync({
