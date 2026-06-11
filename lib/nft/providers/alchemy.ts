@@ -53,8 +53,15 @@ export const alchemyProvider: NFTProvider = {
     });
     if (options?.pageKey) params.set("pageKey", options.pageKey);
     const data = await fetchJson(`${baseUrl()}/getNFTsForOwner?${params}`);
+    // Alchemy labels some valid ERC-721 collections as UNKNOWN /
+    // NO_SUPPORTED_NFT_STANDARD on newer chains, so only exclude tokens
+    // that are positively NOT ERC-721. Ownership/approvals are verified
+    // on-chain at settlement anyway.
     const nfts: NFTAsset[] = (data.ownedNfts ?? [])
-      .filter((n: any) => n.tokenType === "ERC721")
+      .filter((n: any) => {
+        const type = String(n.tokenType ?? "").toUpperCase();
+        return type !== "ERC1155";
+      })
       .map(toAsset);
     return { nfts, pageKey: data.pageKey ?? null };
   },
