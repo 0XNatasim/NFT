@@ -22,6 +22,7 @@ import { useWalletNFTs } from "@/hooks/use-market";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
 import { erc721Abi } from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
+import { CollectionButton } from "@/components/trade/collection-button";
 import {
   generateNonce,
   getOrderDomain,
@@ -358,19 +359,12 @@ function CreateTradeForm() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {FEATURED_COLLECTIONS.map((c) => (
-                    <Button
+                    <CollectionButton
                       key={c.address}
-                      type="button"
-                      size="sm"
-                      variant={
-                        offerContract.toLowerCase() === c.address.toLowerCase()
-                          ? "default"
-                          : "secondary"
-                      }
+                      collection={c}
+                      active={offerContract.toLowerCase() === c.address.toLowerCase()}
                       onClick={() => setOfferContract(c.address)}
-                    >
-                      {c.name}
-                    </Button>
+                    />
                   ))}
                 </div>
                 <div className="flex gap-2">
@@ -455,19 +449,12 @@ function CreateTradeForm() {
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 {FEATURED_COLLECTIONS.map((c) => (
-                  <Button
+                  <CollectionButton
                     key={c.address}
-                    type="button"
-                    size="sm"
-                    variant={
-                      requestContract.toLowerCase() === c.address.toLowerCase()
-                        ? "default"
-                        : "secondary"
-                    }
+                    collection={c}
+                    active={requestContract.toLowerCase() === c.address.toLowerCase()}
                     onClick={() => setRequestContract(c.address)}
-                  >
-                    {c.name}
-                  </Button>
+                  />
                 ))}
               </div>
               <div className="flex gap-2">
