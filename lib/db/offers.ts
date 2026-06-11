@@ -1,4 +1,5 @@
 import { getServiceClient } from "@/lib/supabase/server";
+import { MONAD_CHAIN_ID } from "@/lib/chains/monad";
 import type { TradeOffer, TradeOfferNFT, WalletReputation } from "@/lib/types";
 
 function mapNft(row: any): TradeOfferNFT {
@@ -64,6 +65,8 @@ export async function listOffers(filters: {
   let query = db
     .from("trade_offers")
     .select(OFFER_SELECT)
+    // Offers are chain-bound (EIP-712 domain); never mix networks.
+    .eq("chain_id", MONAD_CHAIN_ID)
     .order("created_at", { ascending: false })
     .range(filters.offset, filters.offset + filters.limit - 1);
 

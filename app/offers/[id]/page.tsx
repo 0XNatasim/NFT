@@ -73,8 +73,14 @@ export default function OfferDetailPage({
   const isDesignatedTaker =
     !offer.takerAddress || address?.toLowerCase() === offer.takerAddress.toLowerCase();
   const isExpired = offer.expiry * 1000 < Date.now();
+  const isWrongChain = offer.chainId !== MONAD_CHAIN_ID;
   const canAccept =
-    offer.status === "open" && !isMaker && isDesignatedTaker && !isExpired && !!address;
+    offer.status === "open" &&
+    !isMaker &&
+    isDesignatedTaker &&
+    !isExpired &&
+    !isWrongChain &&
+    !!address;
 
   function buildOrder(o: TradeOffer) {
     return {
@@ -353,6 +359,12 @@ export default function OfferDetailPage({
                 "Cancel offer (on-chain)"
               )}
             </Button>
+          )}
+          {isWrongChain && (
+            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
+              This offer was signed for chain {offer.chainId} and can&apos;t be
+              settled on chain {MONAD_CHAIN_ID}.
+            </p>
           )}
           {!address && offer.status === "open" && (
             <p className="text-sm text-muted-foreground">
