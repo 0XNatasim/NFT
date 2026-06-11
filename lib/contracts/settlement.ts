@@ -123,7 +123,58 @@ export const settlementAbi = [
       { name: "nonce", type: "uint256", indexed: true },
     ],
   },
+  { type: "error", name: "InvalidSignature", inputs: [] },
+  { type: "error", name: "OrderExpired", inputs: [] },
+  { type: "error", name: "NonceAlreadyUsed", inputs: [] },
+  { type: "error", name: "NotAuthorizedTaker", inputs: [] },
+  { type: "error", name: "SelfTrade", inputs: [] },
+  { type: "error", name: "EmptyOrder", inputs: [] },
+  { type: "error", name: "TooManyItems", inputs: [] },
+  { type: "error", name: "IncorrectPayment", inputs: [] },
+  { type: "error", name: "InsufficientEscrow", inputs: [] },
+  {
+    type: "error",
+    name: "NotTokenOwner",
+    inputs: [
+      { name: "nft", type: "address" },
+      { name: "tokenId", type: "uint256" },
+      { name: "expectedOwner", type: "address" },
+    ],
+  },
+  {
+    type: "error",
+    name: "MissingApproval",
+    inputs: [
+      { name: "nft", type: "address" },
+      { name: "tokenId", type: "uint256" },
+      { name: "owner", type: "address" },
+    ],
+  },
+  {
+    type: "error",
+    name: "NativeTransferFailed",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+  },
 ] as const;
+
+/** Human-readable explanations for settlement revert reasons. */
+export const settlementErrorMessages: Record<string, string> = {
+  InvalidSignature: "The order signature is invalid.",
+  OrderExpired: "This offer has expired.",
+  NonceAlreadyUsed: "This offer was already filled or cancelled on-chain.",
+  NotAuthorizedTaker: "This offer is reserved for a different wallet.",
+  SelfTrade: "You can't accept your own offer.",
+  IncorrectPayment: "Payment amount doesn't match the required total.",
+  InsufficientEscrow:
+    "The maker hasn't deposited enough MON escrow to fund their side yet.",
+  NotTokenOwner: "One of the NFTs is no longer owned by the expected wallet.",
+  MissingApproval:
+    "The maker hasn't approved the settlement contract for one of their NFTs yet. Ask them to open the offer and approve.",
+  NativeTransferFailed: "A MON transfer failed.",
+};
 
 export const erc721Abi = [
   {

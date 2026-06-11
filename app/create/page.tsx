@@ -2,7 +2,12 @@
 
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAccount, useSignTypedData } from "wagmi";
+import {
+  useAccount,
+  usePublicClient,
+  useSignTypedData,
+  useWriteContract,
+} from "wagmi";
 import { parseEther, isAddress, type Address } from "viem";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -15,6 +20,7 @@ import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
 import { useWalletNFTs } from "@/hooks/use-market";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
+import { erc721Abi } from "@/lib/contracts/settlement";
 import {
   generateNonce,
   getOrderDomain,
@@ -47,6 +53,8 @@ function CreateTradeForm() {
   const searchParams = useSearchParams();
   const { address, isConnected, chainId } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
   const { data: walletNfts, isLoading } = useWalletNFTs(address);
 
   const prefilledTaker = searchParams.get("taker") ?? "";
@@ -145,6 +153,32 @@ function CreateTradeForm() {
 
     setSubmitting(true);
     try {
+      // Make sure the settlement contract can move the offered NFTs, so the
+      // offer is instantly fillable. One approval tx per collection.
+      if (publicClient && offeredNfts.length > 0) {
+        const contracts = Array.from(
+          new Set(offeredNfts.map((n) => n.contractAddress.toLowerCase()))
+        );
+        for (const contract of contracts) {
+          const approved = await publicClient.readContract({
+            address: contract as Address,
+            abi: erc721Abi,
+            functionName: "isApprovedForAll",
+            args: [address, SETTLEMENT_CONTRACT_ADDRESS],
+          });
+          if (!approved) {
+            toast.info("Approve the collection so the trade can settle…");
+            const hash = await writeContractAsync({
+              address: contract as Address,
+              abi: erc721Abi,
+              functionName: "setApprovalForAll",
+              args: [SETTLEMENT_CONTRACT_ADDRESS, true],
+            });
+            await publicClient.waitForTransactionReceipt({ hash });
+          }
+        }
+      }
+
       const nonce = generateNonce();
       const expiry = BigInt(Math.floor(Date.now() / 1000) + expirySeconds);
       const taker = (takerAddress ? takerAddress.toLowerCase() : ZERO_ADDRESS) as Address;

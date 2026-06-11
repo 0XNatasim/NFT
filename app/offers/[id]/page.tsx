@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
-import { type Address } from "viem";
+import { BaseError, ContractFunctionRevertedError, type Address } from "viem";
 import { toast } from "sonner";
 import { ArrowLeftRight, ExternalLink, Loader2, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,11 @@ import {
   MONAD_CHAIN_ID,
   SETTLEMENT_CONTRACT_ADDRESS,
 } from "@/lib/chains/monad";
-import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
+import {
+  erc721Abi,
+  settlementAbi,
+  settlementErrorMessages,
+} from "@/lib/contracts/settlement";
 import { ZERO_ADDRESS } from "@/lib/orders/eip712";
 import { quoteFees } from "@/lib/fees";
 import { formatMon, shortAddress, timeUntil } from "@/lib/utils";
@@ -41,7 +45,9 @@ export default function OfferDetailPage({
   const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
-  const [working, setWorking] = useState<"accept" | "cancel" | null>(null);
+  const [working, setWorking] = useState<"accept" | "cancel" | "approve" | null>(
+    null
+  );
 
   if (isLoading) {
     return (
@@ -93,12 +99,12 @@ export default function OfferDetailPage({
     };
   }
 
-  async function ensureApprovals(o: TradeOffer) {
+  async function ensureApprovals(o: TradeOffer, side: "maker" | "taker") {
     if (!publicClient || !address) return;
     const contracts = Array.from(
       new Set(
         o.nfts
-          .filter((n) => n.side === "taker")
+          .filter((n) => n.side === side)
           .map((n) => n.contractAddress.toLowerCase())
       )
     );
@@ -122,6 +128,33 @@ export default function OfferDetailPage({
     }
   }
 
+  function describeRevert(err: unknown): string | null {
+    if (err instanceof BaseError) {
+      const revert = err.walk((e) => e instanceof ContractFunctionRevertedError);
+      if (revert instanceof ContractFunctionRevertedError) {
+        const name = revert.data?.errorName;
+        if (name && settlementErrorMessages[name]) {
+          return settlementErrorMessages[name];
+        }
+        if (name) return `Settlement would revert: ${name}`;
+      }
+    }
+    return null;
+  }
+
+  async function handleMakerApprove() {
+    if (!offer) return;
+    setWorking("approve");
+    try {
+      await ensureApprovals(offer, "maker");
+      toast.success("Your NFTs are approved for settlement");
+    } catch (err: any) {
+      toast.error(err?.shortMessage ?? err?.message ?? "Approval failed");
+    } finally {
+      setWorking(null);
+    }
+  }
+
   async function handleAccept() {
     if (!offer || !publicClient || !address) return;
     if (chainId !== MONAD_CHAIN_ID) {
@@ -130,7 +163,7 @@ export default function OfferDetailPage({
     }
     setWorking("accept");
     try {
-      await ensureApprovals(offer);
+      await ensureApprovals(offer, "taker");
 
       const [feeBps, flatSwapFee] = await Promise.all([
         publicClient.readContract({
@@ -145,6 +178,23 @@ export default function OfferDetailPage({
         }),
       ]);
       const quote = quoteFees(makerMon, takerMon, feeBps, flatSwapFee);
+
+      // Pre-flight simulation: surfaces the exact revert reason (missing
+      // maker approval, insufficient escrow, ...) before any gas is spent.
+      try {
+        await publicClient.simulateContract({
+          account: address,
+          address: SETTLEMENT_CONTRACT_ADDRESS,
+          abi: settlementAbi,
+          functionName: "fulfillTrade",
+          args: [buildOrder(offer), offer.signature as `0x${string}`],
+          value: quote.takerPays,
+        });
+      } catch (simErr) {
+        const reason = describeRevert(simErr);
+        if (reason) throw new Error(reason);
+        throw simErr;
+      }
 
       const hash = await writeContractAsync({
         address: SETTLEMENT_CONTRACT_ADDRESS,
@@ -265,6 +315,22 @@ export default function OfferDetailPage({
                 </>
               ) : (
                 "Accept trade"
+              )}
+            </Button>
+          )}
+          {isMaker && offer.status === "open" && makerNfts.length > 0 && (
+            <Button
+              className="w-full"
+              variant="secondary"
+              disabled={working !== null}
+              onClick={handleMakerApprove}
+            >
+              {working === "approve" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Approving…
+                </>
+              ) : (
+                "Approve my NFTs for settlement"
               )}
             </Button>
           )}
