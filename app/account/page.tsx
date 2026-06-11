@@ -30,7 +30,12 @@ export default function AccountPage() {
     );
   }
 
-  const open = offers?.filter((o) => o.status === "open") ?? [];
+  const me = address.toLowerCase();
+  const allOpen = offers?.filter((o) => o.status === "open") ?? [];
+  const incoming = allOpen.filter(
+    (o) => o.takerAddress?.toLowerCase() === me && o.makerAddress.toLowerCase() !== me
+  );
+  const open = allOpen.filter((o) => o.makerAddress.toLowerCase() === me);
   const completed = offers?.filter((o) => o.status === "completed") ?? [];
   const cancelled = offers?.filter((o) => o.status === "cancelled") ?? [];
 
@@ -51,6 +56,15 @@ export default function AccountPage() {
           />
         </div>
       </div>
+
+      {incoming.length > 0 && (
+        <Section title={`Offers for you (${incoming.length})`} loading={loadingOffers}>
+          <p className="-mt-2 mb-4 text-sm text-muted-foreground">
+            These trades are reserved for your wallet. Open one to review and accept.
+          </p>
+          <OfferGrid offers={incoming} />
+        </Section>
+      )}
 
       <Section title={`My open offers (${open.length})`} loading={loadingOffers}>
         {open.length > 0 ? (
