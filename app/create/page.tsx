@@ -292,6 +292,33 @@ function CreateTradeForm() {
                   body="We couldn't find ERC-721 NFTs in this wallet on Monad."
                 />
               )}
+              {offeredNfts.length > 0 && (
+                <div className="space-y-1.5 rounded-lg border border-border bg-secondary/30 p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Selected ({offeredNfts.length})
+                  </p>
+                  {offeredNfts.map((nft) => (
+                    <div
+                      key={nftKey(nft)}
+                      className="flex items-center justify-between gap-2 text-sm"
+                    >
+                      <span className="truncate">
+                        {nft.name ?? `#${nft.tokenId}`}{" "}
+                        <span className="text-muted-foreground">
+                          ({nft.contractAddress.slice(0, 8)}…)
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        className="shrink-0 text-xs text-red-400 hover:underline"
+                        onClick={() => toggleOffered(nft)}
+                      >
+                        remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div>
                 <label className="mb-1.5 block text-sm font-medium">
                   MON you add to your side
