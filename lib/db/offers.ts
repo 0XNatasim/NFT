@@ -81,9 +81,9 @@ export async function listOffers(filters: {
   if (filters.wallet) {
     const w = filters.wallet.toLowerCase();
     query = query.or(`maker_address.eq.${w},taker_address.eq.${w}`);
-  } else {
-    // Hide private offers from the public feed; they are only visible to
-    // the maker/taker via the wallet filter or direct link.
+  } else if (!filters.maker && !filters.taker) {
+    // Hide private offers from the public feed only; maker/taker-scoped
+    // queries are how the parties themselves find targeted offers.
     query = query.eq("is_private", false);
   }
 

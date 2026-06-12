@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { OfferAlerts } from "@/components/layout/offer-alerts";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -44,11 +45,14 @@ export function Header() {
             ))}
           </nav>
         </div>
-        <ConnectButton
-          showBalance={{ smallScreen: false, largeScreen: true }}
-          chainStatus="icon"
-          accountStatus={{ smallScreen: "avatar", largeScreen: "full" }}
-        />
+        <div className="flex items-center gap-2">
+          <OfferAlerts />
+          <ConnectButton
+            showBalance={{ smallScreen: false, largeScreen: true }}
+            chainStatus="icon"
+            accountStatus={{ smallScreen: "avatar", largeScreen: "full" }}
+          />
+        </div>
       </div>
       <nav className="flex items-center gap-1 overflow-x-auto border-t border-border px-4 py-2 md:hidden">
         {links.map((link) => (
