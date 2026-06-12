@@ -127,6 +127,27 @@ function CreateTradeForm() {
     setRequestedNfts((prev) => [...prev, nft]);
     setRequestContract("");
     setRequestTokenId("");
+    // Enrich asynchronously; update the entry in place when metadata lands.
+    fetch(
+      `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((meta) => {
+        if (!meta) return;
+        setRequestedNfts((prev) =>
+          prev.map((n) =>
+            nftKey(n) === nftKey(nft)
+              ? {
+                  ...n,
+                  name: meta.name ?? n.name,
+                  imageUrl: meta.image ?? n.imageUrl,
+                  collectionName: n.collectionName ?? meta.collectionName ?? null,
+                }
+              : n
+          )
+        );
+      })
+      .catch(() => {});
   }
 
   /** Add an NFT you own by contract + token ID, verified on-chain. */
@@ -166,6 +187,20 @@ function CreateTradeForm() {
       if (owner.toLowerCase() !== address.toLowerCase()) {
         toast.error("You don't own this token");
         return;
+      }
+      // Indexer-independent metadata: tokenURI read on-chain server-side.
+      try {
+        const res = await fetch(
+          `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`
+        );
+        if (res.ok) {
+          const meta = await res.json();
+          nft.name = meta.name ?? nft.name;
+          nft.imageUrl = meta.image ?? null;
+          nft.collectionName = nft.collectionName ?? meta.collectionName ?? null;
+        }
+      } catch {
+        // metadata is cosmetic; proceed without it
       }
       setOfferedNfts((prev) =>
         prev.length < 20 ? [...prev, nft] : prev
