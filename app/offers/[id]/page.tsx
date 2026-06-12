@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { BaseError, ContractFunctionRevertedError, type Address } from "viem";
 import { toast } from "sonner";
@@ -45,9 +46,47 @@ export default function OfferDetailPage({
   const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
-  const [working, setWorking] = useState<"accept" | "cancel" | "approve" | null>(
+  const [working, setWorking] = useState<
+    "accept" | "cancel" | "approve" | "deposit" | null
+  >(
     null
   );
+
+  // Maker-side escrow status: how much the maker still needs to deposit
+  // for this offer to be fillable. Only relevant when the maker offers MON.
+  const escrowQuery = useQuery({
+    queryKey: ["escrow-status", offer?.id, address],
+    enabled:
+      !!offer &&
+      !!publicClient &&
+      offer.status === "open" &&
+      BigInt(offer.makerMonAmount) > 0n,
+    queryFn: async () => {
+      const [balance, feeBps] = await Promise.all([
+        publicClient!.readContract({
+          address: SETTLEMENT_CONTRACT_ADDRESS,
+          abi: settlementAbi,
+          functionName: "escrowBalance",
+          args: [offer!.makerAddress as Address],
+        }),
+        publicClient!.readContract({
+          address: SETTLEMENT_CONTRACT_ADDRESS,
+          abi: settlementAbi,
+          functionName: "feeBps",
+        }),
+      ]);
+      const required = quoteFees(
+        BigInt(offer!.makerMonAmount),
+        0n,
+        feeBps
+      ).makerEscrowRequired;
+      return {
+        balance,
+        required,
+        shortfall: balance >= required ? 0n : required - balance,
+      };
+    },
+  });
 
   if (isLoading) {
     return (
@@ -146,6 +185,32 @@ export default function OfferDetailPage({
       }
     }
     return null;
+  }
+
+  async function handleDeposit() {
+    if (!offer || !publicClient || !escrowQuery.data) return;
+    if (chainId !== MONAD_CHAIN_ID) {
+      toast.error(`Switch your wallet to Monad (chain ${MONAD_CHAIN_ID}) first`);
+      return;
+    }
+    setWorking("deposit");
+    try {
+      const hash = await writeContractAsync({
+        address: SETTLEMENT_CONTRACT_ADDRESS,
+        abi: settlementAbi,
+        functionName: "deposit",
+        value: escrowQuery.data.shortfall,
+      });
+      toast.info("Depositing escrow…");
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error("Deposit reverted");
+      toast.success("Escrow funded — your offer is now fillable");
+      escrowQuery.refetch();
+    } catch (err: any) {
+      toast.error(err?.shortMessage ?? err?.message ?? "Deposit failed");
+    } finally {
+      setWorking(null);
+    }
   }
 
   async function handleMakerApprove() {
@@ -328,6 +393,32 @@ export default function OfferDetailPage({
               )}
             </Button>
           )}
+          {offer.status === "open" &&
+            escrowQuery.data &&
+            escrowQuery.data.shortfall > 0n && (
+              <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
+                <p>
+                  This offer needs {formatMon(escrowQuery.data.required)} MON in
+                  maker escrow ({formatMon(escrowQuery.data.balance)} funded).
+                  {!isMaker && " It can't be accepted until the maker deposits."}
+                </p>
+                {isMaker && (
+                  <Button
+                    className="w-full"
+                    disabled={working !== null}
+                    onClick={handleDeposit}
+                  >
+                    {working === "deposit" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Depositing…
+                      </>
+                    ) : (
+                      `Deposit ${formatMon(escrowQuery.data.shortfall)} MON escrow`
+                    )}
+                  </Button>
+                )}
+              </div>
+            )}
           {isMaker && offer.status === "open" && makerNfts.length > 0 && (
             <Button
               className="w-full"
