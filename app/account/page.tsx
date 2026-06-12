@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OfferCard } from "@/components/trade/offer-card";
 import { NFTCard } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
+import { EscrowPanel } from "@/components/wallet/escrow-panel";
 import { useOffers, useReputation, useWalletNFTs } from "@/hooks/use-market";
 import { shortAddress } from "@/lib/utils";
 
@@ -54,6 +55,9 @@ export default function AccountPage() {
                 : "—"
             }
           />
+        </div>
+        <div className="mt-4 max-w-2xl">
+          <EscrowPanel />
         </div>
       </div>
 
