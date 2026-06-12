@@ -1,10 +1,12 @@
 import type { NFTProvider } from "@/lib/nft/provider";
 import { alchemyProvider } from "@/lib/nft/providers/alchemy";
 import { reservoirProvider } from "@/lib/nft/providers/reservoir";
+import { openseaProvider } from "@/lib/nft/providers/opensea";
 
 const providers: Record<string, NFTProvider> = {
   alchemy: alchemyProvider,
   reservoir: reservoirProvider,
+  opensea: openseaProvider,
 };
 
 export function getNFTProvider(): NFTProvider {
