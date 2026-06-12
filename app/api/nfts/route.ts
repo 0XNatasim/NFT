@@ -4,6 +4,7 @@ import { getNFTProvider } from "@/lib/nft";
 import { addressSchema } from "@/lib/validation/offers";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { publicClient } from "@/lib/chains/client";
+import { getOnChainTokenMeta } from "@/lib/nft/onchain-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,23 @@ export async function GET(req: Request) {
     const valid = new Set(contracts.filter((_, i) => existence[i]));
     result.nfts = result.nfts.filter((n) =>
       valid.has(n.contractAddress.toLowerCase())
+    );
+
+    // Indexers sometimes return tokens without artwork (e.g. uncached
+    // collections). Backfill from on-chain tokenURI metadata, bounded per
+    // request; the per-token cache makes subsequent loads cheap.
+    const missing = result.nfts.filter((n) => !n.imageUrl).slice(0, 20);
+    await Promise.all(
+      missing.map(async (nft) => {
+        try {
+          const meta = await getOnChainTokenMeta(nft.contractAddress, nft.tokenId);
+          nft.imageUrl = meta.image ?? nft.imageUrl;
+          nft.name = nft.name ?? meta.name;
+          nft.collectionName = nft.collectionName ?? meta.collectionName;
+        } catch {
+          // cosmetic only
+        }
+      })
     );
 
     return NextResponse.json(result);
