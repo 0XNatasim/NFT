@@ -34,7 +34,7 @@ const querySchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const { allowed } = rateLimit(clientKey(req, "nfts"), 30, 60_000);
+  const { allowed } = await rateLimit(clientKey(req, "nfts"), 30, 60_000);
   if (!allowed) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
