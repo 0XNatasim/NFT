@@ -1,5 +1,6 @@
 import { publicClient } from "@/lib/chains/client";
 import { erc721Abi } from "@/lib/contracts/settlement";
+import { safeFetchJson } from "@/lib/nft/safe-fetch";
 
 /**
  * Indexer-independent token metadata straight from the contract:
@@ -7,6 +8,7 @@ import { erc721Abi } from "@/lib/contracts/settlement";
  */
 
 const IPFS_GATEWAY = process.env.IPFS_GATEWAY ?? "https://ipfs.io/ipfs/";
+const MAX_CACHE_ENTRIES = 5000;
 
 export interface OnChainTokenMeta {
   name: string | null;
@@ -14,7 +16,16 @@ export interface OnChainTokenMeta {
   collectionName: string | null;
 }
 
+// Bounded LRU-ish cache: oldest insertion evicted when over capacity.
 const cache = new Map<string, OnChainTokenMeta>();
+
+function cacheSet(key: string, value: OnChainTokenMeta) {
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  cache.set(key, value);
+}
 
 export function resolveUri(uri: string): string {
   if (uri.startsWith("ipfs://")) {
@@ -38,16 +49,8 @@ async function loadMetadataJson(uri: string): Promise<any | null> {
       return null;
     }
   }
-  try {
-    const res = await fetch(resolveUri(uri), {
-      signal: AbortSignal.timeout(8000),
-      headers: { accept: "application/json" },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
+  // http(s)/ipfs URIs from untrusted contracts: SSRF- and size-guarded.
+  return safeFetchJson(resolveUri(uri));
 }
 
 export async function getOnChainTokenMeta(
@@ -88,6 +91,6 @@ export async function getOnChainTokenMeta(
   }
 
   const result: OnChainTokenMeta = { name, image, collectionName };
-  cache.set(key, result);
+  cacheSet(key, result);
   return result;
 }

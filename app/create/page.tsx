@@ -270,7 +270,9 @@ function CreateTradeForm() {
             );
           }
           if (!approved) {
-            toast.info("Approve the collection so the trade can settle…");
+            toast.info(
+              "Approving this collection lets the settlement contract transfer its NFTs when a trade you signed executes (revocable anytime)."
+            );
             const hash = await writeContractAsync({
               address: contract as Address,
               abi: erc721Abi,
@@ -561,8 +563,8 @@ function CreateTradeForm() {
                   onChange={(e) => setIsPrivate(e.target.checked)}
                   className="h-4 w-4 accent-[#836EF9]"
                 />
-                Private offer — hidden from the public feed, only visible via direct
-                link and to the taker
+                Unlisted offer — hidden from the public feed, but anyone with the
+                direct link can still view its terms
               </label>
               <div>
                 <label className="mb-1.5 block text-sm font-medium">Expires in</label>

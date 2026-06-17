@@ -94,6 +94,15 @@ export async function POST(
       );
     }
 
+    // The on-chain event is authoritative; reject mismatched client claims
+    // for auditability/consistency.
+    if (parsed.data.takerAddress.toLowerCase() !== executedTaker) {
+      return NextResponse.json(
+        { error: "Submitted taker does not match the settlement event" },
+        { status: 409 }
+      );
+    }
+
     const db = getServiceClient();
     const { error } = await db
       .from("trade_offers")
