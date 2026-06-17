@@ -78,6 +78,12 @@ export async function listOffers(filters: {
   if (filters.maker) query = query.eq("maker_address", filters.maker.toLowerCase());
   if (filters.taker) query = query.eq("taker_address", filters.taker.toLowerCase());
 
+  // Open offers are only "open" until their expiry passes; an expired offer
+  // is unfillable on-chain, so never surface it as open.
+  if (filters.status === "open") {
+    query = query.gt("expiry", Math.floor(Date.now() / 1000));
+  }
+
   if (filters.wallet) {
     const w = filters.wallet.toLowerCase();
     query = query.or(`maker_address.eq.${w},taker_address.eq.${w}`);

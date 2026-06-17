@@ -15,6 +15,7 @@ import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
 import { useOffer } from "@/hooks/use-market";
 import {
+  explorerTokenUrl,
   explorerTxUrl,
   MONAD_CHAIN_ID,
   SETTLEMENT_CONTRACT_ADDRESS,
@@ -492,7 +493,19 @@ function SideCard({
         {nfts.length > 0 ? (
           <div className="grid grid-cols-2 gap-2">
             {nfts.map((nft) => (
-              <NFTCard key={nft.id} nft={nft} />
+              <div key={nft.id} className="space-y-1">
+                <NFTCard nft={nft} />
+                <a
+                  href={explorerTokenUrl(nft.contractAddress, nft.tokenId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-monad-purple"
+                  title={nft.contractAddress}
+                >
+                  {shortAddress(nft.contractAddress)}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
             ))}
           </div>
         ) : (

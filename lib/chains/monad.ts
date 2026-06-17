@@ -48,3 +48,9 @@ export function explorerTxUrl(hash: string): string {
 export function explorerAddressUrl(address: string): string {
   return `${MONAD_EXPLORER_URL}/address/${address}`;
 }
+
+export function explorerTokenUrl(contract: string, tokenId?: string): string {
+  return tokenId
+    ? `${MONAD_EXPLORER_URL}/token/${contract}?a=${tokenId}`
+    : `${MONAD_EXPLORER_URL}/token/${contract}`;
+}
