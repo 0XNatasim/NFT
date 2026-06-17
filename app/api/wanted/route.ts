@@ -3,6 +3,12 @@ import { z } from "zod";
 import { getServiceClient } from "@/lib/supabase/server";
 import { addressSchema } from "@/lib/validation/offers";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import {
+  buildCreateWantedMessage,
+  timestampFresh,
+  verifyWalletSignature,
+} from "@/lib/wanted/auth";
+import type { Hex } from "viem";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +17,8 @@ const createWantedSchema = z.object({
   lookingFor: z.string().min(2).max(280),
   offering: z.string().max(280).optional(),
   notes: z.string().max(500).optional(),
+  timestamp: z.number().int(),
+  signature: z.string().regex(/^0x[0-9a-fA-F]+$/, "Invalid signature"),
 });
 
 export async function GET() {
@@ -39,7 +47,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { allowed } = rateLimit(clientKey(req, "wanted"), 5, 60_000);
+  const { allowed } = await rateLimit(clientKey(req, "wanted"), 5, 60_000);
   if (!allowed) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
@@ -57,16 +65,37 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+  const input = parsed.data;
+
+  if (!timestampFresh(input.timestamp)) {
+    return NextResponse.json(
+      { error: "Signature timestamp expired; please retry" },
+      { status: 401 }
+    );
+  }
+
+  const message = buildCreateWantedMessage(input);
+  const validSig = await verifyWalletSignature(
+    message,
+    input.signature as Hex,
+    input.walletAddress
+  );
+  if (!validSig) {
+    return NextResponse.json(
+      { error: "Invalid wallet signature" },
+      { status: 401 }
+    );
+  }
 
   try {
     const db = getServiceClient();
     const { data, error } = await db
       .from("wanted_posts")
       .insert({
-        wallet_address: parsed.data.walletAddress.toLowerCase(),
-        looking_for: parsed.data.lookingFor,
-        offering: parsed.data.offering ?? null,
-        notes: parsed.data.notes ?? null,
+        wallet_address: input.walletAddress.toLowerCase(),
+        looking_for: input.lookingFor,
+        offering: input.offering ?? null,
+        notes: input.notes ?? null,
       })
       .select()
       .single();
