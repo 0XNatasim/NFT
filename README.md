@@ -192,12 +192,16 @@ npm run contracts:deploy  # deploy to $MONAD_RPC_URL
 2. **Database** — create a Supabase project, run the migration, copy keys.
 3. **Frontend** — deploy to Vercel; set all `NEXT_PUBLIC_*` vars plus `SUPABASE_SERVICE_ROLE_KEY`, `NFT_PROVIDER`, provider API key, `MONAD_RPC_URL`.
 
-Contract addresses (fill in after deployment):
+### Deployed contracts
 
-| Network | MonadMarketSettlement |
-| --- | --- |
-| Monad Testnet (10143) | `0x_________________` |
-| Monad Mainnet | `0x_________________` |
+| Network | MonadMarketSettlement | Status |
+| --- | --- | --- |
+| Monad Testnet (10143) | [`0xfb719aad46eaf2503f030bbd884a5ed5958eab1e`](https://testnet.monadscan.com/address/0xfb719aad46eaf2503f030bbd884a5ed5958eab1e#code) | ✅ Verified on MonadScan |
+| Monad Mainnet | `0x_________________` | — |
+
+Set `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` to the address for the network
+you are targeting. Source is verified (Solidity `0.8.28`, optimizer 1000 runs,
+EVM `cancun`, MIT) — anyone can read/verify the settlement logic on MonadScan.
 
 ### Production checklist
 
@@ -207,19 +211,19 @@ Contract addresses (fill in after deployment):
 - [ ] Supabase migration applied, RLS verified, service key only on server
 - [ ] WalletConnect project id set
 - [ ] NFT provider key set and Monad network slug confirmed
-- [ ] Rate limiting backed by Redis/Upstash if running multiple instances
+- [x] Distributed rate limiting available (set `UPSTASH_REDIS_REST_URL`/`_TOKEN`)
 - [ ] External smart-contract audit before mainnet
 
 ## Security review
 
 **Contract.** EIP-712 signatures bound to chain id + verifying contract; per-maker nonce map prevents replay and powers on-chain cancellation; expiry enforced; designated-taker enforcement; ownership *and* approval verified before any transfer; checks-effects-interactions with `nonReentrant`; fee transfer failure reverts the whole trade; custom errors throughout; `Ownable2Step` admin limited to fee config — **no admin path can move user NFTs or escrow.**
 
-**Backend.** No private keys, no backend signing, no custody. All inputs validated with Zod. Maker signatures re-verified server-side before storing orders. Complete/cancel endpoints verify on-chain state (receipt event / `nonceUsed`) instead of trusting the client. Per-IP rate limits on mutating routes. Private offers excluded from public feeds.
+**Backend.** No private keys, no backend signing, no custody. All inputs validated with Zod. Maker signatures re-verified server-side before storing orders. Complete/cancel endpoints verify on-chain state (receipt event / `nonceUsed`) instead of trusting the client. Per-IP rate limits on mutating routes (distributed via Upstash Redis when configured, in-memory otherwise). Wanted-board posts/deletes require an EIP-191 wallet signature so nobody can post or remove on another address's behalf. Private offers excluded from public feeds.
 
 **Known limitations.**
 - ERC-721 only (no ERC-1155 yet); `quantity` column is forward-compatible.
 - Maker-side MON requires an escrow deposit (native tokens can't be pulled by signature). A WMON + permit path would remove this step.
-- In-memory rate limiter is per-instance; swap for Redis in multi-instance deployments.
+- Rate limiter uses Upstash Redis when `UPSTASH_REDIS_REST_*` are set; otherwise falls back to a per-instance in-memory window (fine for single-instance/dev).
 - Off-chain order book means a cancelled-in-DB-only offer would still be technically fillable — which is why cancellation is on-chain (`cancelNonce`) and the UI enforces it.
 - The maker's NFT approvals must be in place before a taker accepts; the offer page surfaces approval failures from the contract but a pre-flight maker approval step in `/create` would be smoother UX.
 - No SIWE auth yet — the wanted board trusts the claimed wallet address (low stakes; offers themselves are signature-verified).

@@ -2,7 +2,16 @@
 
 **Target:** https://nft-vert-three.vercel.app/  
 **Audit date:** 2026-06-17  
+**Last updated:** 2026-06-17 (post-remediation)  
 **Scope:** Live deployment smoke review, Next.js API/frontend review, database schema review, settlement-contract review, test-suite review, and operational-readiness review. This is a best-effort audit from the repository and publicly reachable site, not a substitute for a formal mainnet audit with deployed-bytecode verification, private infrastructure review, and adversarial testing against production credentials.
+
+## Remediation Status (2026-06-17)
+
+Several findings from the original audit have since been fixed in the codebase. Each finding below carries a **Status** line. Summary:
+
+- **Resolved:** H-01 (wanted posts now require EIP-191 wallet signatures), H-02 (rate limiting now backs onto Upstash Redis across instances), H-03 (SSRF guard, IP/scheme/size limits, bounded cache), M-01 (security headers incl. CSP), M-03 (completion verifies submitted taker against the event), L-01 (`/api/health` checks chain/contract/DB).
+- **Deployment milestone:** the `MonadMarketSettlement` contract is deployed and **source-verified on MonadScan** at `0xfb719aad46eaf2503f030bbd884a5ed5958eab1e` (Monad Testnet, Solidity 0.8.28, optimizer 1000 runs, EVM cancun, MIT).
+- **Still open:** H-04 (image `remotePatterns` allow any HTTPS host), M-05/M-06 (ERC-721-only messaging; fee-admin centralization / uncapped flat swap fee), and the lack of a contract pause mechanism. These are tracked below.
 
 ## Executive Summary
 
@@ -14,11 +23,11 @@ However, the project is **not mainnet-ready** without addressing several high-im
 
 | Area | Rating | Notes |
 | --- | --- | --- |
-| Smart contract custody/settlement design | **Medium** | Good non-custodial design and tests, but formal audit/deployed-bytecode verification still required. |
-| API and backend | **Medium-High** | Strong validation in trade flows; weaker auth/spam controls in wanted board and operational rate limiting. |
+| Smart contract custody/settlement design | **Medium** | Good non-custodial design and tests; source now verified on MonadScan. Formal external audit still required; no pause mechanism. |
+| API and backend | **Medium** | Strong validation in trade flows; wanted board now signature-authenticated; rate limiting distributable via Upstash. |
 | Frontend and wallet UX | **Medium** | Good network guard and simulations; approvals and private-link semantics need clearer warnings. |
 | Data/privacy | **Medium** | Private offers are feed-hidden, not cryptographically private; direct-link access remains possible. |
-| Production operations | **High** | Missing security headers, distributed rate limit, monitoring/incident controls, and deployment verification checklist. |
+| Production operations | **Medium** | Security headers + CSP added, distributed rate limit available, health check present. Monitoring/alerting still to add. |
 
 ## Methodology
 
@@ -71,6 +80,8 @@ No direct critical exploit was confirmed in the reviewed source. Critical status
 
 #### H-01: Wanted-board posts are unauthenticated and can impersonate any wallet
 
+**Status: RESOLVED.** `POST /api/wanted` and `DELETE /api/wanted/[id]` now require an EIP-191 `personal_sign` signature from the claimed wallet over a fully reconstructed message that includes a timestamp (5-minute freshness window). Shared builders live in `lib/wanted/auth.ts`; the client signs via wagmi `useSignMessage`. Invalid/missing signatures return `401`.
+
 **Location:** `app/api/wanted/route.ts`
 
 The wanted-board POST endpoint accepts `walletAddress`, `lookingFor`, `offering`, and `notes`, but does not require a wallet signature. Anyone can post as any wallet address. This can be used for impersonation, phishing, reputation damage, scam listings, and spam.
@@ -80,6 +91,8 @@ The wanted-board POST endpoint accepts `walletAddress`, `lookingFor`, `offering`
 **Recommendation:** Require SIWE or EIP-191/EIP-712 signed messages for wanted posts. Verify that the submitted wallet signed the exact post payload and timestamp/nonce. Add edit/delete flows also requiring signatures.
 
 #### H-02: In-memory rate limiting is not production-grade on Vercel/serverless
+
+**Status: RESOLVED.** `lib/rate-limit.ts` now uses Upstash Redis (REST, fixed-window counter, single pipelined round trip, fails open on outage) when `UPSTASH_REDIS_REST_URL`/`_TOKEN` are configured, so limits hold across serverless instances. It falls back to the in-memory sliding window otherwise (acceptable for single-instance/dev). All call sites are awaited.
 
 **Location:** `lib/rate-limit.ts`
 
@@ -91,7 +104,9 @@ The rate limiter uses a process-local `Map`. On serverless/multi-instance deploy
 
 #### H-03: Metadata fetching can trigger arbitrary outbound requests and memory pressure
 
-**Location:** `lib/nft/onchain-metadata.ts`, `app/api/token-metadata/route.ts`, `app/api/nfts/route.ts`
+**Status: RESOLVED.** `lib/nft/safe-fetch.ts` blocks private/link-local/cloud-metadata IP ranges after DNS resolution (10/8, 127.0.0.1, 169.254/16, 172.16/12, 192.168/16, IPv6 ULA/link-local), enforces an http/https scheme allowlist, and caps responses at 512 KB via both `content-length` and a streamed byte counter. The metadata cache is LRU-bounded (5000 entries).
+
+**Location:** `lib/nft/safe-fetch.ts`, `lib/nft/onchain-metadata.ts`, `app/api/token-metadata/route.ts`, `app/api/nfts/route.ts`
 
 The server reads tokenURI from arbitrary ERC-721 contracts and fetches the resolved URI with an 8-second timeout. HTTP(S) URIs returned by contracts are fetched without an allow-list, IP-range restrictions, content-length cap, or response-size cap. Token metadata is cached in unbounded process-local maps.
 
@@ -100,6 +115,8 @@ The server reads tokenURI from arbitrary ERC-721 contracts and fetches the resol
 **Recommendation:** Add URL scheme allow-listing, block private/link-local/metadata IP ranges after DNS resolution, set strict max response size, validate content type, bound caches with LRU/TTL, and move metadata ingestion to a queue with observability and provider allow-lists.
 
 #### H-04: Broad image remote pattern allows any HTTPS host
+
+**Status: OPEN (partially mitigated).** `next.config.ts` still sets `remotePatterns: [{ protocol: "https", hostname: "**" }]`. Mitigated in practice because NFT artwork is rendered with a plain `<img>` (no Next image optimizer), so this only governs incidental `next/image` use. Recommend restricting to trusted gateways or a dedicated image proxy before mainnet.
 
 **Location:** `next.config.ts`
 
@@ -112,6 +129,8 @@ Next Image remote patterns allow `https://**`. This enables the application/imag
 ### Medium Severity
 
 #### M-01: Missing explicit HTTP security headers in Next.js config
+
+**Status: RESOLVED.** `next.config.ts` now sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, HSTS, and a `Content-Security-Policy` tuned for the wallet dApp (`frame-ancestors 'none'`, `object-src 'none'`, scoped script/style/connect/img sources).
 
 **Location:** `next.config.ts`
 
@@ -132,6 +151,8 @@ Private offers are excluded from the public feed unless queried by maker/taker f
 **Recommendation:** Rename to “unlisted targeted offer” or add wallet-authenticated access checks for private offers. If true privacy is required, do not expose full offer terms without proof of maker/taker wallet control.
 
 #### M-03: Completion endpoint ignores submitted takerAddress
+
+**Status: RESOLVED.** `complete/route.ts` now rejects with `409` when the submitted `takerAddress` does not match the taker decoded from the on-chain `TradeExecuted` event.
 
 **Location:** `app/api/offers/[id]/complete/route.ts`, `lib/validation/offers.ts`
 
@@ -175,6 +196,8 @@ The owner can update fee recipient, percentage fee up to 5%, and flat swap fee w
 
 #### L-01: Environment misconfiguration can silently degrade safety
 
+**Status: RESOLVED.** `app/api/health/route.ts` returns `503` unless the settlement address is non-zero, the configured chain ID matches the RPC, the settlement contract has deployed bytecode, and the database is reachable.
+
 The README lists many required environment variables. Production should fail closed if the settlement address is zero, RPC chain mismatches, NFT provider chain mismatches, or Supabase/service keys are missing.
 
 **Recommendation:** Add startup/config validation and an `/api/health` route that checks chain ID, settlement code existence, Supabase connectivity, and provider configuration.
@@ -206,9 +229,10 @@ NFT names, collection names, image URLs, and metadata are persisted from client 
 
 ### Residual Risks
 
+- **Deployment status:** the contract is deployed and **source-verified on MonadScan** at `0xfb719aad46eaf2503f030bbd884a5ed5958eab1e` (Monad Testnet). Owner, `feeRecipient`, `feeBps`, and `flatSwapFee` are now publicly readable and should be confirmed before mainnet.
 - Fee recipient could be a contract whose receive function reverts, causing all fee-bearing trades to fail.
-- Flat swap fee has no max cap.
-- No emergency pause exists. This reduces admin power but limits incident response.
+- Flat swap fee has no max cap (still open).
+- No emergency pause exists (still open). This reduces admin power but limits incident response.
 - Formal verification/fuzzing should be expanded for multi-item swaps, fee edge cases, malicious receivers, and non-standard NFT contracts.
 
 ## API Review Notes
@@ -242,21 +266,21 @@ NFT names, collection names, image URLs, and metadata are persisted from client 
 
 Before handling real value:
 
-- [ ] Verify deployed contract bytecode matches the audited source and constructor args.
-- [ ] Publish the settlement contract address in README and app config.
+- [x] Verify deployed contract source matches the audited source and constructor args. *(Verified on MonadScan, Testnet `0xfb719aad46eaf2503f030bbd884a5ed5958eab1e`.)*
+- [x] Publish the settlement contract address in README and app config.
 - [ ] Put contract owner behind a multisig; consider timelock for fee changes.
-- [ ] Replace in-memory rate limiting with distributed rate limiting.
-- [ ] Add wallet-signature auth to wanted posts and any user-generated claims.
-- [ ] Restrict metadata/image outbound fetches and bound caches.
-- [ ] Add HTTP security headers and CSP.
+- [x] Replace in-memory rate limiting with distributed rate limiting. *(Upstash Redis when configured.)*
+- [x] Add wallet-signature auth to wanted posts and any user-generated claims.
+- [x] Restrict metadata/image outbound fetches and bound caches. *(SSRF guard in `lib/nft/safe-fetch.ts`; image hosts still broad — see H-04.)*
+- [x] Add HTTP security headers and CSP.
 - [ ] Add monitoring/alerts for API error rates, failed settlements, rate-limit hits, and unusual metadata fetch volume.
 - [ ] Add scheduled cleanup for expired offers.
 - [ ] Run an external smart-contract audit and deployment review.
 
 ## Recommended Fix Priority
 
-1. **Immediate:** Add distributed rate limiting, wanted-post signatures, image/metadata fetch restrictions, and security headers.
-2. **Pre-mainnet:** Verify bytecode, multisig ownership, fee governance, formal contract audit, observability, and incident runbooks.
+1. **Immediate:** ✅ Done — distributed rate limiting, wanted-post signatures, metadata fetch restrictions, and security headers/CSP are all in place. Remaining quick win: tighten image `remotePatterns` (H-04).
+2. **Pre-mainnet:** Source is verified on MonadScan; still need multisig ownership, fee governance (flat-fee cap / timelock), a contract pause mechanism, a formal external contract audit, observability, and incident runbooks.
 3. **Product hardening:** Clarify private/unlisted offers, collection approval warnings, escrow dashboard, moderation, and expired-offer cleanup.
 
 ## Automated Check Results
