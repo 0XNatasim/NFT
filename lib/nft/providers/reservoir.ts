@@ -6,7 +6,7 @@ import type {
 } from "@/lib/nft/provider";
 
 const RESERVOIR_BASE_URL =
-  process.env.RESERVOIR_BASE_URL ?? "https://api-monad-testnet.reservoir.tools";
+  process.env.RESERVOIR_BASE_URL ?? "https://api-monad.reservoir.tools";
 
 async function fetchJson(path: string): Promise<any> {
   const key = process.env.RESERVOIR_API_KEY;
