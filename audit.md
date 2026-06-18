@@ -10,8 +10,9 @@
 Several findings from the original audit have since been fixed in the codebase. Each finding below carries a **Status** line. Summary:
 
 - **Resolved:** H-01 (wanted posts now require EIP-191 wallet signatures), H-02 (rate limiting now backs onto Upstash Redis across instances), H-03 (SSRF guard, IP/scheme/size limits, bounded cache), M-01 (security headers incl. CSP), M-03 (completion verifies submitted taker against the event), L-01 (`/api/health` checks chain/contract/DB).
-- **Deployment milestone:** the `MonadMarketSettlement` contract is deployed and **source-verified on MonadScan** at `0xfb719aad46eaf2503f030bbd884a5ed5958eab1e` (Monad Testnet, Solidity 0.8.28, optimizer 1000 runs, EVM cancun, MIT).
-- **Still open:** H-04 (image `remotePatterns` allow any HTTPS host), M-05/M-06 (ERC-721-only messaging; fee-admin centralization / uncapped flat swap fee), and the lack of a contract pause mechanism. These are tracked below.
+- **Contract hardening (pending redeploy):** fees are now bound into the signed EIP-712 order (owner can't change the fee on a signed order; capped at `MAX_FEE_BPS`/`MAX_FLAT_SWAP_FEE`), the flat swap fee is capped, protocol fees use **pull payments** (a reverting fee recipient can no longer brick trades), and an OpenZeppelin **`Pausable`** emergency stop guards `fulfillTrade` while leaving escrow/fee withdrawal and nonce cancellation always available. These require a **redeploy + re-verify** to take effect on-chain.
+- **Deployment milestone:** the previous `MonadMarketSettlement` build is deployed and **source-verified on MonadScan** at `0xfb719aad46eaf2503f030bbd884a5ed5958eab1e` (Monad Testnet, Solidity 0.8.28, optimizer 1000 runs, EVM cancun, MIT). The contract changes above supersede it and need a fresh deployment.
+- **Still open:** H-04 (image `remotePatterns` allow any HTTPS host), M-05 (ERC-721-only messaging), owner centralization (move to multisig), and an independent external contract audit. These are tracked below.
 
 ## Executive Summary
 
@@ -184,6 +185,9 @@ The app stores `quantity` and token standard fields, but settlement only support
 
 #### M-06: Fee-admin centralization and flat swap fee have no timelock
 
+**Status: MOSTLY RESOLVED.** Fees are now part of the signed EIP-712 order, so the owner cannot change the fee applied to an already-signed order; the flat swap fee is capped (`MAX_FLAT_SWAP_FEE`) and percentage fees remain capped (`MAX_FEE_BPS`). Remaining: move the owner to a multisig (and optionally a timelock) before mainnet.
+
+
 **Location:** `contracts/src/MonadMarketSettlement.sol`
 
 The owner can update fee recipient, percentage fee up to 5%, and flat swap fee without delay. Percentage fees are capped; flat fees are not capped.
@@ -230,9 +234,10 @@ NFT names, collection names, image URLs, and metadata are persisted from client 
 ### Residual Risks
 
 - **Deployment status:** the contract is deployed and **source-verified on MonadScan** at `0xfb719aad46eaf2503f030bbd884a5ed5958eab1e` (Monad Testnet). Owner, `feeRecipient`, `feeBps`, and `flatSwapFee` are now publicly readable and should be confirmed before mainnet.
-- Fee recipient could be a contract whose receive function reverts, causing all fee-bearing trades to fail.
-- Flat swap fee has no max cap (still open).
-- No emergency pause exists (still open). This reduces admin power but limits incident response.
+- ~~Fee recipient could be a contract whose receive function reverts, causing all fee-bearing trades to fail.~~ **Fixed:** fees use pull payments (`pendingFees`/`withdrawFees`).
+- ~~Flat swap fee has no max cap.~~ **Fixed:** capped at `MAX_FLAT_SWAP_FEE` (1 MON) and bound into the signed order.
+- ~~No emergency pause exists.~~ **Fixed:** `Pausable` guards `fulfillTrade`; user exits stay open.
+- Owner is still a single key — move to a multisig before mainnet.
 - Formal verification/fuzzing should be expanded for multi-item swaps, fee edge cases, malicious receivers, and non-standard NFT contracts.
 
 ## API Review Notes

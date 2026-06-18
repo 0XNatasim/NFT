@@ -27,6 +27,8 @@ export function mapOffer(row: any): TradeOffer {
     status: row.status,
     makerMonAmount: row.maker_mon_amount,
     takerMonAmount: row.taker_mon_amount,
+    feeBps: row.fee_bps,
+    flatFee: row.flat_fee,
     nonce: row.nonce,
     expiry: row.expiry,
     signature: row.signature,
@@ -44,7 +46,7 @@ export function mapOffer(row: any): TradeOffer {
 // as a JSON number, which loses precision beyond 2^53 (the nonce is a random
 // 256-bit value). The ::text casts override the lossy defaults from "*".
 const OFFER_SELECT =
-  "*, nonce::text, maker_mon_amount::text, taker_mon_amount::text, trade_offer_nfts(*, token_id::text)";
+  "*, nonce::text, maker_mon_amount::text, taker_mon_amount::text, flat_fee::text, trade_offer_nfts(*, token_id::text)";
 
 export async function getOfferById(id: string): Promise<TradeOffer | null> {
   const db = getServiceClient();

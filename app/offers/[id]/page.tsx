@@ -63,23 +63,17 @@ export default function OfferDetailPage({
       offer.status === "open" &&
       BigInt(offer.makerMonAmount) > 0n,
     queryFn: async () => {
-      const [balance, feeBps] = await Promise.all([
-        publicClient!.readContract({
-          address: SETTLEMENT_CONTRACT_ADDRESS,
-          abi: settlementAbi,
-          functionName: "escrowBalance",
-          args: [offer!.makerAddress as Address],
-        }),
-        publicClient!.readContract({
-          address: SETTLEMENT_CONTRACT_ADDRESS,
-          abi: settlementAbi,
-          functionName: "feeBps",
-        }),
-      ]);
+      const balance = await publicClient!.readContract({
+        address: SETTLEMENT_CONTRACT_ADDRESS,
+        abi: settlementAbi,
+        functionName: "escrowBalance",
+        args: [offer!.makerAddress as Address],
+      });
+      // The fee is baked into the signed order, so use the order's feeBps.
       const required = quoteFees(
         BigInt(offer!.makerMonAmount),
         0n,
-        feeBps
+        BigInt(offer!.feeBps)
       ).makerEscrowRequired;
       return {
         balance,
@@ -140,6 +134,8 @@ export default function OfferDetailPage({
         })),
       makerMonAmount: BigInt(o.makerMonAmount),
       takerMonAmount: BigInt(o.takerMonAmount),
+      feeBps: BigInt(o.feeBps),
+      flatFee: BigInt(o.flatFee),
       nonce: BigInt(o.nonce),
       expiry: BigInt(o.expiry),
     };
@@ -241,19 +237,13 @@ export default function OfferDetailPage({
     try {
       await ensureApprovals(offer, "taker");
 
-      const [feeBps, flatSwapFee] = await Promise.all([
-        publicClient.readContract({
-          address: SETTLEMENT_CONTRACT_ADDRESS,
-          abi: settlementAbi,
-          functionName: "feeBps",
-        }),
-        publicClient.readContract({
-          address: SETTLEMENT_CONTRACT_ADDRESS,
-          abi: settlementAbi,
-          functionName: "flatSwapFee",
-        }),
-      ]);
-      const quote = quoteFees(makerMon, takerMon, feeBps, flatSwapFee);
+      // Fees are fixed in the signed order — quote from the order itself.
+      const quote = quoteFees(
+        makerMon,
+        takerMon,
+        BigInt(offer.feeBps),
+        BigInt(offer.flatFee)
+      );
 
       // Pre-flight simulation: surfaces the exact revert reason (missing
       // maker approval, insufficient escrow, ...) before any gas is spent.
@@ -376,7 +366,12 @@ export default function OfferDetailPage({
         </div>
 
         <div className="space-y-4">
-          <FeeBreakdown makerMonAmount={makerMon} takerMonAmount={takerMon} />
+          <FeeBreakdown
+            makerMonAmount={makerMon}
+            takerMonAmount={takerMon}
+            feeBps={BigInt(offer.feeBps)}
+            flatSwapFee={BigInt(offer.flatFee)}
+          />
 
           {canAccept && (
             <Button

@@ -20,6 +20,8 @@ const validOffer = {
   takerNFTs: [],
   makerMonAmount: "0",
   takerMonAmount: "1000000000000000000",
+  feeBps: 100,
+  flatFee: "0",
   nonce: "12345",
   expiry: Math.floor(Date.now() / 1000) + 3600,
   signature: "0x" + "a".repeat(130),
@@ -99,6 +101,18 @@ describe("createOfferSchema", () => {
     expect(
       createOfferSchema.safeParse({ ...validOffer, signature: "0x1234" }).success
     ).toBe(false);
+  });
+
+  it("rejects a feeBps over the 5% cap", () => {
+    expect(
+      createOfferSchema.safeParse({ ...validOffer, feeBps: 501 }).success
+    ).toBe(false);
+  });
+
+  it("requires the fee fields", () => {
+    const { feeBps, ...withoutFee } = validOffer;
+    void feeBps;
+    expect(createOfferSchema.safeParse(withoutFee).success).toBe(false);
   });
 });
 
