@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
@@ -17,7 +18,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 ///         Maker-side MON is funded from the maker's self-managed escrow
 ///         balance (deposit/withdraw — the contract owner can never move
 ///         user funds). Taker-side MON is provided as msg.value.
-contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
+contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     // ---------------------------------------------------------------------
     // Types
     // ---------------------------------------------------------------------
@@ -34,6 +35,8 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
         NFTItem[] takerNFTs;
         uint256 makerMonAmount;
         uint256 takerMonAmount;
+        uint256 feeBps; // fee on each MON leg, agreed at signing time
+        uint256 flatFee; // flat fee (wei) for NFT-only swaps, agreed at signing
         uint256 nonce;
         uint256 expiry; // unix timestamp
     }
@@ -46,10 +49,11 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
         keccak256("NFTItem(address contractAddress,uint256 tokenId)");
 
     bytes32 public constant TRADE_ORDER_TYPEHASH = keccak256(
-        "TradeOrder(address maker,address taker,NFTItem[] makerNFTs,NFTItem[] takerNFTs,uint256 makerMonAmount,uint256 takerMonAmount,uint256 nonce,uint256 expiry)NFTItem(address contractAddress,uint256 tokenId)"
+        "TradeOrder(address maker,address taker,NFTItem[] makerNFTs,NFTItem[] takerNFTs,uint256 makerMonAmount,uint256 takerMonAmount,uint256 feeBps,uint256 flatFee,uint256 nonce,uint256 expiry)NFTItem(address contractAddress,uint256 tokenId)"
     );
 
     uint256 public constant MAX_FEE_BPS = 500; // 5%
+    uint256 public constant MAX_FLAT_SWAP_FEE = 1 ether; // hard cap on flat swap fee
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MAX_ITEMS_PER_SIDE = 20;
 
@@ -66,6 +70,11 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
 
     /// @notice Self-managed MON escrow used to fund maker-side MON legs.
     mapping(address => uint256) public escrowBalance;
+
+    /// @notice Pull-payment ledger of protocol fees owed to fee recipients.
+    ///         Accrued during settlement; claimed via withdrawFees(). Pull
+    ///         payments stop a reverting fee recipient from bricking trades.
+    mapping(address => uint256) public pendingFees;
 
     // ---------------------------------------------------------------------
     // Events
@@ -85,6 +94,7 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
     event FlatSwapFeeUpdated(uint256 previousFee, uint256 newFee);
     event EscrowDeposited(address indexed account, uint256 amount);
     event EscrowWithdrawn(address indexed account, uint256 amount);
+    event FeesWithdrawn(address indexed recipient, uint256 amount);
 
     // ---------------------------------------------------------------------
     // Errors
@@ -103,6 +113,7 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
     error MissingApproval(address nft, uint256 tokenId, address owner);
     error NativeTransferFailed(address to, uint256 amount);
     error FeeTooHigh();
+    error FlatFeeTooHigh();
     error ZeroAddress();
     error ZeroAmount();
 
@@ -139,6 +150,16 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
         _sendNative(msg.sender, amount);
     }
 
+    /// @notice Claim protocol fees accrued to the caller (the fee recipient).
+    ///         Always available, even when the contract is paused.
+    function withdrawFees() external nonReentrant {
+        uint256 amount = pendingFees[msg.sender];
+        if (amount == 0) revert ZeroAmount();
+        pendingFees[msg.sender] = 0;
+        emit FeesWithdrawn(msg.sender, amount);
+        _sendNative(msg.sender, amount);
+    }
+
     // ---------------------------------------------------------------------
     // Settlement
     // ---------------------------------------------------------------------
@@ -150,6 +171,7 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
         external
         payable
         nonReentrant
+        whenNotPaused
     {
         // ----- Checks -----
         if (order.makerNFTs.length == 0 && order.makerMonAmount == 0) revert EmptyOrder();
@@ -162,14 +184,20 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
         if (order.maker == msg.sender) revert SelfTrade();
         if (nonceUsed[order.maker][order.nonce]) revert NonceAlreadyUsed();
 
+        // The fee both parties agreed to is baked into the signed order, so the
+        // owner can never change the fee on an order after it is signed. We only
+        // enforce that it stays within the protocol's hard caps.
+        if (order.feeBps > MAX_FEE_BPS) revert FeeTooHigh();
+        if (order.flatFee > MAX_FLAT_SWAP_FEE) revert FlatFeeTooHigh();
+
         bytes32 orderHash = hashOrder(order);
         address signer = ECDSA.recover(orderHash, signature);
         if (signer != order.maker) revert InvalidSignature();
 
-        // Fees: feeBps on each MON leg; flat fee when no MON moves at all.
-        uint256 makerLegFee = (order.makerMonAmount * feeBps) / BPS_DENOMINATOR;
-        uint256 takerLegFee = (order.takerMonAmount * feeBps) / BPS_DENOMINATOR;
-        uint256 flatFee = (order.makerMonAmount == 0 && order.takerMonAmount == 0) ? flatSwapFee : 0;
+        // Fees: order.feeBps on each MON leg; flat fee when no MON moves at all.
+        uint256 makerLegFee = (order.makerMonAmount * order.feeBps) / BPS_DENOMINATOR;
+        uint256 takerLegFee = (order.takerMonAmount * order.feeBps) / BPS_DENOMINATOR;
+        uint256 flatFee = (order.makerMonAmount == 0 && order.takerMonAmount == 0) ? order.flatFee : 0;
         uint256 totalFee = makerLegFee + takerLegFee + flatFee;
 
         // Taker funds their MON leg + taker-side fee + flat fee in msg.value.
@@ -185,6 +213,9 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
         // ----- Effects -----
         nonceUsed[order.maker][order.nonce] = true;
         escrowBalance[order.maker] -= makerCost;
+        // Fees accrue to the recipient's pull-payment balance instead of being
+        // pushed here, so a reverting fee recipient can never brick a trade.
+        if (totalFee > 0) pendingFees[feeRecipient] += totalFee;
 
         // ----- Interactions -----
         _transferNFTs(order.makerNFTs, order.maker, msg.sender);
@@ -192,7 +223,6 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
 
         if (order.takerMonAmount > 0) _sendNative(order.maker, order.takerMonAmount);
         if (order.makerMonAmount > 0) _sendNative(msg.sender, order.makerMonAmount);
-        if (totalFee > 0) _sendNative(feeRecipient, totalFee);
 
         emit TradeExecuted(
             orderHash,
@@ -235,6 +265,8 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
                     _hashNFTItems(order.takerNFTs),
                     order.makerMonAmount,
                     order.takerMonAmount,
+                    order.feeBps,
+                    order.flatFee,
                     order.nonce,
                     order.expiry
                 )
@@ -274,8 +306,20 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Ownable2Step {
     }
 
     function setFlatSwapFee(uint256 newFlatFee) external onlyOwner {
+        if (newFlatFee > MAX_FLAT_SWAP_FEE) revert FlatFeeTooHigh();
         emit FlatSwapFeeUpdated(flatSwapFee, newFlatFee);
         flatSwapFee = newFlatFee;
+    }
+
+    /// @notice Emergency stop for new settlements. Escrow withdrawal, fee
+    ///         withdrawal, and nonce cancellation stay available while paused
+    ///         so users can always exit.
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     // ---------------------------------------------------------------------

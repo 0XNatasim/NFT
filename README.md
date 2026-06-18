@@ -203,6 +203,11 @@ Set `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` to the address for the network
 you are targeting. Source is verified (Solidity `0.8.28`, optimizer 1000 runs,
 EVM `cancun`, MIT) — anyone can read/verify the settlement logic on MonadScan.
 
+> ⚠️ The contract has since gained order-bound fees, a flat-fee cap, pull-payment
+> fees, and a `Pausable` stop. These change the `TradeOrder` shape, so the
+> address above must be **redeployed and re-verified**, and the new address put
+> in `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS`, before the updated app is used.
+
 ### Production checklist
 
 - [ ] Contract deployed, owner is a multisig, fee recipient set
@@ -216,7 +221,7 @@ EVM `cancun`, MIT) — anyone can read/verify the settlement logic on MonadScan.
 
 ## Security review
 
-**Contract.** EIP-712 signatures bound to chain id + verifying contract; per-maker nonce map prevents replay and powers on-chain cancellation; expiry enforced; designated-taker enforcement; ownership *and* approval verified before any transfer; checks-effects-interactions with `nonReentrant`; fee transfer failure reverts the whole trade; custom errors throughout; `Ownable2Step` admin limited to fee config — **no admin path can move user NFTs or escrow.**
+**Contract.** EIP-712 signatures bound to chain id + verifying contract; **fees (bps + flat) are baked into the signed order** so they can't change after signing, capped by `MAX_FEE_BPS`/`MAX_FLAT_SWAP_FEE`; per-maker nonce map prevents replay and powers on-chain cancellation; expiry enforced; designated-taker enforcement; ownership *and* approval verified before any transfer; checks-effects-interactions with `nonReentrant`; **protocol fees use pull payments** (`withdrawFees`) so a reverting fee recipient can't brick trades; **`Pausable`** emergency stop on settlement (escrow/fee withdrawal and cancellation stay open); custom errors throughout; `Ownable2Step` admin limited to fee config — **no admin path can move user NFTs or escrow.**
 
 **Backend.** No private keys, no backend signing, no custody. All inputs validated with Zod. Maker signatures re-verified server-side before storing orders. Complete/cancel endpoints verify on-chain state (receipt event / `nonceUsed`) instead of trusting the client. Per-IP rate limits on mutating routes (distributed via Upstash Redis when configured, in-memory otherwise). Wanted-board posts/deletes require an EIP-191 wallet signature so nobody can post or remove on another address's behalf. Private offers excluded from public feeds.
 

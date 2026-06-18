@@ -55,6 +55,8 @@ contract MonadMarketSettlementTest is Test {
             takerNFTs: takerItems,
             makerMonAmount: 0,
             takerMonAmount: 0,
+            feeBps: 100,
+            flatFee: 0,
             nonce: 1,
             expiry: block.timestamp + 1 days
         });
@@ -107,7 +109,9 @@ contract MonadMarketSettlementTest is Test {
 
         assertEq(nftA.ownerOf(1), taker);
         assertEq(maker.balance, makerBefore + 10 ether);
-        assertEq(feeRecipient.balance, fee);
+        // Fees accrue to the pull-payment ledger, not pushed to the recipient.
+        assertEq(feeRecipient.balance, 0);
+        assertEq(settlement.pendingFees(feeRecipient), fee);
     }
 
     function test_MonForNft_MakerPaysFromEscrow() public {
@@ -126,7 +130,7 @@ contract MonadMarketSettlementTest is Test {
 
         assertEq(nftB.ownerOf(2), maker);
         assertEq(taker.balance, takerBefore + 5 ether);
-        assertEq(feeRecipient.balance, fee);
+        assertEq(settlement.pendingFees(feeRecipient), fee);
         assertEq(settlement.escrowBalance(maker), 0);
     }
 
@@ -144,7 +148,7 @@ contract MonadMarketSettlementTest is Test {
 
         assertEq(nftA.ownerOf(1), taker);
         assertEq(nftB.ownerOf(2), maker);
-        assertEq(feeRecipient.balance, fee);
+        assertEq(settlement.pendingFees(feeRecipient), fee);
     }
 
     // ----- fee math -----
@@ -158,10 +162,9 @@ contract MonadMarketSettlementTest is Test {
     }
 
     function test_FlatSwapFeeOnPureNftSwap() public {
-        vm.prank(owner);
-        settlement.setFlatSwapFee(0.05 ether);
-
+        // The flat fee is part of the signed order now, not contract storage.
         MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.flatFee = 0.05 ether;
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
@@ -170,17 +173,79 @@ contract MonadMarketSettlementTest is Test {
 
         vm.prank(taker);
         settlement.fulfillTrade{value: 0.05 ether}(order, sig);
-        assertEq(feeRecipient.balance, 0.05 ether);
+        assertEq(settlement.pendingFees(feeRecipient), 0.05 ether);
     }
 
-    function test_QuoteFees() public view {
-        (uint256 makerFee, uint256 takerFee, uint256 flat) = settlement.quoteFees(10 ether, 4 ether);
-        assertEq(makerFee, 0.1 ether);
-        assertEq(takerFee, 0.04 ether);
-        assertEq(flat, 0);
+    // ----- fee bound to the signed order -----
+
+    function test_OrderFeeOverridesStorageFee() public {
+        // Owner cranks storage fee to the max, but the order was signed at 1%.
+        vm.prank(owner);
+        settlement.setFeeBps(500);
+
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerMonAmount = 10 ether;
+        bytes memory sig = _sign(order, makerKey);
+
+        uint256 fee = (10 ether * 100) / 10_000; // 1%, from the order
+        vm.prank(taker);
+        settlement.fulfillTrade{value: 10 ether + fee}(order, sig);
+        assertEq(settlement.pendingFees(feeRecipient), fee);
     }
 
-    function test_FeeTransferRevertsWholeTrade() public {
+    function test_RevertOrderFeeBpsTooHigh() public {
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.feeBps = 501;
+        bytes memory sig = _sign(order, makerKey);
+
+        vm.prank(taker);
+        vm.expectRevert(MonadMarketSettlement.FeeTooHigh.selector);
+        settlement.fulfillTrade(order, sig);
+    }
+
+    function test_RevertOrderFlatFeeTooHigh() public {
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.flatFee = 1 ether + 1;
+        bytes memory sig = _sign(order, makerKey);
+
+        vm.prank(taker);
+        vm.expectRevert(MonadMarketSettlement.FlatFeeTooHigh.selector);
+        settlement.fulfillTrade(order, sig);
+    }
+
+    function test_RevertSetFlatSwapFeeTooHigh() public {
+        vm.prank(owner);
+        vm.expectRevert(MonadMarketSettlement.FlatFeeTooHigh.selector);
+        settlement.setFlatSwapFee(1 ether + 1);
+    }
+
+    // ----- pull-payment fee withdrawal -----
+
+    function test_WithdrawFees() public {
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerMonAmount = 10 ether;
+        bytes memory sig = _sign(order, makerKey);
+
+        uint256 fee = (10 ether * 100) / 10_000;
+        vm.prank(taker);
+        settlement.fulfillTrade{value: 10 ether + fee}(order, sig);
+
+        uint256 before = feeRecipient.balance;
+        vm.prank(feeRecipient);
+        settlement.withdrawFees();
+        assertEq(feeRecipient.balance, before + fee);
+        assertEq(settlement.pendingFees(feeRecipient), 0);
+    }
+
+    function test_RevertWithdrawFeesWhenNothingOwed() public {
+        vm.prank(feeRecipient);
+        vm.expectRevert(MonadMarketSettlement.ZeroAmount.selector);
+        settlement.withdrawFees();
+    }
+
+    function test_RevertingFeeRecipientDoesNotBrickTrade() public {
         RejectEther badRecipient = new RejectEther();
         vm.prank(owner);
         settlement.setFeeRecipient(address(badRecipient));
@@ -190,16 +255,70 @@ contract MonadMarketSettlementTest is Test {
         order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
         bytes memory sig = _sign(order, makerKey);
 
+        // Trade now succeeds; fee just accrues to the (broken) recipient.
         vm.prank(taker);
+        settlement.fulfillTrade{value: 1.01 ether}(order, sig);
+        assertEq(nftA.ownerOf(1), taker);
+        assertEq(settlement.pendingFees(address(badRecipient)), 0.01 ether);
+
+        // The broken recipient can't pull its fees, but trading is unaffected.
+        vm.prank(address(badRecipient));
         vm.expectRevert(
             abi.encodeWithSelector(
                 MonadMarketSettlement.NativeTransferFailed.selector, address(badRecipient), 0.01 ether
             )
         );
-        settlement.fulfillTrade{value: 1.01 ether}(order, sig);
+        settlement.withdrawFees();
+    }
 
-        // atomicity: nothing moved
-        assertEq(nftA.ownerOf(1), maker);
+    // ----- pause -----
+
+    function test_PauseBlocksFulfill() public {
+        vm.prank(owner);
+        settlement.pause();
+
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        bytes memory sig = _sign(order, makerKey);
+
+        vm.prank(taker);
+        vm.expectRevert(); // Pausable: EnforcedPause()
+        settlement.fulfillTrade(order, sig);
+
+        vm.prank(owner);
+        settlement.unpause();
+        vm.prank(taker);
+        settlement.fulfillTrade(order, sig);
+        assertEq(nftA.ownerOf(1), taker);
+    }
+
+    function test_PauseDoesNotBlockExit() public {
+        vm.prank(maker);
+        settlement.deposit{value: 1 ether}();
+
+        vm.prank(owner);
+        settlement.pause();
+
+        // Escrow withdrawal and nonce cancellation stay available while paused.
+        vm.prank(maker);
+        settlement.withdraw(1 ether);
+        assertEq(settlement.escrowBalance(maker), 0);
+
+        vm.prank(maker);
+        settlement.cancelNonce(99);
+        assertTrue(settlement.nonceUsed(maker, 99));
+    }
+
+    function test_RevertNonOwnerPause() public {
+        vm.prank(taker);
+        vm.expectRevert();
+        settlement.pause();
+    }
+
+    function test_QuoteFees() public view {
+        (uint256 makerFee, uint256 takerFee, uint256 flat) = settlement.quoteFees(10 ether, 4 ether);
+        assertEq(makerFee, 0.1 ether);
+        assertEq(takerFee, 0.04 ether);
+        assertEq(flat, 0);
     }
 
     // ----- signature / auth failures -----

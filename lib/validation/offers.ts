@@ -44,6 +44,8 @@ export const createOfferSchema = z
     takerNFTs: z.array(nftItemSchema).max(20),
     makerMonAmount: uint256Schema,
     takerMonAmount: uint256Schema,
+    feeBps: z.number().int().min(0).max(500),
+    flatFee: uint256Schema,
     nonce: uint256Schema,
     expiry: z.number().int().positive(),
     signature: hexSchema.min(132).max(132),

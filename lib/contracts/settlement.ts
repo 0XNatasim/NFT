@@ -29,6 +29,8 @@ export const settlementAbi = [
           },
           { name: "makerMonAmount", type: "uint256" },
           { name: "takerMonAmount", type: "uint256" },
+          { name: "feeBps", type: "uint256" },
+          { name: "flatFee", type: "uint256" },
           { name: "nonce", type: "uint256" },
           { name: "expiry", type: "uint256" },
         ],
@@ -91,6 +93,20 @@ export const settlementAbi = [
   },
   {
     type: "function",
+    name: "pendingFees",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "withdrawFees",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: "function",
     name: "quoteFees",
     stateMutability: "view",
     inputs: [
@@ -124,6 +140,9 @@ export const settlementAbi = [
     ],
   },
   { type: "error", name: "InvalidSignature", inputs: [] },
+  { type: "error", name: "EnforcedPause", inputs: [] },
+  { type: "error", name: "FeeTooHigh", inputs: [] },
+  { type: "error", name: "FlatFeeTooHigh", inputs: [] },
   { type: "error", name: "OrderExpired", inputs: [] },
   { type: "error", name: "NonceAlreadyUsed", inputs: [] },
   { type: "error", name: "NotAuthorizedTaker", inputs: [] },
@@ -163,6 +182,9 @@ export const settlementAbi = [
 /** Human-readable explanations for settlement revert reasons. */
 export const settlementErrorMessages: Record<string, string> = {
   InvalidSignature: "The order signature is invalid.",
+  EnforcedPause: "Trading is temporarily paused.",
+  FeeTooHigh: "The order's protocol fee exceeds the allowed maximum.",
+  FlatFeeTooHigh: "The order's flat swap fee exceeds the allowed maximum.",
   OrderExpired: "This offer has expired.",
   NonceAlreadyUsed: "This offer was already filled or cancelled on-chain.",
   NotAuthorizedTaker: "This offer is reserved for a different wallet.",

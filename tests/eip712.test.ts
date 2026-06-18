@@ -24,6 +24,8 @@ const order: TradeOrder = {
   takerNFTs: [],
   makerMonAmount: 0n,
   takerMonAmount: parseEther("1"),
+  feeBps: 100n,
+  flatFee: 0n,
   nonce: 42n,
   expiry: 2000000000n,
 };

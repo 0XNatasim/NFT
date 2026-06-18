@@ -20,7 +20,7 @@ import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
 import { useWalletNFTs } from "@/hooks/use-market";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
-import { erc721Abi } from "@/lib/contracts/settlement";
+import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
 import {
@@ -284,6 +284,25 @@ function CreateTradeForm() {
         }
       }
 
+      // Bake the current protocol fee into the order so both parties sign the
+      // exact fee — the owner can't change it on a signed order afterwards.
+      let feeBps = 100n;
+      let flatFee = 0n;
+      if (publicClient) {
+        [feeBps, flatFee] = await Promise.all([
+          publicClient.readContract({
+            address: SETTLEMENT_CONTRACT_ADDRESS,
+            abi: settlementAbi,
+            functionName: "feeBps",
+          }),
+          publicClient.readContract({
+            address: SETTLEMENT_CONTRACT_ADDRESS,
+            abi: settlementAbi,
+            functionName: "flatSwapFee",
+          }),
+        ]);
+      }
+
       const nonce = generateNonce();
       const expiry = BigInt(Math.floor(Date.now() / 1000) + expirySeconds);
       const taker = (takerAddress ? takerAddress.toLowerCase() : ZERO_ADDRESS) as Address;
@@ -301,6 +320,8 @@ function CreateTradeForm() {
         })),
         makerMonAmount: makerMonWei,
         takerMonAmount: takerMonWei,
+        feeBps,
+        flatFee,
         nonce,
         expiry,
       };
@@ -323,6 +344,8 @@ function CreateTradeForm() {
           takerNFTs: requestedNfts.map((n) => ({ ...n })),
           makerMonAmount: makerMonWei.toString(),
           takerMonAmount: takerMonWei.toString(),
+          feeBps: Number(feeBps),
+          flatFee: flatFee.toString(),
           nonce: nonce.toString(),
           expiry: Number(expiry),
           signature,
