@@ -10,7 +10,19 @@ import {
 } from "wagmi";
 import { parseEther, isAddress, type Address } from "viem";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Coins,
+  Globe,
+  Loader2,
+  Lock,
+  ShoppingCart,
+  Sparkles,
+  Tag,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,6 +41,7 @@ import {
   ORDER_TYPES,
   ZERO_ADDRESS,
 } from "@/lib/orders/eip712";
+import { formatMon } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
 const EXPIRY_OPTIONS = [
@@ -36,6 +49,71 @@ const EXPIRY_OPTIONS = [
   { label: "24 hours", seconds: 86400 },
   { label: "7 days", seconds: 604800 },
   { label: "30 days", seconds: 2592000 },
+];
+
+/** What the maker wants to do — drives which inputs appear. */
+type Intent = "sell" | "buy" | "swap" | "custom";
+
+const INTENTS: {
+  id: Intent;
+  title: string;
+  blurb: string;
+  icon: typeof Tag;
+}[] = [
+  {
+    id: "sell",
+    title: "Sell an NFT for MON",
+    blurb: "List one or more of your NFTs and ask for MON in return.",
+    icon: Tag,
+  },
+  {
+    id: "buy",
+    title: "Buy an NFT with MON",
+    blurb: "Offer MON for a specific NFT you want from someone else.",
+    icon: ShoppingCart,
+  },
+  {
+    id: "swap",
+    title: "Swap NFT for NFT",
+    blurb: "Trade your NFT(s) directly for another NFT — no MON.",
+    icon: Sparkles,
+  },
+  {
+    id: "custom",
+    title: "Custom trade",
+    blurb: "Mix NFTs and MON on either side. Full control.",
+    icon: Coins,
+  },
+];
+
+type Visibility = "public" | "targeted" | "private";
+
+const VISIBILITIES: {
+  id: Visibility;
+  title: string;
+  blurb: string;
+  icon: typeof Globe;
+}[] = [
+  {
+    id: "public",
+    title: "Public — anyone can accept",
+    blurb: "Listed on the open feed. The first matching wallet can fill it.",
+    icon: Globe,
+  },
+  {
+    id: "targeted",
+    title: "Reserved for one wallet",
+    blurb:
+      "Still listed publicly, but only the wallet you name is allowed to accept.",
+    icon: Users,
+  },
+  {
+    id: "private",
+    title: "Private / unlisted",
+    blurb:
+      "Hidden from the public feed. Only the wallet you name (with the link) can see and accept it.",
+    icon: Lock,
+  },
 ];
 
 function nftKey(n: { contractAddress: string; tokenId: string }) {
@@ -60,15 +138,22 @@ function CreateTradeForm() {
   const { data: walletNfts, isLoading } = useWalletNFTs(address);
 
   const prefilledTaker = searchParams.get("taker") ?? "";
+  const prefilledPrivate =
+    searchParams.get("private") === "1" && isAddress(prefilledTaker);
+
+  // Wizard state
+  const [step, setStep] = useState(0);
+  const [intent, setIntent] = useState<Intent | null>(null);
+  const [visibility, setVisibility] = useState<Visibility>(
+    prefilledPrivate ? "private" : isAddress(prefilledTaker) ? "targeted" : "public"
+  );
+
   const [offeredNfts, setOfferedNfts] = useState<NFTAsset[]>([]);
   const [requestedNfts, setRequestedNfts] = useState<NFTAsset[]>([]);
   const [offeredMon, setOfferedMon] = useState("");
   const [requestedMon, setRequestedMon] = useState("");
   const [takerAddress, setTakerAddress] = useState(
     isAddress(prefilledTaker) ? prefilledTaker : ""
-  );
-  const [isPrivate, setIsPrivate] = useState(
-    searchParams.get("private") === "1" && isAddress(prefilledTaker)
   );
   const [expirySeconds, setExpirySeconds] = useState(86400);
   const [requestContract, setRequestContract] = useState("");
@@ -92,6 +177,17 @@ function CreateTradeForm() {
       return 0n;
     }
   }, [requestedMon]);
+
+  // Which inputs are relevant for the chosen intent.
+  const offersNft = intent === "sell" || intent === "swap" || intent === "custom";
+  const offersMon = intent === "buy" || intent === "custom";
+  const requestsNft = intent === "buy" || intent === "swap" || intent === "custom";
+  const requestsMon = intent === "sell" || intent === "custom";
+
+  const hasOfferedSomething = offeredNfts.length > 0 || makerMonWei > 0n;
+  const hasRequestedSomething = requestedNfts.length > 0 || takerMonWei > 0n;
+  const isPrivate = visibility === "private";
+  const needsTaker = visibility === "targeted" || visibility === "private";
 
   function toggleOffered(nft: NFTAsset) {
     setOfferedNfts((prev) =>
@@ -188,7 +284,6 @@ function CreateTradeForm() {
         toast.error("You don't own this token");
         return;
       }
-      // Indexer-independent metadata: tokenURI read on-chain server-side.
       try {
         const res = await fetch(
           `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`
@@ -202,9 +297,7 @@ function CreateTradeForm() {
       } catch {
         // metadata is cosmetic; proceed without it
       }
-      setOfferedNfts((prev) =>
-        prev.length < 20 ? [...prev, nft] : prev
-      );
+      setOfferedNfts((prev) => (prev.length < 20 ? [...prev, nft] : prev));
       setOfferTokenId("");
       toast.success(`Added ${nft.collectionName ?? "NFT"} #${nft.tokenId}`);
     } catch {
@@ -216,31 +309,52 @@ function CreateTradeForm() {
     }
   }
 
+  function goNext() {
+    if (step === 0) {
+      if (!intent) {
+        toast.error("Pick what you'd like to do");
+        return;
+      }
+    }
+    if (step === 1) {
+      if (!hasOfferedSomething) {
+        toast.error("Add something to your side of the trade");
+        return;
+      }
+      if (!hasRequestedSomething) {
+        toast.error("Add what you want in return");
+        return;
+      }
+    }
+    if (step === 2) {
+      if (needsTaker && !isAddress(takerAddress)) {
+        toast.error("Enter a valid wallet address for this offer");
+        return;
+      }
+    }
+    setStep((s) => Math.min(s + 1, 3));
+  }
+
+  function goBack() {
+    setStep((s) => Math.max(s - 1, 0));
+  }
+
   async function handleSign() {
     if (!address) return;
     if (chainId !== MONAD_CHAIN_ID) {
       toast.error("Switch to the Monad network first");
       return;
     }
-    if (offeredNfts.length === 0 && makerMonWei === 0n) {
-      toast.error("Offer at least one NFT or some MON");
+    if (!hasOfferedSomething || !hasRequestedSomething) {
+      toast.error("Your trade is incomplete");
       return;
     }
-    if (requestedNfts.length === 0 && takerMonWei === 0n) {
-      toast.error("Request at least one NFT or some MON");
-      return;
-    }
-    if (isPrivate && !isAddress(takerAddress)) {
-      toast.error("Private offers need a valid taker wallet address");
-      return;
-    }
-    if (takerAddress && !isAddress(takerAddress)) {
-      toast.error("Taker address is invalid");
+    if (needsTaker && !isAddress(takerAddress)) {
+      toast.error("This offer needs a valid taker wallet address");
       return;
     }
     if (
-      SETTLEMENT_CONTRACT_ADDRESS ===
-      "0x0000000000000000000000000000000000000000"
+      SETTLEMENT_CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000"
     ) {
       toast.error("Settlement contract is not configured");
       return;
@@ -248,8 +362,8 @@ function CreateTradeForm() {
 
     setSubmitting(true);
     try {
-      // Make sure the settlement contract can move the offered NFTs, so the
-      // offer is instantly fillable. One approval tx per collection.
+      // Approve the settlement contract for the offered NFTs so the order is
+      // instantly fillable. One approval tx per collection.
       if (publicClient && offeredNfts.length > 0) {
         const contracts = Array.from(
           new Set(offeredNfts.map((n) => n.contractAddress.toLowerCase()))
@@ -305,7 +419,8 @@ function CreateTradeForm() {
 
       const nonce = generateNonce();
       const expiry = BigInt(Math.floor(Date.now() / 1000) + expirySeconds);
-      const taker = (takerAddress ? takerAddress.toLowerCase() : ZERO_ADDRESS) as Address;
+      const effectiveTaker = needsTaker ? takerAddress.toLowerCase() : "";
+      const taker = (effectiveTaker || ZERO_ADDRESS) as Address;
 
       const order = {
         maker: address.toLowerCase() as Address,
@@ -339,7 +454,7 @@ function CreateTradeForm() {
         body: JSON.stringify({
           chainId: MONAD_CHAIN_ID,
           makerAddress: address,
-          takerAddress: takerAddress || null,
+          takerAddress: effectiveTaker || null,
           makerNFTs: offeredNfts.map((n) => ({ ...n })),
           takerNFTs: requestedNfts.map((n) => ({ ...n })),
           makerMonAmount: makerMonWei.toString(),
@@ -375,19 +490,277 @@ function CreateTradeForm() {
     );
   }
 
+  const steps = ["What", "Details", "Visibility", "Review"];
+
   return (
-    <div className="container mx-auto px-4 py-10">
-      <h1 className="mb-8 text-3xl font-bold">Create a trade</h1>
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <div className="space-y-6">
-          {/* You offer */}
-          <Card>
-            <CardHeader>
-              <CardTitle>You offer</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+    <div className="container mx-auto max-w-5xl px-4 py-10">
+      <h1 className="mb-6 text-3xl font-bold">Create a trade</h1>
+
+      <Stepper steps={steps} current={step} onJump={(i) => i < step && setStep(i)} />
+
+      <div className="mt-8">
+        {step === 0 && (
+          <StepIntent intent={intent} onPick={setIntent} />
+        )}
+
+        {step === 1 && (
+          <StepDetails
+            intent={intent!}
+            offersNft={offersNft}
+            offersMon={offersMon}
+            requestsNft={requestsNft}
+            requestsMon={requestsMon}
+            isLoading={isLoading}
+            walletNfts={walletNfts}
+            offeredNfts={offeredNfts}
+            requestedNfts={requestedNfts}
+            toggleOffered={toggleOffered}
+            offeredMon={offeredMon}
+            setOfferedMon={setOfferedMon}
+            requestedMon={requestedMon}
+            setRequestedMon={setRequestedMon}
+            makerMonWei={makerMonWei}
+            requestContract={requestContract}
+            setRequestContract={setRequestContract}
+            requestTokenId={requestTokenId}
+            setRequestTokenId={setRequestTokenId}
+            addRequestedNft={addRequestedNft}
+            setRequestedNfts={setRequestedNfts}
+            offerContract={offerContract}
+            setOfferContract={setOfferContract}
+            offerTokenId={offerTokenId}
+            setOfferTokenId={setOfferTokenId}
+            addingOffered={addingOffered}
+            addOfferedNftManually={addOfferedNftManually}
+          />
+        )}
+
+        {step === 2 && (
+          <StepVisibility
+            visibility={visibility}
+            onPick={setVisibility}
+            takerAddress={takerAddress}
+            setTakerAddress={setTakerAddress}
+            needsTaker={needsTaker}
+            expirySeconds={expirySeconds}
+            setExpirySeconds={setExpirySeconds}
+          />
+        )}
+
+        {step === 3 && (
+          <StepReview
+            intent={intent!}
+            offeredNfts={offeredNfts}
+            requestedNfts={requestedNfts}
+            makerMonWei={makerMonWei}
+            takerMonWei={takerMonWei}
+            visibility={visibility}
+            takerAddress={takerAddress}
+            expirySeconds={expirySeconds}
+          />
+        )}
+      </div>
+
+      {/* Nav */}
+      <div className="mt-8 flex items-center justify-between">
+        <Button
+          variant="ghost"
+          onClick={goBack}
+          disabled={step === 0 || submitting}
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </Button>
+        {step < 3 ? (
+          <Button onClick={goNext}>
+            Next <ArrowRight className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button size="lg" disabled={submitting} onClick={handleSign}>
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Waiting for signature…
+              </>
+            ) : (
+              "Sign order (free, no gas)"
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Steps                                                              */
+/* ------------------------------------------------------------------ */
+
+function Stepper({
+  steps,
+  current,
+  onJump,
+}: {
+  steps: string[];
+  current: number;
+  onJump: (i: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {steps.map((label, i) => {
+        const done = i < current;
+        const active = i === current;
+        return (
+          <div key={label} className="flex flex-1 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onJump(i)}
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium transition-colors ${
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : done
+                    ? "bg-primary/20 text-primary"
+                    : "bg-secondary text-muted-foreground"
+              }`}
+            >
+              {done ? <Check className="h-4 w-4" /> : i + 1}
+            </button>
+            <span
+              className={`hidden text-sm sm:inline ${
+                active ? "font-medium" : "text-muted-foreground"
+              }`}
+            >
+              {label}
+            </span>
+            {i < steps.length - 1 && (
+              <div className="mx-1 h-px flex-1 bg-border" />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StepIntent({
+  intent,
+  onPick,
+}: {
+  intent: Intent | null;
+  onPick: (i: Intent) => void;
+}) {
+  return (
+    <div>
+      <h2 className="mb-1 text-xl font-semibold">What do you want to do?</h2>
+      <p className="mb-6 text-sm text-muted-foreground">
+        Pick the kind of trade — we&apos;ll only ask for what that needs.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {INTENTS.map((opt) => {
+          const Icon = opt.icon;
+          const selected = intent === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => onPick(opt.id)}
+              className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
+                selected
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "border-border hover:border-primary/50 hover:bg-secondary/40"
+              }`}
+            >
+              <span
+                className={`mt-0.5 rounded-lg p-2 ${
+                  selected ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block font-medium">{opt.title}</span>
+                <span className="block text-sm text-muted-foreground">
+                  {opt.blurb}
+                </span>
+              </span>
+              {selected && <Check className="ml-auto h-5 w-5 text-primary" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StepDetails(props: {
+  intent: Intent;
+  offersNft: boolean;
+  offersMon: boolean;
+  requestsNft: boolean;
+  requestsMon: boolean;
+  isLoading: boolean;
+  walletNfts: { nfts: NFTAsset[] } | undefined;
+  offeredNfts: NFTAsset[];
+  requestedNfts: NFTAsset[];
+  toggleOffered: (n: NFTAsset) => void;
+  offeredMon: string;
+  setOfferedMon: (v: string) => void;
+  requestedMon: string;
+  setRequestedMon: (v: string) => void;
+  makerMonWei: bigint;
+  requestContract: string;
+  setRequestContract: (v: string) => void;
+  requestTokenId: string;
+  setRequestTokenId: (v: string) => void;
+  addRequestedNft: () => void;
+  setRequestedNfts: React.Dispatch<React.SetStateAction<NFTAsset[]>>;
+  offerContract: string;
+  setOfferContract: (v: string) => void;
+  offerTokenId: string;
+  setOfferTokenId: (v: string) => void;
+  addingOffered: boolean;
+  addOfferedNftManually: () => void;
+}) {
+  const {
+    offersNft,
+    offersMon,
+    requestsNft,
+    requestsMon,
+    isLoading,
+    walletNfts,
+    offeredNfts,
+    requestedNfts,
+    toggleOffered,
+    offeredMon,
+    setOfferedMon,
+    requestedMon,
+    setRequestedMon,
+    makerMonWei,
+    requestContract,
+    setRequestContract,
+    requestTokenId,
+    setRequestTokenId,
+    addRequestedNft,
+    setRequestedNfts,
+    offerContract,
+    setOfferContract,
+    offerTokenId,
+    setOfferTokenId,
+    addingOffered,
+    addOfferedNftManually,
+  } = props;
+
+  return (
+    <div className="space-y-6">
+      {/* ---- You give ---- */}
+      <Card>
+        <CardHeader>
+          <CardTitle>You give</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {offersNft && (
+            <>
               <p className="text-sm text-muted-foreground">
-                Select NFTs from your wallet ({offeredNfts.length} selected, max 20)
+                Your NFTs ({offeredNfts.length} selected, max 20) — tap to
+                add/remove.
               </p>
               {isLoading ? (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
@@ -480,33 +853,47 @@ function CreateTradeForm() {
                   ))}
                 </div>
               )}
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">
-                  MON you add to your side
-                </label>
-                <Input
-                  placeholder="0.0"
-                  inputMode="decimal"
-                  value={offeredMon}
-                  onChange={(e) => setOfferedMon(e.target.value)}
-                />
-                {makerMonWei > 0n && (
-                  <p className="mt-1.5 text-xs text-amber-400">
-                    Offering MON requires depositing it (plus the 1% fee) into the
-                    settlement escrow before the trade can be accepted. You control
-                    the escrow and can withdraw anytime.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+            </>
+          )}
+          {offersMon && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">
+                MON you give
+              </label>
+              <Input
+                placeholder="0.0"
+                inputMode="decimal"
+                value={offeredMon}
+                onChange={(e) => setOfferedMon(e.target.value)}
+              />
+              {makerMonWei > 0n && (
+                <p className="mt-1.5 text-xs text-amber-400">
+                  MON you offer must be deposited (plus the protocol fee) into
+                  the settlement escrow before the trade can be accepted. You
+                  control the escrow and can withdraw anytime.
+                </p>
+              )}
+            </div>
+          )}
+          {!offersNft && !offersMon && (
+            <p className="text-sm text-muted-foreground">
+              Nothing to configure here for this trade type.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* You request */}
-          <Card>
-            <CardHeader>
-              <CardTitle>You request</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      {/* ---- You get ---- */}
+      <Card>
+        <CardHeader>
+          <CardTitle>You get</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {requestsNft && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                The NFT(s) you want, by contract + token ID:
+              </p>
               <div className="flex flex-wrap gap-2">
                 {FEATURED_COLLECTIONS.map((c) => (
                   <CollectionButton
@@ -549,90 +936,230 @@ function CreateTradeForm() {
                   ))}
                 </div>
               )}
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">
-                  MON you want to receive
-                </label>
-                <Input
-                  placeholder="0.0"
-                  inputMode="decimal"
-                  value={requestedMon}
-                  onChange={(e) => setRequestedMon(e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Options */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Options</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">
-                  Specific taker wallet (optional)
-                </label>
-                <Input
-                  placeholder="0x… leave empty for anyone"
-                  value={takerAddress}
-                  onChange={(e) => setTakerAddress(e.target.value)}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={isPrivate}
-                  onChange={(e) => setIsPrivate(e.target.checked)}
-                  className="h-4 w-4 accent-[#836EF9]"
-                />
-                Unlisted offer — hidden from the public feed, but anyone with the
-                direct link can still view its terms
+            </>
+          )}
+          {requestsMon && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">
+                MON you want to receive
               </label>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Expires in</label>
-                <div className="flex flex-wrap gap-2">
-                  {EXPIRY_OPTIONS.map((opt) => (
-                    <Button
-                      key={opt.seconds}
-                      type="button"
-                      size="sm"
-                      variant={expirySeconds === opt.seconds ? "default" : "secondary"}
-                      onClick={() => setExpirySeconds(opt.seconds)}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              <Input
+                placeholder="0.0"
+                inputMode="decimal"
+                value={requestedMon}
+                onChange={(e) => setRequestedMon(e.target.value)}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
-        {/* Summary */}
-        <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <FeeBreakdown makerMonAmount={makerMonWei} takerMonAmount={takerMonWei} />
-          <Button
-            className="w-full"
-            size="lg"
-            disabled={submitting}
-            onClick={handleSign}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Waiting for signature…
-              </>
-            ) : (
-              "Sign order (free, no gas)"
+function StepVisibility({
+  visibility,
+  onPick,
+  takerAddress,
+  setTakerAddress,
+  needsTaker,
+  expirySeconds,
+  setExpirySeconds,
+}: {
+  visibility: Visibility;
+  onPick: (v: Visibility) => void;
+  takerAddress: string;
+  setTakerAddress: (v: string) => void;
+  needsTaker: boolean;
+  expirySeconds: number;
+  setExpirySeconds: (v: number) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="mb-1 text-xl font-semibold">Who can see and accept it?</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Control whether the offer is public, reserved, or hidden.
+        </p>
+        <div className="grid gap-3">
+          {VISIBILITIES.map((opt) => {
+            const Icon = opt.icon;
+            const selected = visibility === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => onPick(opt.id)}
+                className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
+                  selected
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-border hover:border-primary/50 hover:bg-secondary/40"
+                }`}
+              >
+                <span
+                  className={`mt-0.5 rounded-lg p-2 ${
+                    selected ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block font-medium">{opt.title}</span>
+                  <span className="block text-sm text-muted-foreground">
+                    {opt.blurb}
+                  </span>
+                </span>
+                {selected && <Check className="ml-auto h-5 w-5 text-primary" />}
+              </button>
+            );
+          })}
+        </div>
+        {needsTaker && (
+          <div className="mt-4">
+            <label className="mb-1.5 block text-sm font-medium">
+              Wallet allowed to accept
+            </label>
+            <Input
+              placeholder="0x… the counterparty's wallet"
+              value={takerAddress}
+              onChange={(e) => setTakerAddress(e.target.value)}
+            />
+            {takerAddress && !isAddress(takerAddress) && (
+              <p className="mt-1 text-xs text-red-400">Not a valid address</p>
             )}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Signing creates an off-chain order. Nothing moves until a counterparty
-            settles the trade on-chain. You can cancel anytime with an on-chain
-            cancellation.
-          </p>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium">Expires in</label>
+        <div className="flex flex-wrap gap-2">
+          {EXPIRY_OPTIONS.map((opt) => (
+            <Button
+              key={opt.seconds}
+              type="button"
+              size="sm"
+              variant={expirySeconds === opt.seconds ? "default" : "secondary"}
+              onClick={() => setExpirySeconds(opt.seconds)}
+            >
+              {opt.label}
+            </Button>
+          ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function StepReview({
+  intent,
+  offeredNfts,
+  requestedNfts,
+  makerMonWei,
+  takerMonWei,
+  visibility,
+  takerAddress,
+  expirySeconds,
+}: {
+  intent: Intent;
+  offeredNfts: NFTAsset[];
+  requestedNfts: NFTAsset[];
+  makerMonWei: bigint;
+  takerMonWei: bigint;
+  visibility: Visibility;
+  takerAddress: string;
+  expirySeconds: number;
+}) {
+  const intentLabel = INTENTS.find((i) => i.id === intent)?.title ?? "Trade";
+  const visLabel = VISIBILITIES.find((v) => v.id === visibility)?.title ?? "";
+  const expiryLabel =
+    EXPIRY_OPTIONS.find((e) => e.seconds === expirySeconds)?.label ?? "";
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold">Review &amp; sign</h2>
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <ReviewRow label="Trade type" value={intentLabel} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ReviewSide
+                title="You give"
+                nfts={offeredNfts}
+                mon={makerMonWei}
+              />
+              <ReviewSide
+                title="You get"
+                nfts={requestedNfts}
+                mon={takerMonWei}
+              />
+            </div>
+            <ReviewRow label="Visibility" value={visLabel} />
+            {(visibility === "targeted" || visibility === "private") && (
+              <ReviewRow
+                label="Reserved for"
+                value={
+                  isAddress(takerAddress)
+                    ? `${takerAddress.slice(0, 8)}…${takerAddress.slice(-4)}`
+                    : "—"
+                }
+              />
+            )}
+            <ReviewRow label="Expires in" value={expiryLabel} />
+          </CardContent>
+        </Card>
+        <p className="text-xs text-muted-foreground">
+          Signing creates an off-chain order — free, no gas. Nothing moves until
+          a counterparty settles on-chain. You can cancel anytime with an
+          on-chain cancellation.
+        </p>
+      </div>
+      <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+        <FeeBreakdown makerMonAmount={makerMonWei} takerMonAmount={takerMonWei} />
+      </div>
+    </div>
+  );
+}
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
+function ReviewSide({
+  title,
+  nfts,
+  mon,
+}: {
+  title: string;
+  nfts: NFTAsset[];
+  mon: bigint;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-secondary/30 p-3">
+      <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {title}
+      </p>
+      {nfts.length === 0 && mon === 0n && (
+        <p className="text-sm text-muted-foreground">Nothing</p>
+      )}
+      {nfts.map((n) => (
+        <p key={nftKey(n)} className="truncate text-sm">
+          {n.name ?? `#${n.tokenId}`}{" "}
+          <span className="text-muted-foreground">
+            ({n.contractAddress.slice(0, 8)}…)
+          </span>
+        </p>
+      ))}
+      {mon > 0n && (
+        <p className="text-sm font-semibold text-monad-purple">
+          + {formatMon(mon)} MON
+        </p>
+      )}
     </div>
   );
 }
