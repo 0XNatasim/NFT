@@ -28,15 +28,15 @@ Everything required before you can develop, deploy, and operate Monad Market.
 | **Alchemy** (alchemy.com) — default provider | An API key with Monad enabled | NFT indexing (wallet NFTs, metadata) | free tier is fine |
 | *or* **Reservoir** (reservoir.tools) | An API key | alternative NFT provider (`NFT_PROVIDER=reservoir`) | free tier |
 | **Vercel** (vercel.com) | A project linked to this repo | hosting the Next.js app | free tier |
-| **A deployer wallet** | Fresh EOA + its private key | deploying the settlement contract | needs testnet MON |
-| **Monad testnet MON** | Faucet funds for the deployer wallet | gas for deployment + testing trades | free (faucet) |
+| **A deployer wallet** | Fresh EOA + its private key | deploying the settlement contract | needs MON for gas |
+| **Monad MON** | Real MON in the deployer wallet | gas for deployment + settling trades | — |
 
 ### 3. Setup steps (in order)
 
 1. **Clone & install** — `npm install`, then `cp .env.example .env.local`.
-2. **Supabase** — create the project, open *SQL Editor*, run `supabase/migrations/20260610000000_init.sql`. Copy the project URL, anon key, and service-role key into `.env.local`.
-3. **Deploy the contract** — fund the deployer wallet with testnet MON, set the deployment vars (table below), then `npm run contracts:deploy`. Copy the printed address into `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS`.
-4. **Run locally** — `npm run dev` and connect a wallet on Monad testnet.
+2. **Supabase** — create the project, open *SQL Editor*, run every file in `supabase/migrations/` in order. Copy the project URL, anon key, and service-role key into `.env.local`.
+3. **Deploy the contract** — fund the deployer wallet with MON, set the deployment vars (table below), then `npm run contracts:deploy`. Copy the printed address into `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS`. (Already deployed — see [Deployed contracts](#deployed-contracts).)
+4. **Run locally** — `npm run dev` and connect a wallet on Monad mainnet.
 5. **Deploy to Vercel** — import the repo, set every variable from the table below in the Vercel project settings, deploy.
 
 ### 4. Environment variables
@@ -48,11 +48,11 @@ All of these live in `.env.example`. ★ = required for the app to function.
 | Variable | ★ | Value / where to get it |
 | --- | --- | --- |
 | `NEXT_PUBLIC_APP_NAME` | | Display name, e.g. `Monad Market` |
-| `NEXT_PUBLIC_CHAIN_ID` | ★ | `10143` for Monad testnet (change for mainnet) |
-| `NEXT_PUBLIC_MONAD_RPC_URL` | ★ | `https://testnet-rpc.monad.xyz` or your own RPC |
-| `NEXT_PUBLIC_MONAD_EXPLORER_URL` | ★ | `https://testnet.monadexplorer.com` |
+| `NEXT_PUBLIC_CHAIN_ID` | ★ | `143` (Monad mainnet) |
+| `NEXT_PUBLIC_MONAD_RPC_URL` | ★ | `https://rpc.monad.xyz` or your own RPC |
+| `NEXT_PUBLIC_MONAD_EXPLORER_URL` | ★ | `https://monadscan.com` |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | ★ | Project ID from cloud.reown.com |
-| `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | ★ | Printed by `npm run contracts:deploy` (step 3) |
+| `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | ★ | `0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277` (see [Deployed contracts](#deployed-contracts)) |
 | `NEXT_PUBLIC_SUPABASE_URL` | ★ | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ★ | Supabase → Project Settings → API |
 
@@ -79,7 +79,7 @@ All of these live in `.env.example`. ★ = required for the app to function.
 
 ```bash
 npm run typecheck && npm run lint && npm run test   # app: should all pass
-npm run contracts:test                              # 26 Foundry tests should pass
+npm run contracts:test                              # Foundry suite should pass
 ```
 
 ## Architecture
@@ -99,7 +99,7 @@ npm run contracts:test                              # 26 Foundry tests should pa
 ┌──────────────────────────────┐
 │ MonadMarketSettlement.sol     │  EIP-712 verify · nonce/replay ·
 │ (Monad, non-custodial)        │  expiry · ownership · approvals ·
-└──────────────────────────────┘  atomic NFT+MON transfer · 1% fee
+└──────────────────────────────┘  atomic NFT+MON transfer · pausable
 ```
 
 - **Orders are off-chain.** Makers sign EIP-712 `TradeOrder` structs; the signature and order live in Supabase. Creating/listing an offer costs zero gas.
@@ -109,9 +109,9 @@ npm run contracts:test                              # 26 Foundry tests should pa
 
 ### Fees
 
-- `feeBps = 100` (1%) on **each MON leg**, capped at `MAX_FEE_BPS = 500`.
-- Pure NFT-for-NFT swaps pay **no percentage fee**; the owner may set an optional `flatSwapFee` (e.g. 0.05 MON) so swap-heavy volume still generates revenue.
-- Fees transfer atomically to the configurable `feeRecipient`; the trade reverts if the fee transfer fails.
+- The fee both parties agree to is **baked into the signed order** (`feeBps`, `flatFee`), so the owner can never change the fee on an already-signed order. Default `feeBps = 100` (1%) on **each MON leg**, hard-capped at `MAX_FEE_BPS = 500` (5%).
+- Pure NFT-for-NFT swaps pay **no percentage fee**; an optional `flatFee` (capped at `MAX_FLAT_SWAP_FEE = 1 MON`) can apply so swap-heavy volume still generates revenue.
+- Fees use **pull payments**: they accrue to `pendingFees[feeRecipient]` and are claimed via `withdrawFees()`, so a reverting fee recipient can never brick a trade.
 
 ## File tree
 
@@ -119,7 +119,7 @@ npm run contracts:test                              # 26 Foundry tests should pa
 contracts/
   foundry.toml
   src/MonadMarketSettlement.sol     # settlement contract
-  test/MonadMarketSettlement.t.sol  # 26 Foundry tests (success, replay, fees, ...)
+  test/MonadMarketSettlement.t.sol  # Foundry tests (success, replay, fees, pause, ...)
   test/mocks/MockERC721.sol
   script/Deploy.s.sol
   lib/forge-std/                    # vendored
@@ -164,7 +164,7 @@ See `.env.example`. Key ones:
 
 | Variable | Purpose |
 | --- | --- |
-| `NEXT_PUBLIC_CHAIN_ID` | Monad chain id (testnet `10143`) |
+| `NEXT_PUBLIC_CHAIN_ID` | Monad chain id (mainnet `143`) |
 | `NEXT_PUBLIC_MONAD_RPC_URL` / `MONAD_RPC_URL` | RPC endpoints (client / server) |
 | `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | Deployed `MonadMarketSettlement` |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase |
@@ -173,7 +173,7 @@ See `.env.example`. Key ones:
 
 ### Database
 
-Apply `supabase/migrations/20260610000000_init.sql` via the Supabase SQL editor or `supabase db push`. RLS is enabled on all tables; all access goes through the service-role API layer.
+Apply every file in `supabase/migrations/` (in filename order) via the Supabase SQL editor or `supabase db push`. RLS is enabled on all tables; all access goes through the service-role API layer.
 
 ### Commands
 
@@ -187,37 +187,40 @@ npm run contracts:deploy  # deploy to $MONAD_RPC_URL
 ## Deployment
 
 1. **Contracts** — set `MONAD_RPC_URL`, `PRIVATE_KEY_DEPLOYER`, `FEE_RECIPIENT_ADDRESS`, `CONTRACT_OWNER`, then `npm run contracts:deploy`. Record the address.
-   - Verify (if a Sourcify/Etherscan-compatible verifier is available):
-     `forge verify-contract --root contracts <ADDRESS> src/MonadMarketSettlement.sol:MonadMarketSettlement --chain-id 10143 --constructor-args $(cast abi-encode "constructor(address,address)" $CONTRACT_OWNER $FEE_RECIPIENT_ADDRESS)`
-2. **Database** — create a Supabase project, run the migration, copy keys.
+   - Verify via Etherscan's V2 multichain API (MonadScan is served through it):
+     ```bash
+     forge verify-contract <ADDRESS> src/MonadMarketSettlement.sol:MonadMarketSettlement \
+       --chain 143 --compiler-version 0.8.28 --num-of-optimizations 1000 --evm-version cancun \
+       --constructor-args $(cast abi-encode "constructor(address,address)" $CONTRACT_OWNER $FEE_RECIPIENT_ADDRESS) \
+       --verifier etherscan --verifier-url 'https://api.etherscan.io/v2/api?chainid=143' \
+       --etherscan-api-key $ETHERSCAN_API_KEY --watch
+     ```
+2. **Database** — create a Supabase project, run every migration, copy keys.
 3. **Frontend** — deploy to Vercel; set all `NEXT_PUBLIC_*` vars plus `SUPABASE_SERVICE_ROLE_KEY`, `NFT_PROVIDER`, provider API key, `MONAD_RPC_URL`.
 
 ### Deployed contracts
 
 | Network | MonadMarketSettlement | Status |
 | --- | --- | --- |
-| Monad Testnet (10143) | [`0xfb719aad46eaf2503f030bbd884a5ed5958eab1e`](https://testnet.monadscan.com/address/0xfb719aad46eaf2503f030bbd884a5ed5958eab1e#code) | ✅ Verified on MonadScan |
-| Monad Mainnet | `0x_________________` | — |
+| Monad Mainnet (143) | [`0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277`](https://monadscan.com/address/0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277#code) | ✅ Verified on MonadScan |
 
-Set `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` to the address for the network
-you are targeting. Source is verified (Solidity `0.8.28`, optimizer 1000 runs,
-EVM `cancun`, MIT) — anyone can read/verify the settlement logic on MonadScan.
-
-> ⚠️ The contract has since gained order-bound fees, a flat-fee cap, pull-payment
-> fees, and a `Pausable` stop. These change the `TradeOrder` shape, so the
-> address above must be **redeployed and re-verified**, and the new address put
-> in `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS`, before the updated app is used.
+Source is verified (Solidity `0.8.28`, optimizer 1000 runs, EVM `cancun`, MIT)
+— anyone can read and verify the settlement logic on MonadScan. This is the
+build with order-bound fees, the flat-fee cap, pull-payment fees, and the
+`Pausable` emergency stop. `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` should be
+set to this address.
 
 ### Production checklist
 
-- [ ] Contract deployed, owner is a multisig, fee recipient set
-- [ ] `feeBps` confirmed (default 100), `flatSwapFee` decided
-- [ ] `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` set everywhere
-- [ ] Supabase migration applied, RLS verified, service key only on server
+- [x] Contract deployed on Monad mainnet and source-verified on MonadScan
+- [ ] Contract owner moved to a multisig (currently a single EOA)
+- [ ] `feeBps` confirmed (default 100), `flatFee` decided
+- [ ] `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` set everywhere to `0xA9E7…a277`
+- [ ] Supabase migrations applied, RLS verified, service key only on server
 - [ ] WalletConnect project id set
-- [ ] NFT provider key set and Monad network slug confirmed
+- [ ] NFT provider key set and Monad mainnet slug confirmed
 - [x] Distributed rate limiting available (set `UPSTASH_REDIS_REST_URL`/`_TOKEN`)
-- [ ] External smart-contract audit before mainnet
+- [ ] Independent external smart-contract audit
 
 ## Security review
 
@@ -231,7 +234,7 @@ EVM `cancun`, MIT) — anyone can read/verify the settlement logic on MonadScan.
 - Rate limiter uses Upstash Redis when `UPSTASH_REDIS_REST_*` are set; otherwise falls back to a per-instance in-memory window (fine for single-instance/dev).
 - Off-chain order book means a cancelled-in-DB-only offer would still be technically fillable — which is why cancellation is on-chain (`cancelNonce`) and the UI enforces it.
 - The maker's NFT approvals must be in place before a taker accepts; the offer page surfaces approval failures from the contract but a pre-flight maker approval step in `/create` would be smoother UX.
-- No SIWE auth yet — the wanted board trusts the claimed wallet address (low stakes; offers themselves are signature-verified).
+- The contract owner is currently a single EOA — move it to a multisig (`Ownable2Step`) before treating this as production-grade.
 
 ## Roadmap
 
