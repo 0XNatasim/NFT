@@ -25,9 +25,9 @@ However, the project is **not mainnet-ready** without addressing several high-im
 
 | Area | Rating | Notes |
 | --- | --- | --- |
-| Smart contract custody/settlement design | **Medium** | Good non-custodial design and tests; source now verified on MonadScan. Formal external audit still required; no pause mechanism. |
+| Smart contract custody/settlement design | **Medium** | Good non-custodial design and tests; source verified on Monad mainnet; `Pausable` emergency stop in place. Formal external audit still required. |
 | API and backend | **Medium** | Strong validation in trade flows; wanted board now signature-authenticated; rate limiting distributable via Upstash. |
-| Frontend and wallet UX | **Medium** | Good network guard and simulations; approvals and private-link semantics need clearer warnings. |
+| Frontend and wallet UX | **Medium** | Good network guard and simulations; the create wizard now spells out public / reserved / private-unlisted visibility explicitly and explains collection approval before it requests it. Accept-side approval copy could still be clearer. |
 | Data/privacy | **Medium** | Private offers are feed-hidden, not cryptographically private; direct-link access remains possible. |
 | Production operations | **Medium** | Security headers + CSP added, distributed rate limit available, health check present. Monitoring/alerting still to add. |
 
@@ -144,7 +144,9 @@ No custom `headers()` configuration is present for CSP, frame-ancestors, X-Conte
 
 #### M-02: Private offers are hidden, not private
 
-**Location:** `lib/db/offers.ts`, `app/offers/[id]/page.tsx`
+**Status: PARTIALLY RESOLVED.** The create wizard now labels this option "Private / unlisted" and states plainly that the offer is "hidden from the public feed" but "only the wallet you name (with the link) can see and accept it," so the label no longer overclaims. The underlying behavior is unchanged — `getOfferById` still returns any offer by UUID, so anyone with the direct link can view terms. True cryptographic privacy (wallet-authenticated access) remains future work.
+
+**Location:** `lib/db/offers.ts`, `app/offers/[id]/page.tsx`, `app/create/page.tsx`
 
 Private offers are excluded from the public feed unless queried by maker/taker filters, but `getOfferById` returns any offer by UUID. Anyone with the direct URL can view details. This may be acceptable product behavior, but the label can mislead users.
 
