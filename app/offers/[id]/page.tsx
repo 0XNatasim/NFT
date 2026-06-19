@@ -158,7 +158,9 @@ export default function OfferDetailPage({
         args: [address, SETTLEMENT_CONTRACT_ADDRESS],
       });
       if (!approved) {
-        toast.info(`Approving ${shortAddress(contract)} for settlement…`);
+        toast.info(
+          `Approving ${shortAddress(contract)}: this grants the settlement contract permission to transfer NFTs in this collection when a trade you signed/accept executes. Revocable anytime.`
+        );
         const hash = await writeContractAsync({
           address: contract as Address,
           abi: erc721Abi,
@@ -374,20 +376,31 @@ export default function OfferDetailPage({
           />
 
           {canAccept && (
-            <Button
-              className="w-full"
-              size="lg"
-              disabled={working !== null}
-              onClick={handleAccept}
-            >
-              {working === "accept" ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Settling…
-                </>
-              ) : (
-                "Accept trade"
+            <>
+              {takerNfts.length > 0 && (
+                <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+                  Accepting first approves the settlement contract to transfer
+                  the requested NFT(s) from your wallet — this is a collection-wide{" "}
+                  <code>setApprovalForAll</code> that stays until you revoke it.
+                  Only the exact NFTs in this signed trade move now; settlement is
+                  simulated before you pay any gas.
+                </p>
               )}
-            </Button>
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={working !== null}
+                onClick={handleAccept}
+              >
+                {working === "accept" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Settling…
+                  </>
+                ) : (
+                  "Accept trade"
+                )}
+              </Button>
+            </>
           )}
           {offer.status === "open" &&
             escrowQuery.data &&
@@ -416,20 +429,28 @@ export default function OfferDetailPage({
               </div>
             )}
           {isMaker && offer.status === "open" && makerNfts.length > 0 && (
-            <Button
-              className="w-full"
-              variant="secondary"
-              disabled={working !== null}
-              onClick={handleMakerApprove}
-            >
-              {working === "approve" ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Approving…
-                </>
-              ) : (
-                "Approve my NFTs for settlement"
-              )}
-            </Button>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Approval grants the settlement contract permission to transfer
+                NFTs in the offered collection(s) — a collection-wide{" "}
+                <code>setApprovalForAll</code> that stays until you revoke it.
+                Nothing moves until a taker settles this signed trade.
+              </p>
+              <Button
+                className="w-full"
+                variant="secondary"
+                disabled={working !== null}
+                onClick={handleMakerApprove}
+              >
+                {working === "approve" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Approving…
+                  </>
+                ) : (
+                  "Approve my NFTs for settlement"
+                )}
+              </Button>
+            </div>
           )}
           {isMaker && offer.status === "open" && (
             <Button
