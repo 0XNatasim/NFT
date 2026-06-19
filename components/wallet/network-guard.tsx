@@ -15,7 +15,7 @@ export function NetworkGuard() {
     <div className="border-b border-amber-500/30 bg-amber-500/10">
       <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-3">
         <p className="text-sm text-amber-300">
-          You are connected to the wrong network. Monad Market settles trades on
+          You are connected to the wrong network. Handshake settles trades on
           Monad (chain {MONAD_CHAIN_ID}).
         </p>
         <Button

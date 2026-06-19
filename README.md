@@ -1,12 +1,14 @@
-# Monad Market
+# Handshake
 
-A peer-to-peer NFT trading marketplace for the Monad ecosystem. Users negotiate and exchange NFTs directly wallet-to-wallet — NFT-for-NFT, NFT+MON, MON-for-NFT, private wallet-targeted offers — settled atomically by a non-custodial smart contract.
+A peer-to-peer NFT trading marketplace for the Monad ecosystem — no bots, no snipers. Users negotiate and exchange NFTs directly wallet-to-wallet — NFT-for-NFT, NFT+MON, MON-for-NFT, private wallet-targeted offers — settled atomically by a non-custodial smart contract.
+
+> The on-chain settlement contract keeps its original name (`MonadMarketSettlement`) and EIP-712 domain (`MonadMarket`) — these are baked into the deployed bytecode and every signature, so they must not be renamed. "Handshake" is the product brand only.
 
 It's a trading desk, not a sniping ground: off-chain signed orders (free to create), offer expirations, private offers, wallet reputation, and no instant floor-sniping mechanics.
 
 ## What you need to run this project
 
-Everything required before you can develop, deploy, and operate Monad Market.
+Everything required before you can develop, deploy, and operate Handshake.
 
 ### 1. Tooling (local machine)
 
@@ -47,7 +49,7 @@ All of these live in `.env.example`. ★ = required for the app to function.
 
 | Variable | ★ | Value / where to get it |
 | --- | --- | --- |
-| `NEXT_PUBLIC_APP_NAME` | | Display name, e.g. `Monad Market` |
+| `NEXT_PUBLIC_APP_NAME` | | Display name, e.g. `Handshake` |
 | `NEXT_PUBLIC_CHAIN_ID` | ★ | `143` (Monad mainnet) |
 | `NEXT_PUBLIC_MONAD_RPC_URL` | ★ | `https://rpc.monad.xyz` or your own RPC |
 | `NEXT_PUBLIC_MONAD_EXPLORER_URL` | ★ | `https://monadscan.com` |
