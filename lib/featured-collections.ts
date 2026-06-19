@@ -30,4 +30,24 @@ export const FEATURED_COLLECTIONS: FeaturedCollection[] = [
     address: "0x36982448e77658b8f58f4665696e3173d1e696c2",
     logo: "/collections/molandaks.png",
   },
+  {
+    name: "MonGang",
+    address: "0xec7bf726c8011048e3c14c88fae1a788d22c220f",
+    logo: "/collections/mongang.png",
+  },
+  {
+    name: "MonShape",
+    address: "0x1c921c0ccc4f1f90a18a1297dc040528b3cf0f5b",
+    logo: "/collections/monshape.png",
+  },
+  {
+    name: "Lilstarrrs",
+    address: "0xcabf3c04b90f4fe1b521fcaf4acb25d5df478e52",
+    logo: "/collections/lilstarrrs.png",
+  },
+  {
+    name: "LootGo",
+    address: "0xa3522ea57c0bc48e602e2fe9f3929309d9618d96",
+    logo: "/collections/lootgo.png",
+  },
 ];
