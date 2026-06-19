@@ -27,7 +27,7 @@ However, the project is **not mainnet-ready** without addressing several high-im
 | --- | --- | --- |
 | Smart contract custody/settlement design | **Medium** | Good non-custodial design and tests; source verified on Monad mainnet; `Pausable` emergency stop in place. Formal external audit still required. |
 | API and backend | **Medium** | Strong validation in trade flows; wanted board now signature-authenticated; rate limiting distributable via Upstash. |
-| Frontend and wallet UX | **Medium** | Good network guard and simulations; the create wizard now spells out public / reserved / private-unlisted visibility explicitly and explains collection approval before it requests it. Accept-side approval copy could still be clearer. |
+| Frontend and wallet UX | **Medium** | Good network guard and simulations; both the create wizard and the offer-accept/approve flows now spell out visibility and the collection-wide `setApprovalForAll` semantics (revocable, only signed-trade NFTs move). |
 | Data/privacy | **Medium** | Private offers are feed-hidden, not cryptographically private; direct-link access remains possible. |
 | Production operations | **Medium** | Security headers + CSP added, distributed rate limit available, health check present. Monitoring/alerting still to add. |
 
@@ -266,8 +266,8 @@ NFT names, collection names, image URLs, and metadata are persisted from client 
 ## Frontend/UX Review Notes
 
 - The network guard and settlement simulation are strong safety features.
-- Approving entire NFT collections is standard but high-risk; users should see clearer copy that this grants settlement contract transfer permission for all NFTs in that collection until revoked.
-- Private offer UX should clarify “unlisted/direct-link visible.”
+- **Resolved:** approving entire NFT collections now carries explicit copy on both the create and accept/approve flows — it states that `setApprovalForAll` grants the settlement contract transfer permission for all NFTs in that collection until revoked, and that only the signed trade's NFTs actually move.
+- **Resolved:** the create wizard's "Private / unlisted" option states the offer is feed-hidden but direct-link visible.
 - Maker MON escrow UX correctly warns that offered MON must be deposited; add withdrawal guidance and escrow dashboard visibility.
 
 ## Production Readiness Checklist
