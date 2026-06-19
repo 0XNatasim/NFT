@@ -18,7 +18,7 @@ export function buildCreateWantedMessage(p: {
   timestamp: number;
 }): string {
   return [
-    "Monad Market — Post wanted request",
+    "Handshake — Post wanted request",
     `Wallet: ${p.walletAddress.toLowerCase()}`,
     `Looking for: ${p.lookingFor}`,
     `Offering: ${p.offering ?? ""}`,
@@ -33,7 +33,7 @@ export function buildDeleteWantedMessage(p: {
   timestamp: number;
 }): string {
   return [
-    "Monad Market — Delete wanted request",
+    "Handshake — Delete wanted request",
     `Wallet: ${p.walletAddress.toLowerCase()}`,
     `Post: ${p.id}`,
     `Timestamp: ${p.timestamp}`,
