@@ -5,15 +5,14 @@ import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfferCard } from "@/components/trade/offer-card";
-import { NFTCard } from "@/components/trade/nft-card";
+import { WalletNFTs } from "@/components/trade/wallet-nfts";
 import { EmptyState } from "@/components/empty-state";
 import { EscrowPanel } from "@/components/wallet/escrow-panel";
-import { useOffers, useReputation, useWalletNFTs } from "@/hooks/use-market";
+import { useOffers, useReputation } from "@/hooks/use-market";
 import { shortAddress } from "@/lib/utils";
 
 export default function AccountPage() {
   const { address, isConnected } = useAccount();
-  const { data: nfts, isLoading: loadingNfts } = useWalletNFTs(address);
   const { data: offers, isLoading: loadingOffers } = useOffers({
     wallet: address,
     limit: 100,
@@ -94,19 +93,8 @@ export default function AccountPage() {
         )}
       </Section>
 
-      <Section title="My NFTs" loading={loadingNfts}>
-        {nfts && nfts.nfts.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
-            {nfts.nfts.map((nft) => (
-              <NFTCard key={`${nft.contractAddress}:${nft.tokenId}`} nft={nft} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            title="No NFTs found"
-            body="We couldn't find ERC-721 NFTs in this wallet on Monad."
-          />
-        )}
+      <Section title="My NFTs">
+        <WalletNFTs owner={address} />
       </Section>
     </div>
   );

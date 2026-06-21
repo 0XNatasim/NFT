@@ -1,0 +1,188 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { NFTCard } from "@/components/trade/nft-card";
+import { EmptyState } from "@/components/empty-state";
+import { useWalletNFTsInfinite } from "@/hooks/use-market";
+import { cn, shortAddress } from "@/lib/utils";
+import type { NFTAsset } from "@/lib/types";
+
+export function WalletNFTs({ owner }: { owner: string }) {
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useWalletNFTsInfinite(owner);
+
+  const [query, setQuery] = useState("");
+  const [collection, setCollection] = useState<string | null>(null);
+
+  const nfts = useMemo<NFTAsset[]>(
+    () => data?.pages.flatMap((p) => p.nfts) ?? [],
+    [data]
+  );
+
+  // Eagerly pull the full collection so the filter/search covers everything,
+  // not just the first page the indexer returned.
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Distinct collections, keyed by contract, with a display label and count.
+  const collections = useMemo(() => {
+    const map = new Map<string, { label: string; count: number }>();
+    for (const nft of nfts) {
+      const key = nft.contractAddress.toLowerCase();
+      const label = nft.collectionName ?? shortAddress(nft.contractAddress);
+      const prev = map.get(key);
+      map.set(key, { label, count: (prev?.count ?? 0) + 1 });
+    }
+    return Array.from(map.entries())
+      .map(([address, v]) => ({ address, ...v }))
+      .sort((a, b) => b.count - a.count);
+  }, [nfts]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return nfts.filter((nft) => {
+      if (collection && nft.contractAddress.toLowerCase() !== collection) {
+        return false;
+      }
+      if (!q) return true;
+      const haystack = [
+        nft.name,
+        nft.collectionName,
+        nft.tokenId,
+        nft.contractAddress,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [nfts, query, collection]);
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <Skeleton key={i} className="aspect-square rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (nfts.length === 0) {
+    return (
+      <EmptyState
+        title="No NFTs found"
+        body="We couldn't find ERC-721 NFTs in this wallet on Monad."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name, token ID or collection…"
+          className="sm:max-w-xs"
+        />
+        <p className="text-sm text-muted-foreground">
+          {filtered.length} of {nfts.length} NFTs
+          {isFetchingNextPage && " · loading more…"}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <FilterChip
+          active={collection === null}
+          onClick={() => setCollection(null)}
+          label="All"
+          count={nfts.length}
+        />
+        {collections.map((c) => (
+          <FilterChip
+            key={c.address}
+            active={collection === c.address}
+            onClick={() =>
+              setCollection(collection === c.address ? null : c.address)
+            }
+            label={c.label}
+            count={c.count}
+          />
+        ))}
+      </div>
+
+      {filtered.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
+          {filtered.map((nft) => (
+            <NFTCard
+              key={`${nft.contractAddress}:${nft.tokenId}`}
+              nft={nft}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="No matches"
+          body="No NFTs match your search or filter."
+        />
+      )}
+
+      {hasNextPage && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage ? "Loading…" : "Load more"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  label,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex max-w-[14rem] items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
+        active
+          ? "border-monad-purple bg-monad-purple/10 text-monad-purple"
+          : "border-border text-muted-foreground hover:border-monad-purple/50 hover:text-foreground"
+      )}
+    >
+      <span className="truncate">{label}</span>
+      <span
+        className={cn(
+          "shrink-0 rounded-full px-1.5 text-xs",
+          active ? "bg-monad-purple/20" : "bg-muted"
+        )}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { MarketStats, TradeOffer, WalletReputation } from "@/lib/types";
 import type { WalletNFTsResult } from "@/lib/nft/provider";
 
@@ -45,6 +45,25 @@ export function useWalletNFTs(owner?: string) {
     queryKey: ["wallet-nfts", owner],
     enabled: !!owner,
     queryFn: () => fetchJson<WalletNFTsResult>(`/api/nfts?owner=${owner}`),
+  });
+}
+
+/**
+ * Paginated variant: walks every page via the provider's pageKey so the
+ * account page can show the wallet's full NFT collection (OpenSea-style)
+ * rather than just the first page the indexer returns.
+ */
+export function useWalletNFTsInfinite(owner?: string) {
+  return useInfiniteQuery({
+    queryKey: ["wallet-nfts-infinite", owner],
+    enabled: !!owner,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ owner: owner! });
+      if (pageParam) params.set("pageKey", pageParam);
+      return fetchJson<WalletNFTsResult>(`/api/nfts?${params}`);
+    },
+    getNextPageParam: (lastPage) => lastPage.pageKey ?? undefined,
   });
 }
 
