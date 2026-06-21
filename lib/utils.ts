@@ -20,9 +20,10 @@ export function shortAddress(address?: string | null): string {
 export function prettyCollectionName(name?: string | null): string | null {
   if (!name) return null;
   const trimmed = name.trim();
-  // Only treat it as a slug when it's hyphen/underscore separated with no
-  // spaces — avoids mangling genuine display names.
-  if (/\s/.test(trimmed) || !/[-_]/.test(trimmed)) return trimmed;
+  // Only treat it as a slug when it's all-lowercase, hyphen/underscore
+  // separated (OpenSea's slug shape). Genuine display names like
+  // "Algebra-DUST/WMON" keep their original casing/punctuation.
+  if (!/^[a-z0-9]+([-_][a-z0-9]+)+$/.test(trimmed)) return trimmed;
   const withoutId = trimmed.replace(/[-_]\d+$/, "");
   return withoutId
     .split(/[-_]+/)
