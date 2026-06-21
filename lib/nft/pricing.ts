@@ -1,5 +1,4 @@
 import type { CollectionPrice, NFTProvider } from "@/lib/nft/provider";
-import { reservoirProvider } from "@/lib/nft/providers/reservoir";
 import { openseaProvider } from "@/lib/nft/providers/opensea";
 import { getNFTProvider } from "@/lib/nft";
 
@@ -18,14 +17,11 @@ export interface PriceProvider {
 
 // Providers that implement getCollectionPrice, keyed by name.
 const pricingCapable: Record<string, NFTProvider> = {
-  reservoir: reservoirProvider,
   opensea: openseaProvider,
 };
 
 function hasApiKey(name: string): boolean {
   switch (name) {
-    case "reservoir":
-      return !!process.env.RESERVOIR_API_KEY;
     case "opensea":
       return !!process.env.OPENSEA_API_KEY;
     default:

@@ -28,7 +28,7 @@ Everything required before you can develop, deploy, and operate Handshake.
 | **Supabase** (supabase.com) | A project | PostgreSQL database for offers, reputation, wanted board | free tier is fine |
 | **WalletConnect / Reown** (cloud.reown.com) | A project ID | Required by RainbowKit for wallet connections | free |
 | **Alchemy** (alchemy.com) — default provider | An API key with Monad enabled | NFT indexing (wallet NFTs, metadata) | free tier is fine |
-| *or* **Reservoir** (reservoir.tools) | An API key | alternative NFT provider (`NFT_PROVIDER=reservoir`) | free tier |
+| *or* **OpenSea** (opensea.io) | An API key | alternative NFT provider (`NFT_PROVIDER=opensea`); also powers floor-price (`PRICE_PROVIDER=opensea`) | free tier |
 | **Vercel** (vercel.com) | A project linked to this repo | hosting the Next.js app | free tier |
 | **A deployer wallet** | Fresh EOA + its private key | deploying the settlement contract | needs MON for gas |
 | **Monad MON** | Real MON in the deployer wallet | gas for deployment + settling trades | — |
@@ -63,9 +63,10 @@ All of these live in `.env.example`. ★ = required for the app to function.
 | Variable | ★ | Value / where to get it |
 | --- | --- | --- |
 | `SUPABASE_SERVICE_ROLE_KEY` | ★ | Supabase → Project Settings → API (service_role). Bypasses RLS — server only. |
-| `NFT_PROVIDER` | ★ | `alchemy` (default) or `reservoir` |
+| `NFT_PROVIDER` | ★ | `alchemy` (default) or `opensea` |
 | `ALCHEMY_API_KEY` | ★ (if alchemy) | Alchemy dashboard → app → API key |
-| `RESERVOIR_API_KEY` | (if reservoir) | Reservoir dashboard |
+| `OPENSEA_API_KEY` | (if opensea) | OpenSea dashboard |
+| `PRICE_PROVIDER` | | `opensea` — live floor price on NFT cards |
 | `SIMPLEHASH_API_KEY` | | reserved for a future SimpleHash provider |
 | `MONAD_RPC_URL` | ★ | Server-side RPC (can match the public one) — used for receipt/nonce verification |
 
@@ -144,7 +145,7 @@ lib/
   orders/eip712.ts                  # order types, hashing, verification
   fees.ts                           # fee math (mirrors the contract)
   contracts/settlement.ts           # ABI
-  nft/{provider.ts,index.ts,providers/{alchemy,reservoir}.ts}
+  nft/{provider.ts,index.ts,pricing.ts,providers/{alchemy,opensea}.ts}
   supabase/server.ts  db/offers.ts  validation/offers.ts  rate-limit.ts
 supabase/migrations/20260610000000_init.sql
 tests/                              # vitest: fee math, validation, EIP-712
@@ -170,7 +171,7 @@ See `.env.example`. Key ones:
 | `NEXT_PUBLIC_MONAD_RPC_URL` / `MONAD_RPC_URL` | RPC endpoints (client / server) |
 | `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | Deployed `MonadMarketSettlement` |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase |
-| `NFT_PROVIDER` + `ALCHEMY_API_KEY` / `RESERVOIR_API_KEY` | NFT indexing (swappable) |
+| `NFT_PROVIDER` + `ALCHEMY_API_KEY` / `OPENSEA_API_KEY` | NFT indexing (swappable) |
 | `PRIVATE_KEY_DEPLOYER`, `FEE_RECIPIENT_ADDRESS`, `CONTRACT_OWNER` | contract deployment only |
 
 ### Database
