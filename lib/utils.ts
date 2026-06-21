@@ -11,6 +11,26 @@ export function shortAddress(address?: string | null): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+/**
+ * Turn an indexer collection slug into a human label. OpenSea returns slugs
+ * like "roarrr-640074190" or "the-10k-squad-350905"; strip the trailing
+ * numeric id and title-case the words. Real names (no slug shape) pass through
+ * mostly unchanged.
+ */
+export function prettyCollectionName(name?: string | null): string | null {
+  if (!name) return null;
+  const trimmed = name.trim();
+  // Only treat it as a slug when it's hyphen/underscore separated with no
+  // spaces — avoids mangling genuine display names.
+  if (/\s/.test(trimmed) || !/[-_]/.test(trimmed)) return trimmed;
+  const withoutId = trimmed.replace(/[-_]\d+$/, "");
+  return withoutId
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 export function formatMon(wei: bigint | string, maxDecimals = 4): string {
   const value = typeof wei === "string" ? BigInt(wei) : wei;
   const formatted = formatEther(value);

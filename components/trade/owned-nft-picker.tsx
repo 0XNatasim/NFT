@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
 import { useWalletNFTsInfinite } from "@/hooks/use-market";
-import { cn, shortAddress } from "@/lib/utils";
+import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
 function nftKey(n: { contractAddress: string; tokenId: string }) {
@@ -36,7 +36,19 @@ export function OwnedNFTPicker({
   } = useWalletNFTsInfinite(address);
 
   const [query, setQuery] = useState("");
-  const [collection, setCollection] = useState<string | null>(null);
+  // Empty set = no filter (show all). Otherwise show only selected contracts.
+  const [selectedCollections, setSelectedCollections] = useState<Set<string>>(
+    new Set()
+  );
+
+  function toggleCollection(address: string) {
+    setSelectedCollections((prev) => {
+      const next = new Set(prev);
+      if (next.has(address)) next.delete(address);
+      else next.add(address);
+      return next;
+    });
+  }
 
   const nfts = useMemo<NFTAsset[]>(
     () => data?.pages.flatMap((p) => p.nfts) ?? [],
@@ -52,7 +64,9 @@ export function OwnedNFTPicker({
     const map = new Map<string, { label: string; count: number }>();
     for (const nft of nfts) {
       const key = nft.contractAddress.toLowerCase();
-      const label = nft.collectionName ?? shortAddress(nft.contractAddress);
+      const label =
+        prettyCollectionName(nft.collectionName) ??
+        shortAddress(nft.contractAddress);
       const prev = map.get(key);
       map.set(key, { label, count: (prev?.count ?? 0) + 1 });
     }
@@ -64,7 +78,10 @@ export function OwnedNFTPicker({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return nfts.filter((nft) => {
-      if (collection && nft.contractAddress.toLowerCase() !== collection) {
+      if (
+        selectedCollections.size > 0 &&
+        !selectedCollections.has(nft.contractAddress.toLowerCase())
+      ) {
         return false;
       }
       if (!q) return true;
@@ -74,7 +91,7 @@ export function OwnedNFTPicker({
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [nfts, query, collection]);
+  }, [nfts, query, selectedCollections]);
 
   if (isLoading) {
     return (
@@ -105,20 +122,26 @@ export function OwnedNFTPicker({
           placeholder="Search collections…"
           className="mb-3"
         />
+        <div className="flex items-center justify-between px-1 pb-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Collections
+          </span>
+          {selectedCollections.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedCollections(new Set())}
+              className="text-xs text-monad-purple hover:underline"
+            >
+              Clear ({selectedCollections.size})
+            </button>
+          )}
+        </div>
         <div className="flex max-h-80 flex-row gap-1.5 overflow-x-auto pb-1 md:flex-col md:overflow-y-auto md:overflow-x-visible">
-          <CollectionRow
-            active={collection === null}
-            onClick={() => setCollection(null)}
-            label="All collections"
-            count={nfts.length}
-          />
           {collections.map((c) => (
             <CollectionRow
               key={c.address}
-              active={collection === c.address}
-              onClick={() =>
-                setCollection(collection === c.address ? null : c.address)
-              }
+              checked={selectedCollections.has(c.address)}
+              onClick={() => toggleCollection(c.address)}
               label={c.label}
               count={c.count}
             />
@@ -152,12 +175,12 @@ export function OwnedNFTPicker({
 }
 
 function CollectionRow({
-  active,
+  checked,
   onClick,
   label,
   count,
 }: {
-  active: boolean;
+  checked: boolean;
   onClick: () => void;
   label: string;
   count: number;
@@ -166,18 +189,39 @@ function CollectionRow({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={checked}
       className={cn(
-        "flex shrink-0 items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors md:shrink",
-        active
+        "flex shrink-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors md:shrink",
+        checked
           ? "border-monad-purple bg-monad-purple/10 text-monad-purple"
           : "border-transparent text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
       )}
     >
+      <span
+        className={cn(
+          "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+          checked
+            ? "border-monad-purple bg-monad-purple text-monad-black"
+            : "border-muted-foreground/40"
+        )}
+      >
+        {checked && (
+          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none">
+            <path
+              d="M2.5 6.5l2.5 2.5 4.5-5"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </span>
       <span className="truncate">{label}</span>
       <span
         className={cn(
-          "shrink-0 rounded-full px-1.5 text-xs",
-          active ? "bg-monad-purple/20" : "bg-muted"
+          "ml-auto shrink-0 rounded-full px-1.5 text-xs",
+          checked ? "bg-monad-purple/20" : "bg-muted"
         )}
       >
         {count}
