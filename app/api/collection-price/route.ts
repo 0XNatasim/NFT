@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getNFTProvider } from "@/lib/nft";
+import { getPriceProvider } from "@/lib/nft/pricing";
 import type { CollectionPrice } from "@/lib/nft/provider";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 
@@ -36,10 +36,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Invalid query" }, { status: 400 });
   }
 
-  const provider = getNFTProvider();
-  if (!provider.getCollectionPrice) {
-    // Provider can't price collections — return empty rather than erroring so
-    // the UI just hides prices.
+  const provider = getPriceProvider();
+  if (!provider) {
+    // No pricing source configured — return empty rather than erroring so the
+    // UI just hides prices.
     return NextResponse.json({ prices: {} });
   }
 
@@ -54,7 +54,7 @@ export async function GET(req: Request) {
       }
       let value: CollectionPrice | null = null;
       try {
-        value = await provider.getCollectionPrice!(contract);
+        value = await provider.getCollectionPrice(contract);
       } catch {
         value = null;
       }
