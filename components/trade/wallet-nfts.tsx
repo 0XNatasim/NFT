@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
 import { useWalletNFTsInfinite } from "@/hooks/use-market";
-import { cn, shortAddress } from "@/lib/utils";
+import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
 export function WalletNFTs({ owner }: { owner: string }) {
@@ -38,7 +38,9 @@ export function WalletNFTs({ owner }: { owner: string }) {
     const map = new Map<string, { label: string; count: number }>();
     for (const nft of nfts) {
       const key = nft.contractAddress.toLowerCase();
-      const label = nft.collectionName ?? shortAddress(nft.contractAddress);
+      const label =
+        prettyCollectionName(nft.collectionName) ??
+        shortAddress(nft.contractAddress);
       const prev = map.get(key);
       map.set(key, { label, count: (prev?.count ?? 0) + 1 });
     }
