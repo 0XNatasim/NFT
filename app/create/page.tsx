@@ -26,15 +26,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard } from "@/components/trade/nft-card";
+import { OwnedNFTPicker } from "@/components/trade/owned-nft-picker";
 import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
-import { useWalletNFTs } from "@/hooks/use-market";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
 import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
+// useWalletNFTs replaced by OwnedNFTPicker (full pagination + collection filter)
 import {
   generateNonce,
   getOrderDomain,
@@ -135,7 +135,6 @@ function CreateTradeForm() {
   const { signTypedDataAsync } = useSignTypedData();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
-  const { data: walletNfts, isLoading } = useWalletNFTs(address);
 
   const prefilledTaker = searchParams.get("taker") ?? "";
   const prefilledPrivate =
@@ -510,8 +509,6 @@ function CreateTradeForm() {
             offersMon={offersMon}
             requestsNft={requestsNft}
             requestsMon={requestsMon}
-            isLoading={isLoading}
-            walletNfts={walletNfts}
             offeredNfts={offeredNfts}
             requestedNfts={requestedNfts}
             toggleOffered={toggleOffered}
@@ -696,8 +693,6 @@ function StepDetails(props: {
   offersMon: boolean;
   requestsNft: boolean;
   requestsMon: boolean;
-  isLoading: boolean;
-  walletNfts: { nfts: NFTAsset[] } | undefined;
   offeredNfts: NFTAsset[];
   requestedNfts: NFTAsset[];
   toggleOffered: (n: NFTAsset) => void;
@@ -724,8 +719,6 @@ function StepDetails(props: {
     offersMon,
     requestsNft,
     requestsMon,
-    isLoading,
-    walletNfts,
     offeredNfts,
     requestedNfts,
     toggleOffered,
@@ -759,32 +752,10 @@ function StepDetails(props: {
           {offersNft && (
             <>
               <p className="text-sm text-muted-foreground">
-                Your NFTs ({offeredNfts.length} selected, max 20) — tap to
-                add/remove.
+                Your NFTs ({offeredNfts.length} selected, max 20) — pick a
+                collection on the left, then tap to add/remove.
               </p>
-              {isLoading ? (
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <Skeleton key={i} className="aspect-square rounded-lg" />
-                  ))}
-                </div>
-              ) : walletNfts && walletNfts.nfts.length > 0 ? (
-                <div className="grid max-h-96 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 md:grid-cols-5">
-                  {walletNfts.nfts.map((nft) => (
-                    <NFTCard
-                      key={nftKey(nft)}
-                      nft={nft}
-                      selected={offeredNfts.some((n) => nftKey(n) === nftKey(nft))}
-                      onClick={() => toggleOffered(nft)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  title="No NFTs found"
-                  body="We couldn't find ERC-721 NFTs in this wallet on Monad."
-                />
-              )}
+              <OwnedNFTPicker selected={offeredNfts} onToggle={toggleOffered} />
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
                   NFT not showing? Add it by contract + token ID (ownership is
