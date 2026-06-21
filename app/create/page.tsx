@@ -31,6 +31,7 @@ import { OwnedNFTPicker } from "@/components/trade/owned-nft-picker";
 import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
+import { bufferedGas } from "@/lib/chains/gas";
 import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
@@ -386,12 +387,17 @@ function CreateTradeForm() {
             toast.info(
               "Approving this collection lets the settlement contract transfer its NFTs when a trade you signed executes (revocable anytime)."
             );
-            const hash = await writeContractAsync({
+            const approveParams = {
               address: contract as Address,
               abi: erc721Abi,
-              functionName: "setApprovalForAll",
-              args: [SETTLEMENT_CONTRACT_ADDRESS, true],
+              functionName: "setApprovalForAll" as const,
+              args: [SETTLEMENT_CONTRACT_ADDRESS, true] as const,
+            };
+            const gas = await bufferedGas(publicClient, {
+              ...approveParams,
+              account: address,
             });
+            const hash = await writeContractAsync({ ...approveParams, gas });
             await publicClient.waitForTransactionReceipt({ hash });
           }
         }
