@@ -1,6 +1,7 @@
 import type { NFTAsset } from "@/lib/types";
 import type {
   CollectionInfo,
+  CollectionPrice,
   NFTProvider,
   WalletNFTsResult,
 } from "@/lib/nft/provider";
@@ -94,6 +95,28 @@ export const openseaProvider: NFTProvider = {
         `/chain/${OPENSEA_CHAIN}/contract/${contractAddress}/nfts/${tokenId}`
       );
       return data.nft ? toAsset(data.nft) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getCollectionPrice(contractAddress): Promise<CollectionPrice | null> {
+    try {
+      // Resolve the collection slug, then read its live stats.
+      const contract = await fetchJson(
+        `/chain/${OPENSEA_CHAIN}/contract/${contractAddress}`
+      );
+      const slug = contract.collection;
+      if (!slug) return null;
+      const stats = await fetchJson(`/collections/${slug}/stats`);
+      const floor = stats.total?.floor_price ?? null;
+      const currency = stats.total?.floor_price_symbol ?? "MON";
+      return {
+        contractAddress: contractAddress.toLowerCase(),
+        floorPrice: typeof floor === "number" ? floor : null,
+        topOffer: null, // OpenSea best-offer needs a separate paid lookup
+        currency,
+      };
     } catch {
       return null;
     }

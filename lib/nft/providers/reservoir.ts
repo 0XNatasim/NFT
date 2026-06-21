@@ -1,6 +1,7 @@
 import type { NFTAsset } from "@/lib/types";
 import type {
   CollectionInfo,
+  CollectionPrice,
   NFTProvider,
   WalletNFTsResult,
 } from "@/lib/nft/provider";
@@ -71,6 +72,28 @@ export const reservoirProvider: NFTProvider = {
       );
       const t = data.tokens?.[0];
       return t ? toAsset(t) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getCollectionPrice(contractAddress): Promise<CollectionPrice | null> {
+    try {
+      const data = await fetchJson(`/collections/v7?id=${contractAddress}`);
+      const c = data.collections?.[0];
+      if (!c) return null;
+      const floor = c.floorAsk?.price?.amount?.decimal ?? null;
+      const bid = c.topBid?.price?.amount?.decimal ?? null;
+      const currency =
+        c.floorAsk?.price?.currency?.symbol ??
+        c.topBid?.price?.currency?.symbol ??
+        "MON";
+      return {
+        contractAddress: contractAddress.toLowerCase(),
+        floorPrice: typeof floor === "number" ? floor : null,
+        topOffer: typeof bid === "number" ? bid : null,
+        currency,
+      };
     } catch {
       return null;
     }
