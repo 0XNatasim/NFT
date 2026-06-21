@@ -20,6 +20,7 @@ import {
   MONAD_CHAIN_ID,
   SETTLEMENT_CONTRACT_ADDRESS,
 } from "@/lib/chains/monad";
+import { bufferedGas } from "@/lib/chains/gas";
 import {
   erc721Abi,
   settlementAbi,
@@ -161,12 +162,17 @@ export default function OfferDetailPage({
         toast.info(
           `Approving ${shortAddress(contract)}: this grants the settlement contract permission to transfer NFTs in this collection when a trade you signed/accept executes. Revocable anytime.`
         );
-        const hash = await writeContractAsync({
+        const approveParams = {
           address: contract as Address,
           abi: erc721Abi,
-          functionName: "setApprovalForAll",
-          args: [SETTLEMENT_CONTRACT_ADDRESS, true],
+          functionName: "setApprovalForAll" as const,
+          args: [SETTLEMENT_CONTRACT_ADDRESS, true] as const,
+        };
+        const gas = await bufferedGas(publicClient, {
+          ...approveParams,
+          account: address,
         });
+        const hash = await writeContractAsync({ ...approveParams, gas });
         await publicClient.waitForTransactionReceipt({ hash });
       }
     }
