@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
-import { useWalletNFTsInfinite } from "@/hooks/use-market";
+import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -48,6 +48,10 @@ export function WalletNFTs({ owner }: { owner: string }) {
       .map(([address, v]) => ({ address, ...v }))
       .sort((a, b) => b.count - a.count);
   }, [nfts]);
+
+  const { data: prices } = useCollectionPrices(
+    collections.map((c) => c.address)
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -129,6 +133,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
             <NFTCard
               key={`${nft.contractAddress}:${nft.tokenId}`}
               nft={nft}
+              price={prices?.[nft.contractAddress.toLowerCase()]}
             />
           ))}
         </div>

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
-import { useWalletNFTsInfinite } from "@/hooks/use-market";
+import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -74,6 +74,10 @@ export function OwnedNFTPicker({
       .map(([addr, v]) => ({ address: addr, ...v }))
       .sort((a, b) => b.count - a.count);
   }, [nfts]);
+
+  const { data: prices } = useCollectionPrices(
+    collections.map((c) => c.address)
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -163,6 +167,7 @@ export function OwnedNFTPicker({
                 nft={nft}
                 selected={selected.some((n) => nftKey(n) === nftKey(nft))}
                 onClick={() => onToggle(nft)}
+                price={prices?.[nft.contractAddress.toLowerCase()]}
               />
             ))}
           </div>
