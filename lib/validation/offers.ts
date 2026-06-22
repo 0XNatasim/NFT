@@ -84,6 +84,7 @@ export const listOffersQuerySchema = z.object({
   maker: addressSchema.optional(),
   taker: addressSchema.optional(),
   wallet: addressSchema.optional(),
+  collection: addressSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).default(0),
 });

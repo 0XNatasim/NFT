@@ -62,13 +62,18 @@ export async function listOffers(filters: {
   maker?: string;
   taker?: string;
   wallet?: string;
+  collection?: string;
   limit: number;
   offset: number;
 }): Promise<TradeOffer[]> {
   const db = getServiceClient();
+  const select = filters.collection
+    ? `${OFFER_SELECT}, matching_nfts:trade_offer_nfts!inner(id)`
+    : OFFER_SELECT;
+
   let query = db
     .from("trade_offers")
-    .select(OFFER_SELECT)
+    .select(select)
     // Offers are chain-bound (EIP-712 domain); never mix networks.
     .eq("chain_id", MONAD_CHAIN_ID)
     .order("created_at", { ascending: false })
@@ -77,6 +82,13 @@ export async function listOffers(filters: {
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.maker) query = query.eq("maker_address", filters.maker.toLowerCase());
   if (filters.taker) query = query.eq("taker_address", filters.taker.toLowerCase());
+
+  if (filters.collection) {
+    query = query.eq(
+      "matching_nfts.contract_address",
+      filters.collection.toLowerCase()
+    );
+  }
 
   if (filters.wallet) {
     const w = filters.wallet.toLowerCase();
