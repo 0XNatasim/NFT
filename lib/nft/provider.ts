@@ -18,6 +18,14 @@ export interface WalletNFTsResult {
   pageKey: string | null;
 }
 
+/** Live market pricing for a collection, amounts in the chain's native token. */
+export interface CollectionPrice {
+  contractAddress: string;
+  floorPrice: number | null; // lowest listing (ask)
+  topOffer: number | null; // highest collection-wide bid
+  currency: string; // e.g. "MON" / "WMON"
+}
+
 export interface NFTProvider {
   readonly name: string;
   getWalletNFTs(
@@ -27,4 +35,6 @@ export interface NFTProvider {
   getCollection(contractAddress: string): Promise<CollectionInfo | null>;
   getToken(contractAddress: string, tokenId: string): Promise<NFTAsset | null>;
   searchCollection(query: string): Promise<CollectionInfo[]>;
+  /** Optional: live floor / top-offer pricing for a collection. */
+  getCollectionPrice?(contractAddress: string): Promise<CollectionPrice | null>;
 }

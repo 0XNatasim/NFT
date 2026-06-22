@@ -20,6 +20,8 @@ export const ORDER_TYPES = {
     { name: "takerNFTs", type: "NFTItem[]" },
     { name: "makerMonAmount", type: "uint256" },
     { name: "takerMonAmount", type: "uint256" },
+    { name: "feeBps", type: "uint256" },
+    { name: "flatFee", type: "uint256" },
     { name: "nonce", type: "uint256" },
     { name: "expiry", type: "uint256" },
   ],
@@ -41,6 +43,8 @@ export interface TradeOrder {
   takerNFTs: NFTItem[];
   makerMonAmount: bigint;
   takerMonAmount: bigint;
+  feeBps: bigint;
+  flatFee: bigint;
   nonce: bigint;
   expiry: bigint;
 }

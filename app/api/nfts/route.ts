@@ -4,6 +4,7 @@ import { getNFTProvider } from "@/lib/nft";
 import { addressSchema } from "@/lib/validation/offers";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { publicClient } from "@/lib/chains/client";
+import { erc721Abi } from "@/lib/contracts/settlement";
 import { getOnChainTokenMeta } from "@/lib/nft/onchain-metadata";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,30 @@ export const dynamic = "force-dynamic";
 // configured chain. Cache contract-code existence so each collection is
 // checked at most once per server instance.
 const contractExistsCache = new Map<string, boolean>();
+
+// On-chain ERC721 name() per contract, so collections the indexer didn't
+// name (e.g. Algebra LP positions -> "Algebra-DUST/WMON") show a real label
+// instead of their address. null = no name / not a readable name().
+const contractNameCache = new Map<string, string | null>();
+
+async function getContractName(address: string): Promise<string | null> {
+  const key = address.toLowerCase();
+  const cached = contractNameCache.get(key);
+  if (cached !== undefined) return cached;
+  try {
+    const name = await publicClient.readContract({
+      address: key as `0x${string}`,
+      abi: erc721Abi,
+      functionName: "name",
+    });
+    const value = typeof name === "string" && name.trim() ? name.trim() : null;
+    contractNameCache.set(key, value);
+    return value;
+  } catch {
+    contractNameCache.set(key, null);
+    return null;
+  }
+}
 
 async function contractExists(address: string): Promise<boolean> {
   const key = address.toLowerCase();
@@ -34,7 +59,7 @@ const querySchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const { allowed } = rateLimit(clientKey(req, "nfts"), 30, 60_000);
+  const { allowed } = await rateLimit(clientKey(req, "nfts"), 30, 60_000);
   if (!allowed) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
@@ -66,6 +91,26 @@ export async function GET(req: Request) {
     result.nfts = result.nfts.filter((n) =>
       valid.has(n.contractAddress.toLowerCase())
     );
+
+    // Backfill collection names the indexer left blank from the contract's
+    // on-chain name(), one lookup per unique contract.
+    const unnamed = Array.from(
+      new Set(
+        result.nfts
+          .filter((n) => !n.collectionName)
+          .map((n) => n.contractAddress.toLowerCase())
+      )
+    );
+    if (unnamed.length > 0) {
+      const names = await Promise.all(unnamed.map(getContractName));
+      const nameByContract = new Map(unnamed.map((c, i) => [c, names[i]]));
+      for (const nft of result.nfts) {
+        if (!nft.collectionName) {
+          nft.collectionName =
+            nameByContract.get(nft.contractAddress.toLowerCase()) ?? null;
+        }
+      }
+    }
 
     // Indexers sometimes return tokens without artwork (e.g. uncached
     // collections). Backfill from on-chain tokenURI metadata, bounded per

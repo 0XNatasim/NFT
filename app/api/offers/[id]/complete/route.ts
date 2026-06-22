@@ -20,7 +20,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { allowed } = rateLimit(clientKey(req, "complete-offer"), 20, 60_000);
+  const { allowed } = await rateLimit(clientKey(req, "complete-offer"), 20, 60_000);
   if (!allowed) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
@@ -90,6 +90,15 @@ export async function POST(
     if (!executedTaker) {
       return NextResponse.json(
         { error: "Transaction does not settle this offer" },
+        { status: 409 }
+      );
+    }
+
+    // The on-chain event is authoritative; reject mismatched client claims
+    // for auditability/consistency.
+    if (parsed.data.takerAddress.toLowerCase() !== executedTaker) {
+      return NextResponse.json(
+        { error: "Submitted taker does not match the settlement event" },
         { status: 409 }
       );
     }

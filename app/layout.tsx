@@ -8,9 +8,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Monad Market — P2P NFT Trading on Monad",
+  title: "Handshake — P2P NFT Trading on Monad",
   description:
-    "Trade NFTs wallet-to-wallet on Monad. NFT-for-NFT, NFT+MON, private offers. Atomic settlement, zero custody.",
+    "Trade NFTs wallet-to-wallet on Monad — no bots, no snipers. NFT-for-NFT, NFT+MON, private offers. Atomic settlement, zero custody.",
 };
 
 export default function RootLayout({
@@ -28,8 +28,8 @@ export default function RootLayout({
             <main className="flex-1">{children}</main>
             <footer className="border-t border-border py-8">
               <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-                Monad Market — peer-to-peer NFT trading on Monad. No custody, atomic
-                settlement.
+                Handshake — peer-to-peer NFT trading on Monad. No bots, no
+                custody, atomic settlement.
               </div>
             </footer>
           </div>

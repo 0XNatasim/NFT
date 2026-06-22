@@ -4,16 +4,29 @@
 import { cn, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
+function formatPrice(n: number): string {
+  if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (n >= 1) return n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
 export function NFTCard({
   nft,
   selected,
   onClick,
   size = "md",
+  price,
 }: {
   nft: NFTAsset;
   selected?: boolean;
   onClick?: () => void;
   size?: "sm" | "md";
+  /** Live collection pricing (floor / top offer). */
+  price?: {
+    floorPrice: number | null;
+    topOffer: number | null;
+    currency: string;
+  } | null;
 }) {
   return (
     <button
@@ -53,6 +66,21 @@ export function NFTCard({
         <p className="truncate text-sm font-medium">
           {nft.name ?? `#${nft.tokenId}`}
         </p>
+        {price && (price.floorPrice != null || price.topOffer != null) && (
+          <div className="mt-1 flex items-center justify-between gap-1 text-[11px]">
+            {price.floorPrice != null && (
+              <span className="truncate font-medium text-foreground">
+                {formatPrice(price.floorPrice)} {price.currency}
+                <span className="ml-0.5 text-muted-foreground">floor</span>
+              </span>
+            )}
+            {price.topOffer != null && (
+              <span className="truncate text-muted-foreground">
+                offer {formatPrice(price.topOffer)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       {selected && (
         <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-monad-purple text-xs font-bold text-monad-black">

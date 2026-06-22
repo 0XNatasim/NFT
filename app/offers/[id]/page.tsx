@@ -15,10 +15,12 @@ import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
 import { useOffer } from "@/hooks/use-market";
 import {
+  explorerTokenUrl,
   explorerTxUrl,
   MONAD_CHAIN_ID,
   SETTLEMENT_CONTRACT_ADDRESS,
 } from "@/lib/chains/monad";
+import { bufferedGas } from "@/lib/chains/gas";
 import {
   erc721Abi,
   settlementAbi,
@@ -62,23 +64,17 @@ export default function OfferDetailPage({
       offer.status === "open" &&
       BigInt(offer.makerMonAmount) > 0n,
     queryFn: async () => {
-      const [balance, feeBps] = await Promise.all([
-        publicClient!.readContract({
-          address: SETTLEMENT_CONTRACT_ADDRESS,
-          abi: settlementAbi,
-          functionName: "escrowBalance",
-          args: [offer!.makerAddress as Address],
-        }),
-        publicClient!.readContract({
-          address: SETTLEMENT_CONTRACT_ADDRESS,
-          abi: settlementAbi,
-          functionName: "feeBps",
-        }),
-      ]);
+      const balance = await publicClient!.readContract({
+        address: SETTLEMENT_CONTRACT_ADDRESS,
+        abi: settlementAbi,
+        functionName: "escrowBalance",
+        args: [offer!.makerAddress as Address],
+      });
+      // The fee is baked into the signed order, so use the order's feeBps.
       const required = quoteFees(
         BigInt(offer!.makerMonAmount),
         0n,
-        feeBps
+        BigInt(offer!.feeBps)
       ).makerEscrowRequired;
       return {
         balance,
@@ -139,6 +135,8 @@ export default function OfferDetailPage({
         })),
       makerMonAmount: BigInt(o.makerMonAmount),
       takerMonAmount: BigInt(o.takerMonAmount),
+      feeBps: BigInt(o.feeBps),
+      flatFee: BigInt(o.flatFee),
       nonce: BigInt(o.nonce),
       expiry: BigInt(o.expiry),
     };
@@ -161,13 +159,20 @@ export default function OfferDetailPage({
         args: [address, SETTLEMENT_CONTRACT_ADDRESS],
       });
       if (!approved) {
-        toast.info(`Approving ${shortAddress(contract)} for settlement…`);
-        const hash = await writeContractAsync({
+        toast.info(
+          `Approving ${shortAddress(contract)}: this grants the settlement contract permission to transfer NFTs in this collection when a trade you signed/accept executes. Revocable anytime.`
+        );
+        const approveParams = {
           address: contract as Address,
           abi: erc721Abi,
-          functionName: "setApprovalForAll",
-          args: [SETTLEMENT_CONTRACT_ADDRESS, true],
+          functionName: "setApprovalForAll" as const,
+          args: [SETTLEMENT_CONTRACT_ADDRESS, true] as const,
+        };
+        const gas = await bufferedGas(publicClient, {
+          ...approveParams,
+          account: address,
         });
+        const hash = await writeContractAsync({ ...approveParams, gas });
         await publicClient.waitForTransactionReceipt({ hash });
       }
     }
@@ -240,19 +245,13 @@ export default function OfferDetailPage({
     try {
       await ensureApprovals(offer, "taker");
 
-      const [feeBps, flatSwapFee] = await Promise.all([
-        publicClient.readContract({
-          address: SETTLEMENT_CONTRACT_ADDRESS,
-          abi: settlementAbi,
-          functionName: "feeBps",
-        }),
-        publicClient.readContract({
-          address: SETTLEMENT_CONTRACT_ADDRESS,
-          abi: settlementAbi,
-          functionName: "flatSwapFee",
-        }),
-      ]);
-      const quote = quoteFees(makerMon, takerMon, feeBps, flatSwapFee);
+      // Fees are fixed in the signed order — quote from the order itself.
+      const quote = quoteFees(
+        makerMon,
+        takerMon,
+        BigInt(offer.feeBps),
+        BigInt(offer.flatFee)
+      );
 
       // Pre-flight simulation: surfaces the exact revert reason (missing
       // maker approval, insufficient escrow, ...) before any gas is spent.
@@ -375,23 +374,39 @@ export default function OfferDetailPage({
         </div>
 
         <div className="space-y-4">
-          <FeeBreakdown makerMonAmount={makerMon} takerMonAmount={takerMon} />
+          <FeeBreakdown
+            makerMonAmount={makerMon}
+            takerMonAmount={takerMon}
+            feeBps={BigInt(offer.feeBps)}
+            flatSwapFee={BigInt(offer.flatFee)}
+          />
 
           {canAccept && (
-            <Button
-              className="w-full"
-              size="lg"
-              disabled={working !== null}
-              onClick={handleAccept}
-            >
-              {working === "accept" ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Settling…
-                </>
-              ) : (
-                "Accept trade"
+            <>
+              {takerNfts.length > 0 && (
+                <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+                  Accepting first approves the settlement contract to transfer
+                  the requested NFT(s) from your wallet — this is a collection-wide{" "}
+                  <code>setApprovalForAll</code> that stays until you revoke it.
+                  Only the exact NFTs in this signed trade move now; settlement is
+                  simulated before you pay any gas.
+                </p>
               )}
-            </Button>
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={working !== null}
+                onClick={handleAccept}
+              >
+                {working === "accept" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Settling…
+                  </>
+                ) : (
+                  "Accept trade"
+                )}
+              </Button>
+            </>
           )}
           {offer.status === "open" &&
             escrowQuery.data &&
@@ -420,20 +435,28 @@ export default function OfferDetailPage({
               </div>
             )}
           {isMaker && offer.status === "open" && makerNfts.length > 0 && (
-            <Button
-              className="w-full"
-              variant="secondary"
-              disabled={working !== null}
-              onClick={handleMakerApprove}
-            >
-              {working === "approve" ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Approving…
-                </>
-              ) : (
-                "Approve my NFTs for settlement"
-              )}
-            </Button>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Approval grants the settlement contract permission to transfer
+                NFTs in the offered collection(s) — a collection-wide{" "}
+                <code>setApprovalForAll</code> that stays until you revoke it.
+                Nothing moves until a taker settles this signed trade.
+              </p>
+              <Button
+                className="w-full"
+                variant="secondary"
+                disabled={working !== null}
+                onClick={handleMakerApprove}
+              >
+                {working === "approve" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Approving…
+                  </>
+                ) : (
+                  "Approve my NFTs for settlement"
+                )}
+              </Button>
+            </div>
           )}
           {isMaker && offer.status === "open" && (
             <Button
@@ -492,7 +515,19 @@ function SideCard({
         {nfts.length > 0 ? (
           <div className="grid grid-cols-2 gap-2">
             {nfts.map((nft) => (
-              <NFTCard key={nft.id} nft={nft} />
+              <div key={nft.id} className="space-y-1">
+                <NFTCard nft={nft} />
+                <a
+                  href={explorerTokenUrl(nft.contractAddress, nft.tokenId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-monad-purple"
+                  title={nft.contractAddress}
+                >
+                  {shortAddress(nft.contractAddress)}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
             ))}
           </div>
         ) : (

@@ -1,8 +1,8 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { MarketStats, TradeOffer, WalletReputation } from "@/lib/types";
-import type { WalletNFTsResult } from "@/lib/nft/provider";
+import type { CollectionPrice, WalletNFTsResult } from "@/lib/nft/provider";
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -47,6 +47,56 @@ export function useWalletNFTs(owner?: string) {
     queryKey: ["wallet-nfts", owner],
     enabled: !!owner,
     queryFn: () => fetchJson<WalletNFTsResult>(`/api/nfts?owner=${owner}`),
+  });
+}
+
+/**
+ * Paginated variant: walks every page via the provider's pageKey so the
+ * account page can show the wallet's full NFT collection (OpenSea-style)
+ * rather than just the first page the indexer returns.
+ */
+export function useWalletNFTsInfinite(owner?: string) {
+  return useInfiniteQuery({
+    queryKey: ["wallet-nfts-infinite", owner],
+    enabled: !!owner,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ owner: owner! });
+      if (pageParam) params.set("pageKey", pageParam);
+      return fetchJson<WalletNFTsResult>(`/api/nfts?${params}`);
+    },
+    getNextPageParam: (lastPage) => lastPage.pageKey ?? undefined,
+  });
+}
+
+/**
+ * Live floor / top-offer prices for a set of collections, keyed by lowercased
+ * contract address. One batched request; refreshed periodically.
+ */
+export function useCollectionPrices(contracts: string[]) {
+  const unique = Array.from(
+    new Set(contracts.map((c) => c.toLowerCase()))
+  ).sort();
+  return useQuery({
+    queryKey: ["collection-prices", unique],
+    enabled: unique.length > 0,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      // Route caps each call at 25 contracts; chunk and merge.
+      const chunks: string[][] = [];
+      for (let i = 0; i < unique.length; i += 25) {
+        chunks.push(unique.slice(i, i + 25));
+      }
+      const results = await Promise.all(
+        chunks.map((chunk) =>
+          fetchJson<{ prices: Record<string, CollectionPrice> }>(
+            `/api/collection-price?contracts=${chunk.join(",")}`
+          ).then((d) => d.prices)
+        )
+      );
+      return Object.assign({}, ...results) as Record<string, CollectionPrice>;
+    },
   });
 }
 

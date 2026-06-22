@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { allowed } = rateLimit(clientKey(req, "create-offer"), 10, 60_000);
+  const { allowed } = await rateLimit(clientKey(req, "create-offer"), 10, 60_000);
   if (!allowed) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
@@ -80,6 +80,8 @@ export async function POST(req: Request) {
     })),
     makerMonAmount: BigInt(input.makerMonAmount),
     takerMonAmount: BigInt(input.takerMonAmount),
+    feeBps: BigInt(input.feeBps),
+    flatFee: BigInt(input.flatFee),
     nonce: BigInt(input.nonce),
     expiry: BigInt(input.expiry),
   };
@@ -102,6 +104,8 @@ export async function POST(req: Request) {
         status: "open",
         maker_mon_amount: input.makerMonAmount,
         taker_mon_amount: input.takerMonAmount,
+        fee_bps: input.feeBps,
+        flat_fee: input.flatFee,
         nonce: input.nonce,
         expiry: input.expiry,
         signature: input.signature,

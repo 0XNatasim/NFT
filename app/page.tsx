@@ -33,12 +33,13 @@ export default function HomePage() {
       {/* Hero */}
       <section className="py-16 text-center md:py-24">
         <h1 className="text-balance mx-auto max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
-          Trade NFTs <span className="text-monad-purple">wallet-to-wallet</span> on
-          Monad
+          Every trade is a <span className="text-monad-purple">handshake</span>.
+          Human to human.
         </h1>
         <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
-          A trading desk, not a sniping ground. NFT-for-NFT, NFT+MON, private
-          offers — settled atomically on-chain with zero custody.
+          Deal NFTs directly with another wallet on Monad — no bots, no snipers,
+          no middleman. You set the terms, they shake on it, and the contract
+          settles it atomically. Zero custody.
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <Link

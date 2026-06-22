@@ -5,18 +5,18 @@ import { defineChain } from "viem";
  * build targets Monad Testnet today and Monad Mainnet at launch.
  */
 
-const DEFAULT_TESTNET_ID = 10143;
+const MONAD_MAINNET_ID = 143;
+const MONAD_TESTNET_ID = 10143;
 
 export const MONAD_CHAIN_ID = Number(
-  process.env.NEXT_PUBLIC_CHAIN_ID ?? DEFAULT_TESTNET_ID
+  process.env.NEXT_PUBLIC_CHAIN_ID ?? MONAD_MAINNET_ID
 );
 
 export const MONAD_RPC_URL =
-  process.env.NEXT_PUBLIC_MONAD_RPC_URL ?? "https://testnet-rpc.monad.xyz";
+  process.env.NEXT_PUBLIC_MONAD_RPC_URL ?? "https://rpc.monad.xyz";
 
 export const MONAD_EXPLORER_URL =
-  process.env.NEXT_PUBLIC_MONAD_EXPLORER_URL ??
-  "https://testnet.monadexplorer.com";
+  process.env.NEXT_PUBLIC_MONAD_EXPLORER_URL ?? "https://monadscan.com";
 
 export const MON = {
   name: "Monad",
@@ -26,15 +26,15 @@ export const MON = {
 
 export const monad = defineChain({
   id: MONAD_CHAIN_ID,
-  name: MONAD_CHAIN_ID === DEFAULT_TESTNET_ID ? "Monad Testnet" : "Monad",
+  name: MONAD_CHAIN_ID === MONAD_TESTNET_ID ? "Monad Testnet" : "Monad",
   nativeCurrency: MON,
   rpcUrls: {
     default: { http: [MONAD_RPC_URL] },
   },
   blockExplorers: {
-    default: { name: "Monad Explorer", url: MONAD_EXPLORER_URL },
+    default: { name: "MonadScan", url: MONAD_EXPLORER_URL },
   },
-  testnet: MONAD_CHAIN_ID === DEFAULT_TESTNET_ID,
+  testnet: MONAD_CHAIN_ID === MONAD_TESTNET_ID,
 });
 
 export const SETTLEMENT_CONTRACT_ADDRESS = (process.env
@@ -47,4 +47,10 @@ export function explorerTxUrl(hash: string): string {
 
 export function explorerAddressUrl(address: string): string {
   return `${MONAD_EXPLORER_URL}/address/${address}`;
+}
+
+export function explorerTokenUrl(contract: string, tokenId?: string): string {
+  return tokenId
+    ? `${MONAD_EXPLORER_URL}/token/${contract}?a=${tokenId}`
+    : `${MONAD_EXPLORER_URL}/token/${contract}`;
 }

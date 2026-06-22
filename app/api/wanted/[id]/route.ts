@@ -3,16 +3,26 @@ import { z } from "zod";
 import { getServiceClient } from "@/lib/supabase/server";
 import { addressSchema } from "@/lib/validation/offers";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import {
+  buildDeleteWantedMessage,
+  timestampFresh,
+  verifyWalletSignature,
+} from "@/lib/wanted/auth";
+import type { Hex } from "viem";
 
 export const dynamic = "force-dynamic";
 
-const deleteSchema = z.object({ walletAddress: addressSchema });
+const deleteSchema = z.object({
+  walletAddress: addressSchema,
+  timestamp: z.number().int(),
+  signature: z.string().regex(/^0x[0-9a-fA-F]+$/, "Invalid signature"),
+});
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { allowed } = rateLimit(clientKey(req, "wanted-delete"), 10, 60_000);
+  const { allowed } = await rateLimit(clientKey(req, "wanted-delete"), 10, 60_000);
   if (!allowed) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
@@ -35,6 +45,31 @@ export async function DELETE(
       { status: 400 }
     );
   }
+  const input = parsed.data;
+
+  if (!timestampFresh(input.timestamp)) {
+    return NextResponse.json(
+      { error: "Signature timestamp expired; please retry" },
+      { status: 401 }
+    );
+  }
+
+  const message = buildDeleteWantedMessage({
+    walletAddress: input.walletAddress,
+    id,
+    timestamp: input.timestamp,
+  });
+  const validSig = await verifyWalletSignature(
+    message,
+    input.signature as Hex,
+    input.walletAddress
+  );
+  if (!validSig) {
+    return NextResponse.json(
+      { error: "Invalid wallet signature" },
+      { status: 401 }
+    );
+  }
 
   try {
     const db = getServiceClient();
@@ -42,7 +77,7 @@ export async function DELETE(
       .from("wanted_posts")
       .delete()
       .eq("id", id)
-      .eq("wallet_address", parsed.data.walletAddress.toLowerCase())
+      .eq("wallet_address", input.walletAddress.toLowerCase())
       .select();
     if (error) throw error;
     if (!data || data.length === 0) {

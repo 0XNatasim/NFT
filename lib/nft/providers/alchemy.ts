@@ -10,7 +10,7 @@ import type {
  * code serves Monad testnet and mainnet.
  */
 
-const ALCHEMY_NETWORK = process.env.ALCHEMY_NETWORK ?? "monad-testnet";
+const ALCHEMY_NETWORK = process.env.ALCHEMY_NETWORK ?? "monad-mainnet";
 
 function baseUrl(): string {
   const key = process.env.ALCHEMY_API_KEY;
