@@ -30,4 +30,28 @@ export const FEATURED_COLLECTIONS: FeaturedCollection[] = [
     address: "0x36982448e77658b8f58f4665696e3173d1e696c2",
     logo: "/collections/molandaks.png",
   },
+  {
+    name: "Roarrr",
+    address: "0xcbdfad1bfb6a4414dd4d84b7a6420dc43683deb0",
+  },
+  {
+    name: "Sealuminati",
+    address: "0xaeaa920165fd7ce58a0e0772ffc97f06626572cd",
+  },
+  {
+    name: "The Daks",
+    address: "0x9f8514cebee138b61806d4651f51d26c8098b463",
+  },
+  {
+    name: "Overnads",
+    address: "0xfb5ba4061f5c50b1daa6c067bb2dfb0a8ebf6a8d",
+  },
+  {
+    name: "Chewy",
+    address: "0xe1ddf619bb352e6eb25367be99606be02836cbbc",
+  },
+  {
+    name: "skrumpeys",
+    address: "0xb0dad798c80e40dd6b8e8545074c6a5b7b97d2c0",
+  },
 ];
