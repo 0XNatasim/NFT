@@ -26,6 +26,8 @@ export interface TradeOffer {
   status: OfferStatus;
   makerMonAmount: string; // wei, as string
   takerMonAmount: string; // wei, as string
+  feeBps: number; // protocol fee (bps) baked into the signed order
+  flatFee: string; // flat swap fee (wei, as string) baked into the order
   nonce: string;
   expiry: number; // unix seconds
   signature: string;

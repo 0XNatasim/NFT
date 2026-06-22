@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { Handshake } from "lucide-react";
 import { OfferAlerts } from "@/components/layout/offer-alerts";
 import { cn } from "@/lib/utils";
 
@@ -21,11 +22,11 @@ export function Header() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-monad-purple font-bold text-monad-black">
-              M
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-monad-purple text-monad-black">
+              <Handshake className="h-5 w-5" />
             </span>
             <span className="text-lg font-semibold tracking-tight">
-              Monad <span className="text-monad-purple">Market</span>
+              Hand<span className="text-monad-purple">shake</span>
             </span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">

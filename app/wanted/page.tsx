@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -13,6 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
+import {
+  buildCreateWantedMessage,
+  buildDeleteWantedMessage,
+} from "@/lib/wanted/auth";
 
 interface WantedPost {
   id: string;
@@ -25,6 +29,7 @@ interface WantedPost {
 
 export default function WantedPage() {
   const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const queryClient = useQueryClient();
   const [lookingFor, setLookingFor] = useState("");
   const [offering, setOffering] = useState("");
@@ -41,14 +46,29 @@ export default function WantedPage() {
 
   const createPost = useMutation({
     mutationFn: async () => {
+      if (!address) throw new Error("Connect your wallet first");
+      const timestamp = Date.now();
+      const offeringValue = offering || undefined;
+      const notesValue = notes || undefined;
+      const signature = await signMessageAsync({
+        message: buildCreateWantedMessage({
+          walletAddress: address,
+          lookingFor,
+          offering: offeringValue,
+          notes: notesValue,
+          timestamp,
+        }),
+      });
       const res = await fetch("/api/wanted", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           walletAddress: address,
           lookingFor,
-          offering: offering || undefined,
-          notes: notes || undefined,
+          offering: offeringValue,
+          notes: notesValue,
+          timestamp,
+          signature,
         }),
       });
       const body = await res.json();
@@ -66,10 +86,19 @@ export default function WantedPage() {
 
   const deletePost = useMutation({
     mutationFn: async (id: string) => {
+      if (!address) throw new Error("Connect your wallet first");
+      const timestamp = Date.now();
+      const signature = await signMessageAsync({
+        message: buildDeleteWantedMessage({
+          walletAddress: address,
+          id,
+          timestamp,
+        }),
+      });
       const res = await fetch(`/api/wanted/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress: address }),
+        body: JSON.stringify({ walletAddress: address, timestamp, signature }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to delete");

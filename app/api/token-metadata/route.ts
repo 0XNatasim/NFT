@@ -12,7 +12,7 @@ const querySchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const { allowed } = rateLimit(clientKey(req, "token-meta"), 60, 60_000);
+  const { allowed } = await rateLimit(clientKey(req, "token-meta"), 60, 60_000);
   if (!allowed) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }

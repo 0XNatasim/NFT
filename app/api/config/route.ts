@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   return NextResponse.json({
-    appName: process.env.NEXT_PUBLIC_APP_NAME ?? "Monad Market",
+    appName: process.env.NEXT_PUBLIC_APP_NAME ?? "Handshake",
     chainId: MONAD_CHAIN_ID,
     explorerUrl: MONAD_EXPLORER_URL,
     settlementContract: SETTLEMENT_CONTRACT_ADDRESS,

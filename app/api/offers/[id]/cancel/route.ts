@@ -20,7 +20,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { allowed } = rateLimit(clientKey(req, "cancel-offer"), 20, 60_000);
+  const { allowed } = await rateLimit(clientKey(req, "cancel-offer"), 20, 60_000);
   if (!allowed) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
