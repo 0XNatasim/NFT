@@ -31,23 +31,27 @@ export const FEATURED_COLLECTIONS: FeaturedCollection[] = [
     logo: "/collections/molandaks.png",
   },
   {
-    name: "MonGang",
-    address: "0xec7bf726c8011048e3c14c88fae1a788d22c220f",
-    logo: "/collections/mongang.png",
+    name: "Roarrr",
+    address: "0xcbdfad1bfb6a4414dd4d84b7a6420dc43683deb0",
   },
   {
-    name: "MonShape",
-    address: "0x1c921c0ccc4f1f90a18a1297dc040528b3cf0f5b",
-    logo: "/collections/monshape.png",
+    name: "Sealuminati",
+    address: "0xaeaa920165fd7ce58a0e0772ffc97f06626572cd",
   },
   {
-    name: "Lilstarrrs",
-    address: "0xcabf3c04b90f4fe1b521fcaf4acb25d5df478e52",
-    logo: "/collections/lilstarrrs.png",
+    name: "The Daks",
+    address: "0x9f8514cebee138b61806d4651f51d26c8098b463",
   },
   {
-    name: "LootGo",
-    address: "0xa3522ea57c0bc48e602e2fe9f3929309d9618d96",
-    logo: "/collections/lootgo.png",
+    name: "Overnads",
+    address: "0xfb5ba4061f5c50b1daa6c067bb2dfb0a8ebf6a8d",
+  },
+  {
+    name: "Chewy",
+    address: "0xe1ddf619bb352e6eb25367be99606be02836cbbc",
+  },
+  {
+    name: "skrumpeys",
+    address: "0xb0dad798c80e40dd6b8e8545074c6a5b7b97d2c0",
   },
 ];
