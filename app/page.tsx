@@ -1,18 +1,26 @@
 "use client";
 
+import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Handshake, ShieldCheck, Zap } from "lucide-react";
+import { ArrowRight, Handshake, ShieldCheck, Sparkles, Zap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfferCard } from "@/components/trade/offer-card";
 import { EmptyState } from "@/components/empty-state";
 import { useMarketStats, useOffers } from "@/hooks/use-market";
+import { FEATURED_COLLECTIONS, type FeaturedCollection } from "@/lib/featured-collections";
 import { formatMon } from "@/lib/utils";
 
 export default function HomePage() {
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const activeCollection = FEATURED_COLLECTIONS.find(
+    (collection) => collection.address.toLowerCase() === selectedCollection
+  );
   const { data: openOffers, isLoading: loadingOpen } = useOffers({
     status: "open",
-    limit: 12,
+    collection: selectedCollection ?? undefined,
+    limit: 100,
   });
   const { data: recentTrades, isLoading: loadingRecent } = useOffers({
     status: "completed",
@@ -83,12 +91,43 @@ export default function HomePage() {
 
       {/* Marketplace feed */}
       <section className="border-t border-border py-14">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-semibold">Open trade offers</h2>
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-monad-purple/30 bg-monad-purple/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-monad-purple">
+              <Sparkles className="h-3.5 w-3.5" /> Market
+            </p>
+            <h2 className="text-2xl font-semibold">Open trade offers</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Filter by Monad collection so hundreds of offers stay easy to scan.
+            </p>
+          </div>
           <Link href="/create" className="text-sm text-monad-purple hover:underline">
             Create yours →
           </Link>
         </div>
+
+        <CollectionFilterBanner
+          selectedCollection={selectedCollection}
+          onSelect={setSelectedCollection}
+        />
+
+        <div className="mb-4 mt-5 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+          <span>
+            {activeCollection
+              ? `Showing ${activeCollection.name} offers`
+              : "Showing all featured collection offers"}
+          </span>
+          {selectedCollection && (
+            <button
+              type="button"
+              className="text-monad-purple hover:underline"
+              onClick={() => setSelectedCollection(null)}
+            >
+              Clear filter
+            </button>
+          )}
+        </div>
+
         {loadingOpen ? (
           <OfferGridSkeleton />
         ) : openOffers && openOffers.length > 0 ? (
@@ -99,8 +138,16 @@ export default function HomePage() {
           </div>
         ) : (
           <EmptyState
-            title="No open offers yet"
-            body="Be the first to put a trade on the board."
+            title={
+              activeCollection
+                ? `No ${activeCollection.name} offers yet`
+                : "No open offers yet"
+            }
+            body={
+              activeCollection
+                ? "Clear the filter or create the first offer for this collection."
+                : "Be the first to put a trade on the board."
+            }
           />
         )}
       </section>
@@ -124,6 +171,83 @@ export default function HomePage() {
         )}
       </section>
     </div>
+  );
+}
+
+function CollectionFilterBanner({
+  selectedCollection,
+  onSelect,
+}: {
+  selectedCollection: string | null;
+  onSelect: (collection: string | null) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card/70 p-3 shadow-sm">
+      <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:thin]">
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          className={`flex min-w-28 shrink-0 flex-col items-center gap-2 rounded-xl border px-3 py-3 text-sm transition ${
+            selectedCollection === null
+              ? "border-monad-purple bg-monad-purple/15 text-foreground"
+              : "border-border bg-secondary/40 text-muted-foreground hover:border-monad-purple/50 hover:text-foreground"
+          }`}
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-monad-purple/20 text-lg font-bold text-monad-purple">
+            All
+          </span>
+          <span className="font-medium">All collections</span>
+        </button>
+        {FEATURED_COLLECTIONS.map((collection) => (
+          <CollectionFilterButton
+            key={collection.address}
+            collection={collection}
+            selected={
+              selectedCollection === collection.address.toLowerCase()
+            }
+            onClick={() => onSelect(collection.address.toLowerCase())}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CollectionFilterButton({
+  collection,
+  selected,
+  onClick,
+}: {
+  collection: FeaturedCollection;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-w-32 shrink-0 flex-col items-center gap-2 rounded-xl border px-3 py-3 text-sm transition ${
+        selected
+          ? "border-monad-purple bg-monad-purple/15 text-foreground"
+          : "border-border bg-secondary/40 text-muted-foreground hover:border-monad-purple/50 hover:text-foreground"
+      }`}
+      aria-pressed={selected}
+    >
+      {collection.logo ? (
+        <Image
+          src={collection.logo}
+          alt={`${collection.name} logo`}
+          width={48}
+          height={48}
+          className="h-12 w-12 rounded-full object-cover ring-1 ring-border"
+        />
+      ) : (
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-monad-purple/20 text-lg font-bold text-monad-purple">
+          {collection.name.slice(0, 2)}
+        </span>
+      )}
+      <span className="max-w-28 truncate font-medium">{collection.name}</span>
+    </button>
   );
 }
 

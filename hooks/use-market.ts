@@ -16,11 +16,13 @@ async function fetchJson<T>(url: string): Promise<T> {
 export function useOffers(params: {
   status?: string;
   wallet?: string;
+  collection?: string;
   limit?: number;
 }) {
   const query = new URLSearchParams();
   if (params.status) query.set("status", params.status);
   if (params.wallet) query.set("wallet", params.wallet);
+  if (params.collection) query.set("collection", params.collection);
   if (params.limit) query.set("limit", String(params.limit));
   return useQuery({
     queryKey: ["offers", params],
