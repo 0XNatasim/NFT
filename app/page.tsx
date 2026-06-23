@@ -223,6 +223,60 @@ const TUTORIAL_STORAGE_KEY = "handshake-hide-welcome-tutorial";
 function WelcomeTutorial() {
   const [open, setOpen] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
+  const tutorialPages = [
+    {
+      icon: <ShoppingCart className="h-5 w-5" />,
+      title: "Buy an NFT with MON",
+      eyebrow: "Page 1 of 3",
+      example: "Example: buy 1x 10kSquad for 3,000 MON",
+      description:
+        "Use this when you know the NFT you want and want to offer MON directly to the owner.",
+      steps: [
+        "Choose Buy NFTs with MON in the trade builder.",
+        "Enter 3,000 MON as the amount you give.",
+        "Add the 10kSquad NFT you want by contract + token ID.",
+        "Sign the offer for free. The owner can accept and settle everything in one transaction.",
+      ],
+      ctaHref: "/create",
+      ctaLabel: "Create buy offer",
+    },
+    {
+      icon: <HeartHandshake className="h-5 w-5" />,
+      title: "Create a custom trade",
+      eyebrow: "Page 2 of 3",
+      example: "Example: trade 1x 10kSquad + 10,000 MON for 1x r3tard",
+      description:
+        "Use custom trades when both sides include NFTs and MON, or when you need more control than a simple buy/sell/swap.",
+      steps: [
+        "Choose Custom Trade in the trade builder.",
+        "Add your 10kSquad NFT and 10,000 MON on the side you give.",
+        "Request the r3tard NFT on the side you get.",
+        "Handshake only settles if both wallets still match the signed deal.",
+      ],
+      ctaHref: "/create",
+      ctaLabel: "Build custom trade",
+    },
+    {
+      icon: <Search className="h-5 w-5" />,
+      title: "Post on the Wanted board",
+      eyebrow: "Page 3 of 3",
+      example: "Example: wanted — 1x 10kSquad",
+      description:
+        "Use the Wanted board when you are hunting for a collection and want other traders to send you private offers.",
+      steps: [
+        "Open Want and choose 10kSquad as the collection.",
+        "Pick a rarity, add your offer, and leave notes if needed.",
+        "Other traders can answer your post with a private offer.",
+        "Review matching offers from your Dashboard before accepting.",
+      ],
+      ctaHref: "/wanted",
+      ctaLabel: "Post wanted request",
+    },
+  ];
+  const currentPage = tutorialPages[pageIndex];
+  const isFirstPage = pageIndex === 0;
+  const isLastPage = pageIndex === tutorialPages.length - 1;
 
   useEffect(() => {
     if (window.localStorage.getItem(TUTORIAL_STORAGE_KEY) !== "true") {
@@ -253,12 +307,10 @@ function WelcomeTutorial() {
               <Sparkles className="h-3.5 w-3.5" /> Quick tutorial
             </p>
             <h2 id="welcome-tutorial-title" className="text-2xl font-bold">
-              Three ways to make a Handshake
+              {currentPage.title}
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-foreground">
-              Every example settles wallet-to-wallet: both sides sign, the
-              contract verifies the assets and MON, then everything swaps or
-              nothing does.
+              {currentPage.description}
             </p>
           </div>
           <button
@@ -271,41 +323,33 @@ function WelcomeTutorial() {
           </button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <TutorialExample
-            icon={<ShoppingCart className="h-5 w-5" />}
-            title="Buy an NFT with MON"
-            example="Buy 1x 10kSquad for 3,000 MON"
-            steps={[
-              "Choose Buy NFTs with MON.",
-              "Add 3,000 MON on your side.",
-              "Request the 10kSquad NFT by contract + token ID.",
-              "Sign the offer for free; the owner can accept in one transaction.",
-            ]}
-          />
-          <TutorialExample
-            icon={<HeartHandshake className="h-5 w-5" />}
-            title="Create a custom trade"
-            example="Trade 1x 10kSquad + 10,000 MON for 1x r3tard"
-            steps={[
-              "Choose Custom Trade.",
-              "Add your 10kSquad NFT and 10,000 MON.",
-              "Request the r3tard NFT you want.",
-              "The contract only settles if both wallets still match the deal.",
-            ]}
-          />
-          <TutorialExample
-            icon={<Search className="h-5 w-5" />}
-            title="Post on the Wanted board"
-            example="Wanted: 1x 10kSquad"
-            steps={[
-              "Open Want and choose 10kSquad as the collection.",
-              "Pick a rarity, add your offer, and leave notes if needed.",
-              "Other traders can answer with a private offer.",
-              "You review it from your Dashboard before accepting.",
-            ]}
-          />
+        <div className="mb-5 grid gap-2 sm:grid-cols-3">
+          {tutorialPages.map((page, index) => (
+            <button
+              key={page.title}
+              type="button"
+              onClick={() => setPageIndex(index)}
+              className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                index === pageIndex
+                  ? "border-monad-purple bg-monad-purple/15 text-foreground"
+                  : "border-border bg-background/60 text-muted-foreground hover:border-monad-purple/50 hover:text-foreground"
+              }`}
+            >
+              <span className="mb-1 block text-xs uppercase tracking-wide">
+                Page {index + 1}
+              </span>
+              <span className="font-medium">{page.title}</span>
+            </button>
+          ))}
         </div>
+
+        <TutorialPage
+          icon={currentPage.icon}
+          eyebrow={currentPage.eyebrow}
+          title={currentPage.title}
+          example={currentPage.example}
+          steps={currentPage.steps}
+        />
 
         <label className="mt-5 flex items-start gap-3 rounded-xl border border-border bg-background/60 p-3 text-sm">
           <input
@@ -323,43 +367,69 @@ function WelcomeTutorial() {
           </span>
         </label>
 
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={closeTutorial}>
-            Close for now
-          </Button>
-          <Link
-            href="/create"
-            onClick={closeTutorial}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            variant="outline"
+            disabled={isFirstPage}
+            onClick={() => setPageIndex((index) => Math.max(0, index - 1))}
           >
-            Propose a deal <ArrowRight className="h-4 w-4" />
-          </Link>
+            Back
+          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            {!isLastPage ? (
+              <Button onClick={() => setPageIndex((index) => index + 1)}>
+                Next <ArrowRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={closeTutorial}>
+                Close for now
+              </Button>
+            )}
+            <Link
+              href={currentPage.ctaHref}
+              onClick={closeTutorial}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              {currentPage.ctaLabel} <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function TutorialExample({
+function TutorialPage({
   icon,
+  eyebrow,
   title,
   example,
   steps,
 }: {
   icon: ReactNode;
+  eyebrow: string;
   title: string;
   example: string;
   steps: string[];
 }) {
   return (
     <Card className="border-monad-purple/20 bg-background/60">
-      <CardContent className="p-4">
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-monad-purple/15 text-monad-purple">
-          {icon}
+      <CardContent className="p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-monad-purple text-monad-black">
+            {icon}
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
+              {eyebrow}
+            </p>
+            <h3 className="text-xl font-semibold">{title}</h3>
+          </div>
         </div>
-        <h3 className="font-semibold">{title}</h3>
-        <p className="mt-1 text-sm font-medium text-monad-purple">{example}</p>
-        <ol className="mt-3 list-decimal space-y-1 pl-4 text-sm text-foreground">
+        <p className="rounded-xl border border-monad-purple/30 bg-monad-purple/10 p-3 text-base font-medium text-monad-purple">
+          {example}
+        </p>
+        <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-foreground">
           {steps.map((step) => (
             <li key={step}>{step}</li>
           ))}
