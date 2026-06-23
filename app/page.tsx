@@ -1,10 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Handshake, ShieldCheck, Sparkles, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  Handshake,
+  HeartHandshake,
+  Search,
+  ShieldCheck,
+  ShoppingCart,
+  Sparkles,
+  X,
+  Zap,
+} from "lucide-react";
 import { useAccount } from "wagmi";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfferCard } from "@/components/trade/offer-card";
@@ -44,6 +55,8 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto px-4">
+      <WelcomeTutorial />
+
       {/* Hero */}
       <section className="grid gap-10 py-16 md:grid-cols-[1.05fr_0.95fr] md:items-center md:py-24">
         <div className="text-center md:text-left">
@@ -202,6 +215,157 @@ export default function HomePage() {
         )}
       </section>
     </div>
+  );
+}
+
+const TUTORIAL_STORAGE_KEY = "handshake-hide-welcome-tutorial";
+
+function WelcomeTutorial() {
+  const [open, setOpen] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  useEffect(() => {
+    if (window.localStorage.getItem(TUTORIAL_STORAGE_KEY) !== "true") {
+      setOpen(true);
+    }
+  }, []);
+
+  function closeTutorial() {
+    if (dontShowAgain) {
+      window.localStorage.setItem(TUTORIAL_STORAGE_KEY, "true");
+    }
+    setOpen(false);
+  }
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4 py-6 backdrop-blur"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="welcome-tutorial-title"
+    >
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-monad-purple/30 bg-card p-5 shadow-2xl shadow-monad-purple/20">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-monad-purple/30 bg-monad-purple/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-monad-purple">
+              <Sparkles className="h-3.5 w-3.5" /> Quick tutorial
+            </p>
+            <h2 id="welcome-tutorial-title" className="text-2xl font-bold">
+              Three ways to make a Handshake
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-foreground">
+              Every example settles wallet-to-wallet: both sides sign, the
+              contract verifies the assets and MON, then everything swaps or
+              nothing does.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            onClick={closeTutorial}
+            aria-label="Close tutorial"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <TutorialExample
+            icon={<ShoppingCart className="h-5 w-5" />}
+            title="Buy an NFT with MON"
+            example="Buy 1x 10kSquad for 3,000 MON"
+            steps={[
+              "Choose Buy NFTs with MON.",
+              "Add 3,000 MON on your side.",
+              "Request the 10kSquad NFT by contract + token ID.",
+              "Sign the offer for free; the owner can accept in one transaction.",
+            ]}
+          />
+          <TutorialExample
+            icon={<HeartHandshake className="h-5 w-5" />}
+            title="Create a custom trade"
+            example="Trade 1x 10kSquad + 10,000 MON for 1x r3tard"
+            steps={[
+              "Choose Custom Trade.",
+              "Add your 10kSquad NFT and 10,000 MON.",
+              "Request the r3tard NFT you want.",
+              "The contract only settles if both wallets still match the deal.",
+            ]}
+          />
+          <TutorialExample
+            icon={<Search className="h-5 w-5" />}
+            title="Post on the Wanted board"
+            example="Wanted: 1x 10kSquad"
+            steps={[
+              "Open Want and choose 10kSquad as the collection.",
+              "Pick a rarity, add your offer, and leave notes if needed.",
+              "Other traders can answer with a private offer.",
+              "You review it from your Dashboard before accepting.",
+            ]}
+          />
+        </div>
+
+        <label className="mt-5 flex items-start gap-3 rounded-xl border border-border bg-background/60 p-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 accent-monad-purple"
+            checked={dontShowAgain}
+            onChange={(event) => setDontShowAgain(event.target.checked)}
+          />
+          <span>
+            <span className="block font-medium">Don&apos;t show this again</span>
+            <span className="text-muted-foreground">
+              You must check this box before closing if you do not want the
+              tutorial to appear the next time you open Handshake.
+            </span>
+          </span>
+        </label>
+
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={closeTutorial}>
+            Close for now
+          </Button>
+          <Link
+            href="/create"
+            onClick={closeTutorial}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Propose a deal <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TutorialExample({
+  icon,
+  title,
+  example,
+  steps,
+}: {
+  icon: ReactNode;
+  title: string;
+  example: string;
+  steps: string[];
+}) {
+  return (
+    <Card className="border-monad-purple/20 bg-background/60">
+      <CardContent className="p-4">
+        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-monad-purple/15 text-monad-purple">
+          {icon}
+        </div>
+        <h3 className="font-semibold">{title}</h3>
+        <p className="mt-1 text-sm font-medium text-monad-purple">{example}</p>
+        <ol className="mt-3 list-decimal space-y-1 pl-4 text-sm text-foreground">
+          {steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
   );
 }
 
