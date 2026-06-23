@@ -245,7 +245,7 @@ function WelcomeTutorial() {
       icon: <HeartHandshake className="h-5 w-5" />,
       title: "Create a custom trade",
       eyebrow: "Page 2 of 3",
-      example: "Example: trade 1x 10kSquad + 10,000 MON for 1x r3tard",
+      example: "Example: trade 1 10kSquad + 10,000 MON for 1 r3tard",
       description:
         "Use custom trades when both sides include NFTs and MON, or when you need more control than a simple buy/sell/swap.",
       steps: [
