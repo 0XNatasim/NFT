@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { cn, shortAddress } from "@/lib/utils";
+import { isCollectionBid } from "@/lib/collection-bids";
 import type { NFTAsset } from "@/lib/types";
 
 function formatPrice(n: number): string {
@@ -28,6 +29,7 @@ export function NFTCard({
     currency: string;
   } | null;
 }) {
+  const collectionBid = isCollectionBid(nft);
   return (
     <button
       type="button"
@@ -55,7 +57,7 @@ export function NFTCard({
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-2xl text-muted-foreground">
-            ?
+            {collectionBid ? "Any" : "?"}
           </div>
         )}
       </div>
@@ -64,7 +66,9 @@ export function NFTCard({
           {nft.collectionName ?? shortAddress(nft.contractAddress)}
         </p>
         <p className="truncate text-sm font-medium">
-          {nft.name ?? `#${nft.tokenId}`}
+          {collectionBid
+            ? (nft.name ?? "Any NFT")
+            : (nft.name ?? `#${nft.tokenId}`)}
         </p>
         {price && (price.floorPrice != null || price.topOffer != null) && (
           <div className="mt-1 flex items-center justify-between gap-1 text-[11px]">

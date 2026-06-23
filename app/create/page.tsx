@@ -42,6 +42,7 @@ import {
   ORDER_TYPES,
   ZERO_ADDRESS,
 } from "@/lib/orders/eip712";
+import { COLLECTION_BID_TOKEN_ID } from "@/lib/collection-bids";
 import { formatMon } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -204,25 +205,37 @@ function CreateTradeForm() {
       toast.error("Enter a valid NFT contract address");
       return;
     }
-    if (!/^\d+$/.test(requestTokenId)) {
+    const collection = FEATURED_COLLECTIONS.find(
+      (c) => c.address.toLowerCase() === requestContract.toLowerCase()
+    );
+    const isCollectionWideBuy = intent === "buy" && requestTokenId.trim() === "";
+    if (!isCollectionWideBuy && !/^\d+$/.test(requestTokenId)) {
       toast.error("Enter a numeric token ID");
       return;
     }
     const nft: NFTAsset = {
       contractAddress: requestContract.toLowerCase(),
-      tokenId: requestTokenId,
+      tokenId: isCollectionWideBuy ? COLLECTION_BID_TOKEN_ID : requestTokenId,
       tokenStandard: "ERC721",
-      name: `#${requestTokenId}`,
-      collectionName:
-        FEATURED_COLLECTIONS.find(
-          (c) => c.address.toLowerCase() === requestContract.toLowerCase()
-        )?.name ?? null,
-      imageUrl: null,
+      name: isCollectionWideBuy
+        ? `Any ${collection?.name ?? "collection"} NFT`
+        : `#${requestTokenId}`,
+      collectionName: collection?.name ?? null,
+      imageUrl: isCollectionWideBuy ? (collection?.logo ?? null) : null,
+      metadata: isCollectionWideBuy ? { collectionBid: true } : null,
     };
     if (requestedNfts.some((n) => nftKey(n) === nftKey(nft))) return;
     setRequestedNfts((prev) => [...prev, nft]);
     setRequestContract("");
     setRequestTokenId("");
+    if (isCollectionWideBuy) {
+      toast.success(
+        `Added a collection-wide buy request for ${
+          nft.collectionName ?? "this collection"
+        }`
+      );
+      return;
+    }
     // Enrich asynchronously; update the entry in place when metadata lands.
     fetch(
       `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`
@@ -749,7 +762,9 @@ function StepDetails(props: {
   const canAddOfferedNft =
     isAddress(offerContract) && /^\d+$/.test(offerTokenId) && !addingOffered;
   const canAddRequestedNft =
-    isAddress(requestContract) && /^\d+$/.test(requestTokenId);
+    isAddress(requestContract) &&
+    (/^\d+$/.test(requestTokenId) ||
+      (props.intent === "buy" && requestTokenId.trim() === ""));
 
   return (
     <div className="space-y-6">
@@ -873,7 +888,10 @@ function StepDetails(props: {
           {requestsNft && (
             <>
               <p className="text-sm text-muted-foreground">
-                The NFT(s) you want, by contract + token ID:
+                The NFT(s) you want, by contract + token ID. For buy trades,
+                select a collection and leave Token ID empty to offer MON for
+                any NFT in that collection; holders can answer with a private
+                offer.
               </p>
               <div className="flex flex-wrap gap-2">
                 {FEATURED_COLLECTIONS.map((c) => (
@@ -892,7 +910,9 @@ function StepDetails(props: {
                   onChange={(e) => setRequestContract(e.target.value)}
                 />
                 <Input
-                  placeholder="Token ID"
+                  placeholder={
+                    props.intent === "buy" ? "Token ID (optional)" : "Token ID"
+                  }
                   className="w-32"
                   value={requestTokenId}
                   onChange={(e) => setRequestTokenId(e.target.value)}
