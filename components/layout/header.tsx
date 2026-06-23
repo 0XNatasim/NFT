@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Market" },
-  { href: "/create", label: "Create Trade" },
-  { href: "/wanted", label: "Wanted" },
-  { href: "/account", label: "Account" },
+  { href: "/create", label: "Trade" },
+  { href: "/wanted", label: "Want" },
+  { href: "/account", label: "Dashboard" },
 ];
 
 export function Header() {

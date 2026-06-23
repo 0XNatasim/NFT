@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Handshake, ShieldCheck, Sparkles, Zap } from "lucide-react";
+import { useAccount } from "wagmi";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfferCard } from "@/components/trade/offer-card";
@@ -13,6 +14,7 @@ import { FEATURED_COLLECTIONS, type FeaturedCollection } from "@/lib/featured-co
 import { formatMon } from "@/lib/utils";
 
 export default function HomePage() {
+  const { address } = useAccount();
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const activeCollection = FEATURED_COLLECTIONS.find(
     (collection) => collection.address.toLowerCase() === selectedCollection
@@ -27,44 +29,65 @@ export default function HomePage() {
     limit: 6,
   });
   const { data: stats } = useMarketStats();
+  const { data: walletOffers } = useOffers({
+    wallet: address,
+    status: "open",
+    limit: 100,
+  });
+  const privateOffers =
+    walletOffers?.filter(
+      (offer) =>
+        offer.isPrivate &&
+        offer.takerAddress?.toLowerCase() === address?.toLowerCase() &&
+        offer.makerAddress.toLowerCase() !== address?.toLowerCase()
+    ).length ?? null;
 
   return (
     <div className="container mx-auto px-4">
       {/* Hero */}
-      <section className="py-16 text-center md:py-24">
-        <h1 className="text-balance mx-auto max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
-          Every trade is a <span className="text-monad-purple">handshake</span>.
-          Human to human.
-        </h1>
-        <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
-          Deal NFTs directly with another wallet on Monad — no bots, no snipers,
-          no middleman. You set the terms, they shake on it, and the contract
-          settles it atomically. Zero custody.
-        </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Link
-            href="/create"
-            className="inline-flex h-12 items-center gap-2 rounded-md bg-primary px-8 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Create a trade <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/wanted"
-            className="inline-flex h-12 items-center rounded-md bg-secondary px-8 text-base font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
-          >
-            Browse wanted board
-          </Link>
+      <section className="grid gap-10 py-16 md:grid-cols-[1.05fr_0.95fr] md:items-center md:py-24">
+        <div className="text-center md:text-left">
+          <h1 className="text-balance mx-auto max-w-3xl text-4xl font-bold tracking-tight md:mx-0 md:text-6xl">
+            Every trade is a <span className="text-monad-purple">handshake</span>.
+            Human to human.
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-lg text-foreground md:mx-0">
+            Deal NFTs directly with another wallet on Monad, a high-speed
+            EVM-compatible chain — no bots, no snipers, no middleman. You set the
+            terms, they shake on it, and one transaction swaps everything or
+            nothing. We never hold your NFTs; your wallet stays in control.
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row md:justify-start">
+            <Link
+              href="/create"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary px-8 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Propose a deal <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/wanted"
+              className="inline-flex h-12 items-center justify-center rounded-md border border-monad-purple/50 bg-transparent px-8 text-base font-medium text-foreground transition-colors hover:bg-monad-purple/10"
+            >
+              Browse wanted board
+            </Link>
+          </div>
+
+          {/* Stats */}
+          <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4 md:mx-0">
+            <Stat label="Trades settled" value={String(stats?.totalTrades ?? "—")} />
+            <Stat label="Open offers" value={String(stats?.openOffers ?? "—")} />
+            <Stat
+              label="Private offers"
+              value={address ? String(privateOffers ?? "—") : "Connect"}
+            />
+            <Stat
+              label="MON volume"
+              value={stats ? formatMon(BigInt(stats.totalVolumeWei)) : "—"}
+            />
+          </div>
         </div>
 
-        {/* Stats */}
-        <div className="mx-auto mt-12 grid max-w-2xl grid-cols-3 gap-4">
-          <Stat label="Trades settled" value={String(stats?.totalTrades ?? "—")} />
-          <Stat label="Open offers" value={String(stats?.openOffers ?? "—")} />
-          <Stat
-            label="MON volume"
-            value={stats ? formatMon(BigInt(stats.totalVolumeWei)) : "—"}
-          />
-        </div>
+        <HeroPreview />
       </section>
 
       {/* How it works */}
@@ -83,9 +106,17 @@ export default function HomePage() {
           />
           <HowCard
             icon={<Zap className="h-6 w-6 text-monad-purple" />}
-            title="3. Atomic settlement"
-            body="One transaction swaps everything or nothing. No escrow middlemen, no platform custody — the contract verifies signatures, ownership and approvals."
+            title="3. Everything swaps or nothing does"
+            body="One transaction instantly settles the deal. That’s atomic settlement: no escrow middlemen, no platform custody — the contract verifies signatures, ownership and approvals."
           />
+        </div>
+        <div className="mt-8 flex justify-center">
+          <Link
+            href="/create"
+            className="inline-flex h-11 items-center gap-2 rounded-md bg-primary px-6 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Start your first trade <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </section>
 
@@ -207,6 +238,91 @@ function CollectionFilterBanner({
             }
             onClick={() => onSelect(collection.address.toLowerCase())}
           />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HeroPreview() {
+  const featured = FEATURED_COLLECTIONS.slice(0, 4);
+
+  return (
+    <div className="relative mx-auto w-full max-w-md">
+      <div className="absolute -inset-6 rounded-[2rem] bg-monad-purple/20 blur-3xl" />
+      <Card className="relative overflow-hidden border-monad-purple/30 bg-card/90 shadow-2xl shadow-monad-purple/10">
+        <CardContent className="space-y-5 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
+                Live offer preview
+              </p>
+              <h3 className="text-xl font-semibold">Human deal, wallet settled</h3>
+            </div>
+            <span className="rounded-full border border-monad-purple/40 bg-monad-purple/10 px-3 py-1 text-xs text-monad-purple">
+              No custody
+            </span>
+          </div>
+
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <PreviewSide title="You give" collections={featured.slice(0, 2)} />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-monad-purple text-monad-black">
+              <Handshake className="h-5 w-5" />
+            </div>
+            <PreviewSide title="You get" collections={featured.slice(2, 4)} />
+          </div>
+
+          <div className="rounded-xl border border-border bg-background/60 p-3">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="font-medium">Settlement</span>
+              <span className="text-monad-purple">1 transaction</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full w-4/5 rounded-full bg-gradient-to-r from-monad-purple to-fuchsia-400" />
+            </div>
+            <p className="mt-2 text-xs text-foreground">
+              Both wallets sign. The contract verifies ownership, approvals, and
+              terms before anything moves.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function PreviewSide({
+  title,
+  collections,
+}: {
+  title: string;
+  collections: FeaturedCollection[];
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-background/60 p-3">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-foreground">
+        {title}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {collections.map((collection) => (
+          <div
+            key={collection.address}
+            className="overflow-hidden rounded-lg border border-monad-purple/20 bg-secondary"
+          >
+            {collection.logo ? (
+              <Image
+                src={collection.logo}
+                alt={collection.name}
+                width={96}
+                height={96}
+                className="aspect-square w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-square items-center justify-center text-monad-purple">
+                <Sparkles className="h-5 w-5" />
+              </div>
+            )}
+          </div>
         ))}
       </div>
     </div>

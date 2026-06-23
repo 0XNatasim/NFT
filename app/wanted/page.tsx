@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
+import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import {
   buildCreateWantedMessage,
   buildDeleteWantedMessage,
@@ -31,7 +32,8 @@ export default function WantedPage() {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const queryClient = useQueryClient();
-  const [lookingFor, setLookingFor] = useState("");
+  const [collection, setCollection] = useState(FEATURED_COLLECTIONS[0]?.name ?? "");
+  const [rarity, setRarity] = useState("Any");
   const [offering, setOffering] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -48,12 +50,13 @@ export default function WantedPage() {
     mutationFn: async () => {
       if (!address) throw new Error("Connect your wallet first");
       const timestamp = Date.now();
+      const lookingForValue = `${rarity === "Any" ? "Any rarity" : rarity} ${collection}`;
       const offeringValue = offering || undefined;
       const notesValue = notes || undefined;
       const signature = await signMessageAsync({
         message: buildCreateWantedMessage({
           walletAddress: address,
-          lookingFor,
+          lookingFor: lookingForValue,
           offering: offeringValue,
           notes: notesValue,
           timestamp,
@@ -64,7 +67,7 @@ export default function WantedPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           walletAddress: address,
-          lookingFor,
+          lookingFor: lookingForValue,
           offering: offeringValue,
           notes: notesValue,
           timestamp,
@@ -76,7 +79,8 @@ export default function WantedPage() {
     },
     onSuccess: () => {
       toast.success("Posted to the wanted board");
-      setLookingFor("");
+      setCollection(FEATURED_COLLECTIONS[0]?.name ?? "");
+      setRarity("Any");
       setOffering("");
       setNotes("");
       queryClient.invalidateQueries({ queryKey: ["wanted"] });
@@ -113,10 +117,10 @@ export default function WantedPage() {
   return (
     <div className="container mx-auto px-4 py-10">
       <h1 className="mb-2 text-3xl font-bold">Wanted board</h1>
-      <p className="mb-8 text-muted-foreground">
+      <p className="mb-8 text-foreground">
         Post what you&apos;re hunting for. Posts are anonymous — if you can fill a
         request, send the poster a private offer and they&apos;ll see it on their
-        account.
+        dashboard.
       </p>
 
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
@@ -125,14 +129,36 @@ export default function WantedPage() {
             <CardTitle>Post a request</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <label className="block text-sm font-medium">
+              Collection
+              <select
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={collection}
+                onChange={(e) => setCollection(e.target.value)}
+              >
+                {FEATURED_COLLECTIONS.map((c) => (
+                  <option key={c.address} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-medium">
+              Rarity
+              <select
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={rarity}
+                onChange={(e) => setRarity(e.target.value)}
+              >
+                {["Any", "Common", "Uncommon", "Rare"].map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
             <Input
-              placeholder="Looking for… (e.g. Monad Punks with laser eyes)"
-              value={lookingFor}
-              maxLength={280}
-              onChange={(e) => setLookingFor(e.target.value)}
-            />
-            <Input
-              placeholder="Offering… (optional)"
+              placeholder="Offer… (e.g. 25 MON or 10kSquad #123)"
               value={offering}
               maxLength={280}
               onChange={(e) => setOffering(e.target.value)}
@@ -145,7 +171,7 @@ export default function WantedPage() {
             />
             <Button
               className="w-full"
-              disabled={!isConnected || lookingFor.trim().length < 2 || createPost.isPending}
+              disabled={!isConnected || collection.trim().length < 2 || createPost.isPending}
               onClick={() => createPost.mutate()}
             >
               {createPost.isPending ? (
