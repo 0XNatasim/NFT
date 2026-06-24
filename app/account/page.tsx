@@ -24,7 +24,7 @@ export default function AccountPage() {
       <div className="container mx-auto px-4 py-20">
         <EmptyState
           title="Connect your wallet"
-          body="Connect a wallet to see your NFTs, offers and dashboard history."
+          body="Connect a wallet to see your NFTs, deals, and handshake history."
         />
       </div>
     );
@@ -33,7 +33,9 @@ export default function AccountPage() {
   const me = address.toLowerCase();
   const allOpen = offers?.filter((o) => o.status === "open") ?? [];
   const incoming = allOpen.filter(
-    (o) => o.takerAddress?.toLowerCase() === me && o.makerAddress.toLowerCase() !== me
+    (o) =>
+      o.takerAddress?.toLowerCase() === me &&
+      o.makerAddress.toLowerCase() !== me
   );
   const open = allOpen.filter((o) => o.makerAddress.toLowerCase() === me);
   const completed = offers?.filter((o) => o.status === "completed") ?? [];
@@ -45,10 +47,16 @@ export default function AccountPage() {
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="mt-1 text-foreground">{shortAddress(address)}</p>
         <div className="mt-4 grid max-w-2xl grid-cols-3 gap-4">
-          <StatCard label="Completed trades" value={reputation?.completedTradesCount ?? 0} />
-          <StatCard label="Cancelled offers" value={reputation?.cancelledTradesCount ?? 0} />
           <StatCard
-            label="Last trade"
+            label="Completed Handshakes"
+            value={reputation?.completedTradesCount ?? 0}
+          />
+          <StatCard
+            label="Cancelled Deals"
+            value={reputation?.cancelledTradesCount ?? 0}
+          />
+          <StatCard
+            label="Last Handshake"
             value={
               reputation?.lastTradeAt
                 ? format(new Date(reputation.lastTradeAt), "MMM d, yyyy")
@@ -62,35 +70,61 @@ export default function AccountPage() {
       </div>
 
       {incoming.length > 0 && (
-        <Section title={`Offers for you (${incoming.length})`} loading={loadingOffers}>
+        <Section
+          title={`Private Deals (${incoming.length})`}
+          loading={loadingOffers}
+        >
           <p className="-mt-2 mb-4 text-sm text-muted-foreground">
-            These trades are reserved for your wallet. Open one to review and accept.
+            These deals are reserved for your wallet. Open one to review and
+            accept.
           </p>
           <OfferGrid offers={incoming} />
         </Section>
       )}
 
-      <Section title={`My open offers (${open.length})`} loading={loadingOffers}>
+      <Section title={`My Open Deals (${open.length})`} loading={loadingOffers}>
         {open.length > 0 ? (
           <OfferGrid offers={open} />
         ) : (
-          <EmptyState title="No open offers" body="Create a trade to get started." />
+          <EmptyState
+            title="No open deals"
+            body="Propose a Deal to get started."
+          />
         )}
       </Section>
 
-      <Section title={`Completed trades (${completed.length})`} loading={loadingOffers}>
+      <Section
+        title={`Completed Handshakes (${completed.length})`}
+        loading={loadingOffers}
+      >
         {completed.length > 0 ? (
           <OfferGrid offers={completed} />
         ) : (
-          <EmptyState title="No completed trades yet" body="Settled trades appear here." />
+          <EmptyState
+            title="No completed handshakes yet"
+            body="Completed handshakes appear here."
+          />
         )}
       </Section>
 
-      <Section title={`Cancelled offers (${cancelled.length})`} loading={loadingOffers}>
+      <Section title="Wanted Requests">
+        <EmptyState
+          title="Wanted requests live on the Wanted board"
+          body="Post requests for NFTs you want, then answer matching collectors with private deals."
+        />
+      </Section>
+
+      <Section
+        title={`Recent Activity (${cancelled.length})`}
+        loading={loadingOffers}
+      >
         {cancelled.length > 0 ? (
           <OfferGrid offers={cancelled} />
         ) : (
-          <EmptyState title="No cancelled offers" body="Cancelled offers appear here." />
+          <EmptyState
+            title="No recent cancelled deals"
+            body="Cancelled deals and other activity appear here."
+          />
         )}
       </Section>
 

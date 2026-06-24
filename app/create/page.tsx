@@ -35,7 +35,6 @@ import { bufferedGas } from "@/lib/chains/gas";
 import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
-// useWalletNFTs replaced by OwnedNFTPicker (full pagination + collection filter)
 import {
   generateNonce,
   getOrderDomain,
@@ -53,8 +52,8 @@ const EXPIRY_OPTIONS = [
   { label: "30 days", seconds: 2592000 },
 ];
 
-/** What the maker wants to do — drives which inputs appear. */
 type Intent = "sell" | "buy" | "swap" | "custom";
+type DealStep = "type" | "visibility" | "details" | "review";
 
 const INTENTS: {
   id: Intent;
@@ -64,26 +63,26 @@ const INTENTS: {
 }[] = [
   {
     id: "sell",
-    title: "Sell NFTs for MON",
-    blurb: "List NFTs and receive MON in return.",
+    title: "Sell NFT",
+    blurb: "Receive MON for your NFT.",
     icon: Tag,
   },
   {
     id: "buy",
-    title: "Buy an NFT with MON",
-    blurb: "Offer MON for NFTs you want.",
+    title: "Buy NFT",
+    blurb: "Offer MON for an NFT you want.",
     icon: ShoppingCart,
   },
   {
     id: "swap",
-    title: "Swap NFTs for NFTs",
-    blurb: "Trade NFTs directly for other non-fungible tokens.",
+    title: "Swap NFTs",
+    blurb: "Exchange NFTs directly.",
     icon: Sparkles,
   },
   {
     id: "custom",
-    title: "Custom Trade",
-    blurb: "Offer both NFTs and MON for more control.",
+    title: "Custom Deal",
+    blurb: "Combine NFTs and MON on both sides.",
     icon: Coins,
   },
 ];
@@ -122,15 +121,15 @@ function nftKey(n: { contractAddress: string; tokenId: string }) {
   return `${n.contractAddress.toLowerCase()}:${n.tokenId}`;
 }
 
-export default function CreateTradePage() {
+export default function ProposeDealPage() {
   return (
     <Suspense fallback={null}>
-      <CreateTradeForm />
+      <ProposeDealForm />
     </Suspense>
   );
 }
 
-function CreateTradeForm() {
+function ProposeDealForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { address, isConnected, chainId } = useAccount();
@@ -142,7 +141,6 @@ function CreateTradeForm() {
   const prefilledPrivate =
     searchParams.get("private") === "1" && isAddress(prefilledTaker);
 
-  // Wizard state
   const [step, setStep] = useState(0);
   const [intent, setIntent] = useState<Intent | null>(null);
   const [visibility, setVisibility] = useState<Visibility>(
@@ -157,6 +155,11 @@ function CreateTradeForm() {
     isAddress(prefilledTaker) ? prefilledTaker : ""
   );
   const [expirySeconds, setExpirySeconds] = useState(86400);
+  const [customExpiryValue, setCustomExpiryValue] = useState("");
+  const [customExpiryUnit, setCustomExpiryUnit] = useState<"hours" | "days">(
+    "hours"
+  );
+  const [showCustomExpiry, setShowCustomExpiry] = useState(false);
   const [requestContract, setRequestContract] = useState("");
   const [requestTokenId, setRequestTokenId] = useState("");
   const [offerContract, setOfferContract] = useState("");
@@ -171,6 +174,7 @@ function CreateTradeForm() {
       return 0n;
     }
   }, [offeredMon]);
+
   const takerMonWei = useMemo(() => {
     try {
       return requestedMon ? parseEther(requestedMon) : 0n;
@@ -179,7 +183,6 @@ function CreateTradeForm() {
     }
   }, [requestedMon]);
 
-  // Which inputs are relevant for the chosen intent.
   const offersNft = intent === "sell" || intent === "swap" || intent === "custom";
   const offersMon = intent === "buy" || intent === "custom";
   const requestsNft = intent === "buy" || intent === "swap" || intent === "custom";
@@ -189,6 +192,18 @@ function CreateTradeForm() {
   const hasRequestedSomething = requestedNfts.length > 0 || takerMonWei > 0n;
   const isPrivate = visibility === "private";
   const needsTaker = visibility === "targeted" || visibility === "private";
+
+  const stepOrder: DealStep[] =
+    intent === "sell"
+      ? ["type", "visibility", "details", "review"]
+      : ["type", "details", "visibility", "review"];
+  const currentStep = stepOrder[step] ?? "type";
+  const steps = stepOrder.map((stepId) => {
+    if (stepId === "type") return "Deal Type";
+    if (stepId === "visibility") return "Visibility";
+    if (stepId === "details") return "Deal Details";
+    return "Review";
+  });
 
   function toggleOffered(nft: NFTAsset) {
     setOfferedNfts((prev) =>
@@ -205,14 +220,17 @@ function CreateTradeForm() {
       toast.error("Enter a valid NFT contract address");
       return;
     }
+
     const collection = FEATURED_COLLECTIONS.find(
       (c) => c.address.toLowerCase() === requestContract.toLowerCase()
     );
     const isCollectionWideBuy = intent === "buy" && requestTokenId.trim() === "";
+
     if (!isCollectionWideBuy && !/^\d+$/.test(requestTokenId)) {
       toast.error("Enter a numeric token ID");
       return;
     }
+
     const nft: NFTAsset = {
       contractAddress: requestContract.toLowerCase(),
       tokenId: isCollectionWideBuy ? COLLECTION_BID_TOKEN_ID : requestTokenId,
@@ -224,10 +242,13 @@ function CreateTradeForm() {
       imageUrl: isCollectionWideBuy ? (collection?.logo ?? null) : null,
       metadata: isCollectionWideBuy ? { collectionBid: true } : null,
     };
+
     if (requestedNfts.some((n) => nftKey(n) === nftKey(nft))) return;
+
     setRequestedNfts((prev) => [...prev, nft]);
     setRequestContract("");
     setRequestTokenId("");
+
     if (isCollectionWideBuy) {
       toast.success(
         `Added a collection-wide buy request for ${
@@ -236,7 +257,7 @@ function CreateTradeForm() {
       );
       return;
     }
-    // Enrich asynchronously; update the entry in place when metadata lands.
+
     fetch(
       `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`
     )
@@ -259,17 +280,19 @@ function CreateTradeForm() {
       .catch(() => {});
   }
 
-  /** Add an NFT you own by contract + token ID, verified on-chain. */
   async function addOfferedNftManually() {
     if (!address || !publicClient) return;
+
     if (!isAddress(offerContract)) {
       toast.error("Enter a valid NFT contract address");
       return;
     }
+
     if (!/^\d+$/.test(offerTokenId)) {
       toast.error("Enter a numeric token ID");
       return;
     }
+
     const nft: NFTAsset = {
       contractAddress: offerContract.toLowerCase(),
       tokenId: offerTokenId,
@@ -281,10 +304,12 @@ function CreateTradeForm() {
         )?.name ?? null,
       imageUrl: null,
     };
+
     if (offeredNfts.some((n) => nftKey(n) === nftKey(nft))) {
       toast.error("Already selected");
       return;
     }
+
     setAddingOffered(true);
     try {
       const owner = await publicClient.readContract({
@@ -293,10 +318,12 @@ function CreateTradeForm() {
         functionName: "ownerOf",
         args: [BigInt(nft.tokenId)],
       });
+
       if (owner.toLowerCase() !== address.toLowerCase()) {
         toast.error("You don't own this token");
         return;
       }
+
       try {
         const res = await fetch(
           `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`
@@ -310,6 +337,7 @@ function CreateTradeForm() {
       } catch {
         // metadata is cosmetic; proceed without it
       }
+
       setOfferedNfts((prev) => (prev.length < 20 ? [...prev, nft] : prev));
       setOfferTokenId("");
       toast.success(`Added ${nft.collectionName ?? "NFT"} #${nft.tokenId}`);
@@ -322,29 +350,38 @@ function CreateTradeForm() {
     }
   }
 
-  function goNext() {
-    if (step === 0) {
+  function validateStep(stepId: DealStep) {
+    if (stepId === "type") {
       if (!intent) {
         toast.error("Pick what you'd like to do");
-        return;
+        return false;
       }
     }
-    if (step === 1) {
+
+    if (stepId === "details") {
       if (!hasOfferedSomething) {
-        toast.error("Add something to your side of the trade");
-        return;
+        toast.error("Add something to your side of the deal");
+        return false;
       }
+
       if (!hasRequestedSomething) {
         toast.error("Add what you want in return");
-        return;
+        return false;
       }
     }
-    if (step === 2) {
+
+    if (stepId === "visibility") {
       if (needsTaker && !isAddress(takerAddress)) {
-        toast.error("Enter a valid wallet address for this offer");
-        return;
+        toast.error("Enter a valid wallet address for this deal");
+        return false;
       }
     }
+
+    return true;
+  }
+
+  function goNext() {
+    if (!validateStep(currentStep)) return;
     setStep((s) => Math.min(s + 1, 3));
   }
 
@@ -354,18 +391,22 @@ function CreateTradeForm() {
 
   async function handleSign() {
     if (!address) return;
+
     if (chainId !== MONAD_CHAIN_ID) {
       toast.error("Switch to the Monad network first");
       return;
     }
+
     if (!hasOfferedSomething || !hasRequestedSomething) {
-      toast.error("Your trade is incomplete");
+      toast.error("Your deal is incomplete");
       return;
     }
+
     if (needsTaker && !isAddress(takerAddress)) {
-      toast.error("This offer needs a valid taker wallet address");
+      toast.error("This deal needs a valid taker wallet address");
       return;
     }
+
     if (
       SETTLEMENT_CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000"
     ) {
@@ -375,12 +416,11 @@ function CreateTradeForm() {
 
     setSubmitting(true);
     try {
-      // Approve the settlement contract for the offered NFTs so the order is
-      // instantly fillable. One approval tx per collection.
       if (publicClient && offeredNfts.length > 0) {
         const contracts = Array.from(
           new Set(offeredNfts.map((n) => n.contractAddress.toLowerCase()))
         );
+
         for (const contract of contracts) {
           let approved: boolean;
           try {
@@ -396,16 +436,19 @@ function CreateTradeForm() {
                 "Your NFT provider network and NEXT_PUBLIC_CHAIN_ID/RPC are probably pointing at different networks."
             );
           }
+
           if (!approved) {
             toast.info(
-              "Approving this collection lets the settlement contract transfer its NFTs when a trade you signed executes (revocable anytime)."
+              "Approving this collection lets the settlement contract transfer its NFTs when an accepted deal executes (revocable anytime)."
             );
+
             const approveParams = {
               address: contract as Address,
               abi: erc721Abi,
               functionName: "setApprovalForAll" as const,
               args: [SETTLEMENT_CONTRACT_ADDRESS, true] as const,
             };
+
             const gas = await bufferedGas(publicClient, {
               ...approveParams,
               account: address,
@@ -416,10 +459,9 @@ function CreateTradeForm() {
         }
       }
 
-      // Bake the current protocol fee into the order so both parties sign the
-      // exact fee — the owner can't change it on a signed order afterwards.
       let feeBps = 100n;
       let flatFee = 0n;
+
       if (publicClient) {
         [feeBps, flatFee] = await Promise.all([
           publicClient.readContract({
@@ -485,10 +527,11 @@ function CreateTradeForm() {
           isPrivate,
         }),
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to create offer");
 
-      toast.success("Trade offer created");
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to propose deal");
+
+      toast.success("Deal proposed");
       router.push(`/offers/${body.offer.id}`);
     } catch (err: any) {
       toast.error(err?.shortMessage ?? err?.message ?? "Failed to sign order");
@@ -502,26 +545,30 @@ function CreateTradeForm() {
       <div className="container mx-auto px-4 py-20">
         <EmptyState
           title="Connect your wallet"
-          body="Connect a wallet to build a trade offer."
+          body="Connect a wallet to propose a deal."
         />
       </div>
     );
   }
 
-  const steps = ["Type", "Details", "Visibility", "Review"];
-
   return (
     <div className="container mx-auto max-w-5xl px-4 py-10">
-      <h1 className="mb-6 text-3xl font-bold">Create a trade</h1>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Propose a Deal</h1>
+        <p className="mt-2 text-foreground/85">
+          Build a public or private NFT deal. Trade NFTs, MON, or both with
+          another collector.
+        </p>
+      </div>
 
       <Stepper steps={steps} current={step} onJump={(i) => i < step && setStep(i)} />
 
       <div className="mt-8">
-        {step === 0 && (
+        {currentStep === "type" && (
           <StepIntent intent={intent} onPick={setIntent} />
         )}
 
-        {step === 1 && (
+        {currentStep === "details" && (
           <StepDetails
             intent={intent!}
             offersNft={offersNft}
@@ -551,7 +598,7 @@ function CreateTradeForm() {
           />
         )}
 
-        {step === 2 && (
+        {currentStep === "visibility" && (
           <StepVisibility
             visibility={visibility}
             onPick={setVisibility}
@@ -560,10 +607,16 @@ function CreateTradeForm() {
             needsTaker={needsTaker}
             expirySeconds={expirySeconds}
             setExpirySeconds={setExpirySeconds}
+            customExpiryValue={customExpiryValue}
+            setCustomExpiryValue={setCustomExpiryValue}
+            customExpiryUnit={customExpiryUnit}
+            setCustomExpiryUnit={setCustomExpiryUnit}
+            showCustomExpiry={showCustomExpiry}
+            setShowCustomExpiry={setShowCustomExpiry}
           />
         )}
 
-        {step === 3 && (
+        {currentStep === "review" && (
           <StepReview
             intent={intent!}
             offeredNfts={offeredNfts}
@@ -577,7 +630,6 @@ function CreateTradeForm() {
         )}
       </div>
 
-      {/* Nav */}
       <div className="mt-8 flex items-center justify-between">
         <Button
           variant="ghost"
@@ -594,10 +646,11 @@ function CreateTradeForm() {
           <Button size="lg" disabled={submitting} onClick={handleSign}>
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Waiting for signature…
+                <Loader2 className="h-4 w-4 animate-spin" /> Waiting for
+                signature…
               </>
             ) : (
-              "Sign order (free, no gas)"
+              "Propose Deal (free, no gas to list)"
             )}
           </Button>
         )}
@@ -605,10 +658,6 @@ function CreateTradeForm() {
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* Steps                                                              */
-/* ------------------------------------------------------------------ */
 
 function Stepper({
   steps,
@@ -665,9 +714,11 @@ function StepIntent({
 }) {
   return (
     <div>
-      <h2 className="mb-1 text-xl font-semibold">Choose a trade type</h2>
+      <h2 className="mb-1 text-xl font-semibold">
+        What kind of deal would you like to propose?
+      </h2>
       <p className="mb-6 text-sm text-foreground">
-        Choose a type of trade, and we&apos;ll only ask for the details that matter.
+        Choose a deal type, and we&apos;ll only ask for the details that matter.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {INTENTS.map((opt) => {
@@ -686,13 +737,22 @@ function StepIntent({
             >
               <span
                 className={`mt-0.5 rounded-lg p-2 ${
-                  selected ? "bg-monad-purple text-monad-black" : "bg-monad-purple/15 text-monad-purple"
+                  selected
+                    ? "bg-monad-purple text-monad-black"
+                    : "bg-monad-purple/15 text-monad-purple"
                 }`}
               >
                 <Icon className="h-5 w-5" />
               </span>
               <span>
-                <span className="block font-medium">{opt.title}</span>
+                <span className="flex items-center gap-2 font-medium">
+                  {opt.title}
+                  {opt.id === "custom" && (
+                    <span className="rounded-full border border-monad-purple/40 px-2 py-0.5 text-[10px] uppercase tracking-wide text-monad-purple">
+                      Advanced
+                    </span>
+                  )}
+                </span>
                 <span className="block text-sm text-foreground">
                   {opt.blurb}
                 </span>
@@ -759,6 +819,7 @@ function StepDetails(props: {
     addingOffered,
     addOfferedNftManually,
   } = props;
+
   const canAddOfferedNft =
     isAddress(offerContract) && /^\d+$/.test(offerTokenId) && !addingOffered;
   const canAddRequestedNft =
@@ -768,7 +829,6 @@ function StepDetails(props: {
 
   return (
     <div className="space-y-6">
-      {/* ---- You give ---- */}
       <Card>
         <CardHeader>
           <CardTitle>You give</CardTitle>
@@ -851,6 +911,7 @@ function StepDetails(props: {
               )}
             </>
           )}
+
           {offersMon && (
             <div>
               <label className="mb-1.5 block text-sm font-medium">
@@ -865,21 +926,21 @@ function StepDetails(props: {
               {makerMonWei > 0n && (
                 <p className="mt-1.5 text-xs text-amber-400">
                   MON you offer must be deposited (plus the protocol fee) into
-                  the settlement escrow before the trade can be accepted. You
+                  the settlement escrow before the deal can be accepted. You
                   control the escrow and can withdraw anytime.
                 </p>
               )}
             </div>
           )}
+
           {!offersNft && !offersMon && (
             <p className="text-sm text-muted-foreground">
-              Nothing to configure here for this trade type.
+              Nothing to configure here for this deal type.
             </p>
           )}
         </CardContent>
       </Card>
 
-      {/* ---- You get ---- */}
       <Card>
         <CardHeader>
           <CardTitle>You get</CardTitle>
@@ -888,10 +949,10 @@ function StepDetails(props: {
           {requestsNft && (
             <>
               <p className="text-sm text-muted-foreground">
-                The NFT(s) you want, by contract + token ID. For buy trades,
+                The NFT(s) you want, by contract + token ID. For buy deals,
                 select a collection and leave Token ID empty to offer MON for
                 any NFT in that collection; holders can answer with a private
-                offer.
+                deal.
               </p>
               <div className="flex flex-wrap gap-2">
                 {FEATURED_COLLECTIONS.map((c) => (
@@ -944,6 +1005,7 @@ function StepDetails(props: {
               )}
             </>
           )}
+
           {requestsMon && (
             <div>
               <label className="mb-1.5 block text-sm font-medium">
@@ -971,6 +1033,12 @@ function StepVisibility({
   needsTaker,
   expirySeconds,
   setExpirySeconds,
+  customExpiryValue,
+  setCustomExpiryValue,
+  customExpiryUnit,
+  setCustomExpiryUnit,
+  showCustomExpiry,
+  setShowCustomExpiry,
 }: {
   visibility: Visibility;
   onPick: (v: Visibility) => void;
@@ -979,13 +1047,33 @@ function StepVisibility({
   needsTaker: boolean;
   expirySeconds: number;
   setExpirySeconds: (v: number) => void;
+  customExpiryValue: string;
+  setCustomExpiryValue: (v: string) => void;
+  customExpiryUnit: "hours" | "days";
+  setCustomExpiryUnit: (v: "hours" | "days") => void;
+  showCustomExpiry: boolean;
+  setShowCustomExpiry: (v: boolean) => void;
 }) {
+  const customExpirySeconds =
+    Number(customExpiryValue) *
+    (customExpiryUnit === "hours" ? 60 * 60 : 24 * 60 * 60);
+
+  function applyCustomExpiry(value: string, unit: "hours" | "days") {
+    setCustomExpiryValue(value);
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      setExpirySeconds(
+        Math.round(numeric * (unit === "hours" ? 60 * 60 : 24 * 60 * 60))
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="mb-1 text-xl font-semibold">Who can see and accept it?</h2>
         <p className="mb-4 text-sm text-muted-foreground">
-          Control whether the offer is public, reserved, or hidden.
+          Control whether the deal is public, reserved, or hidden.
         </p>
         <div className="grid gap-3">
           {VISIBILITIES.map((opt) => {
@@ -1020,6 +1108,7 @@ function StepVisibility({
             );
           })}
         </div>
+
         {needsTaker && (
           <div className="mt-4">
             <label className="mb-1.5 block text-sm font-medium">
@@ -1046,15 +1135,74 @@ function StepVisibility({
               type="button"
               size="sm"
               variant={expirySeconds === opt.seconds ? "default" : "secondary"}
-              onClick={() => setExpirySeconds(opt.seconds)}
+              onClick={() => {
+                setExpirySeconds(opt.seconds);
+                setShowCustomExpiry(false);
+              }}
             >
               {opt.label}
             </Button>
           ))}
+          <Button
+            type="button"
+            size="sm"
+            variant={
+              showCustomExpiry && expirySeconds === customExpirySeconds
+                ? "default"
+                : "secondary"
+            }
+            onClick={() => setShowCustomExpiry(true)}
+          >
+            Custom
+          </Button>
         </div>
+
+        {showCustomExpiry && (
+          <div className="mt-3 grid gap-2 rounded-lg border border-monad-purple/30 bg-monad-purple/5 p-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
+            <Input
+              placeholder="Custom time"
+              inputMode="decimal"
+              value={customExpiryValue}
+              onChange={(e) => applyCustomExpiry(e.target.value, customExpiryUnit)}
+            />
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={customExpiryUnit}
+              onChange={(e) => {
+                const unit = e.target.value as "hours" | "days";
+                setCustomExpiryUnit(unit);
+                applyCustomExpiry(customExpiryValue, unit);
+              }}
+            >
+              <option value="hours">Hours</option>
+              <option value="days">Days</option>
+            </select>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Enter any positive duration. The deal expires after this amount of
+              time once you sign it.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+function formatExpiryLabel(seconds: number) {
+  const preset = EXPIRY_OPTIONS.find((e) => e.seconds === seconds);
+  if (preset) return preset.label;
+
+  if (seconds % 86400 === 0) {
+    const days = seconds / 86400;
+    return `${days} custom day${days === 1 ? "" : "s"}`;
+  }
+
+  if (seconds % 3600 === 0) {
+    const hours = seconds / 3600;
+    return `${hours} custom hour${hours === 1 ? "" : "s"}`;
+  }
+
+  return `${Math.round(seconds / 3600)} custom hours`;
 }
 
 function StepReview({
@@ -1076,10 +1224,9 @@ function StepReview({
   takerAddress: string;
   expirySeconds: number;
 }) {
-  const intentLabel = INTENTS.find((i) => i.id === intent)?.title ?? "Trade";
+  const intentLabel = INTENTS.find((i) => i.id === intent)?.title ?? "Deal";
   const visLabel = VISIBILITIES.find((v) => v.id === visibility)?.title ?? "";
-  const expiryLabel =
-    EXPIRY_OPTIONS.find((e) => e.seconds === expirySeconds)?.label ?? "";
+  const expiryLabel = formatExpiryLabel(expirySeconds);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -1087,7 +1234,7 @@ function StepReview({
         <h2 className="text-xl font-semibold">Review &amp; sign</h2>
         <Card>
           <CardContent className="space-y-4 p-5">
-            <ReviewRow label="Trade type" value={intentLabel} />
+            <ReviewRow label="Deal type" value={intentLabel} />
             <div className="grid gap-3 sm:grid-cols-2">
               <ReviewSide
                 title="You give"
@@ -1115,9 +1262,9 @@ function StepReview({
           </CardContent>
         </Card>
         <p className="text-xs text-muted-foreground">
-          Signing creates an off-chain order — free, no gas. Nothing moves until
-          a counterparty settles on-chain. You can cancel anytime with an
-          on-chain cancellation.
+          Signing proposes an off-chain deal — free, no gas. Nothing moves until
+          a counterparty accepts and settles on-chain. You can cancel anytime with
+          an on-chain cancellation.
         </p>
       </div>
       <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">

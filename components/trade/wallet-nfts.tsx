@@ -28,13 +28,10 @@ export function WalletNFTs({ owner }: { owner: string }) {
     [data]
   );
 
-  // Eagerly pull the full collection so the filter/search covers everything,
-  // not just the first page the indexer returned.
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Distinct collections, keyed by contract, with a display label and count.
   const collections = useMemo(() => {
     const map = new Map<string, { label: string; count: number }>();
     for (const nft of nfts) {
@@ -208,7 +205,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
           <p className="mt-3 text-sm text-foreground">
             Traits and price history will appear here when the metadata provider
             includes them; the contract address and token ID are available now so
-            traders can verify the asset without leaving Handshake.
+            collectors can verify the asset without leaving Handshake.
           </p>
         </div>
       )}

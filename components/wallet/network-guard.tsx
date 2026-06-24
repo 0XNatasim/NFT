@@ -4,7 +4,6 @@ import { useAccount, useSwitchChain } from "wagmi";
 import { MONAD_CHAIN_ID } from "@/lib/chains/monad";
 import { Button } from "@/components/ui/button";
 
-/** Banner shown whenever the connected wallet is on the wrong network. */
 export function NetworkGuard() {
   const { isConnected, chainId } = useAccount();
   const { switchChain, isPending } = useSwitchChain();
@@ -12,15 +11,14 @@ export function NetworkGuard() {
   if (!isConnected || chainId === MONAD_CHAIN_ID) return null;
 
   return (
-    <div className="border-b border-amber-500/30 bg-amber-500/10">
-      <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-3">
-        <p className="text-sm text-amber-300">
-          You are connected to the wrong network. Handshake settles trades on
-          Monad (chain {MONAD_CHAIN_ID}).
-        </p>
+    <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
+      <div className="container mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          Handshake deals settle on Monad. Switch networks before signing or accepting.
+        </span>
         <Button
           size="sm"
-          variant="outline"
+          variant="secondary"
           disabled={isPending}
           onClick={() => switchChain({ chainId: MONAD_CHAIN_ID })}
         >

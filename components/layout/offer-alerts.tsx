@@ -22,7 +22,6 @@ function markSeen(ids: string[]) {
   try {
     const seen = getSeen();
     ids.forEach((id) => seen.add(id));
-    // keep the list bounded
     localStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-200)));
   } catch {
     // localStorage unavailable; alerts just stay highlighted
@@ -30,7 +29,7 @@ function markSeen(ids: string[]) {
 }
 
 /**
- * Header bell: polls for open offers reserved for the connected wallet
+ * Header bell: polls for open deals reserved for the connected wallet
  * and shows how many are unseen. Viewing the account page marks them seen.
  */
 export function OfferAlerts() {
@@ -57,7 +56,6 @@ export function OfferAlerts() {
     return incoming.filter((o) => !seen.has(o.id)).length;
   }, [incoming]);
 
-  // Visiting the account page counts as "seen".
   useEffect(() => {
     if (pathname === "/account" && incoming && incoming.length > 0) {
       markSeen(incoming.map((o) => o.id));
@@ -71,8 +69,8 @@ export function OfferAlerts() {
       href="/account"
       aria-label={
         unseenCount > 0
-          ? `${unseenCount} new trade offers for your wallet`
-          : "Trade offer notifications"
+          ? `${unseenCount} new private deals for your wallet`
+          : "Deal notifications"
       }
       className="relative flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
     >
