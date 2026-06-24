@@ -50,7 +50,6 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto px-4">
-      {/* Hero */}
       <section className="relative my-6 grid gap-10 overflow-hidden rounded-[2rem] border border-monad-purple/20 bg-gradient-to-br from-monad-purple/15 via-fuchsia-500/10 to-cyan-400/10 px-5 py-16 shadow-2xl shadow-monad-purple/10 md:grid-cols-[1.05fr_0.95fr] md:items-center md:px-8 md:py-24">
         <div className="pointer-events-none absolute right-12 top-10 h-24 w-24 rounded-full bg-fuchsia-400/20 blur-2xl" />
         <div className="pointer-events-none absolute bottom-8 left-1/3 h-32 w-32 rounded-full bg-cyan-300/10 blur-2xl" />
@@ -77,22 +76,21 @@ export default function HomePage() {
               href="/create"
               className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-gradient-to-r from-monad-purple to-fuchsia-400 px-8 text-base font-medium text-primary-foreground shadow-lg shadow-monad-purple/20 transition-colors hover:from-monad-purple/90 hover:to-fuchsia-400/90"
             >
-              Propose a deal <ArrowRight className="h-4 w-4" />
+              Propose a Deal <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/wanted"
+              href="/"
               className="inline-flex h-12 items-center justify-center rounded-md border border-monad-purple/50 bg-transparent px-8 text-base font-medium text-foreground transition-colors hover:bg-monad-purple/10"
             >
-              Browse wanted board
+              Browse Market
             </Link>
           </div>
 
-          {/* Stats */}
           <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4 md:mx-0">
-            <Stat label="Trades settled" value={String(stats?.totalTrades ?? "—")} />
-            <Stat label="Open offers" value={String(stats?.openOffers ?? "—")} />
+            <Stat label="Handshakes completed" value={String(stats?.totalTrades ?? "—")} />
+            <Stat label="Open Deals" value={String(stats?.openOffers ?? "—")} />
             <Stat
-              label="Private offers"
+              label="Private Deals"
               value={address ? String(privateOffers ?? "—") : "Connect"}
             />
             <Stat
@@ -107,24 +105,23 @@ export default function HomePage() {
 
       <WhyMonadSection />
 
-      {/* How it works */}
       <section className="border-t border-monad-purple/20 py-14">
         <h2 className="mb-8 text-center text-2xl font-semibold">How it works</h2>
         <div className="grid gap-4 md:grid-cols-3">
           <HowCard
             icon={<Handshake className="h-6 w-6 text-monad-purple" />}
-            title="1. Build your offer"
-            body="Pick NFTs and MON from both sides of the trade. Target a specific wallet or open it to everyone. Signing is free — no gas to list."
+            title="1. Propose a Deal"
+            body="Build a public or private deal with NFTs, MON, or both. Signing is free — no gas to propose."
           />
           <HowCard
             icon={<ShieldCheck className="h-6 w-6 text-monad-purple" />}
-            title="2. Counterparty accepts"
-            body="The taker reviews exactly what moves on both sides, including the fee breakdown, then accepts in their wallet."
+            title="2. Deal accepted"
+            body="Another collector reviews exactly what moves on both sides, including fees, then accepts the deal in their wallet."
           />
           <HowCard
             icon={<Zap className="h-6 w-6 text-monad-purple" />}
             title="3. Everything swaps or nothing does"
-            body="One transaction instantly settles the deal. That’s atomic settlement: no escrow middlemen, no platform custody — the contract verifies signatures, ownership and approvals."
+            body="One transaction executes the trade. That’s atomic settlement: everything swaps or nothing does, then the handshake is completed."
           />
         </div>
         <div className="mt-8 flex justify-center">
@@ -132,25 +129,24 @@ export default function HomePage() {
             href="/create"
             className="inline-flex h-11 items-center gap-2 rounded-md bg-gradient-to-r from-monad-purple to-fuchsia-400 px-6 font-medium text-primary-foreground shadow-lg shadow-monad-purple/20 transition-colors hover:from-monad-purple/90 hover:to-fuchsia-400/90"
           >
-            Start your first trade <ArrowRight className="h-4 w-4" />
+            Propose your first deal <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
 
-      {/* Marketplace feed */}
       <section className="border-t border-monad-purple/20 py-14">
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-monad-purple/30 bg-monad-purple/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-monad-purple">
               <Sparkles className="h-3.5 w-3.5" /> Market
             </p>
-            <h2 className="text-2xl font-semibold">Open trade offers</h2>
+            <h2 className="text-2xl font-semibold">Open Deals</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Filter by Monad collection so hundreds of offers stay easy to scan.
+              Filter by Monad collection so public deals stay easy to scan.
             </p>
           </div>
           <Link href="/create" className="text-sm text-monad-purple hover:underline">
-            Create yours →
+            Propose a Deal →
           </Link>
         </div>
 
@@ -162,8 +158,8 @@ export default function HomePage() {
         <div className="mb-4 mt-5 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
           <span>
             {activeCollection
-              ? `Showing ${activeCollection.name} offers`
-              : "Showing all featured collection offers"}
+              ? `Showing ${activeCollection.name} deals`
+              : "Showing all featured collection deals"}
           </span>
           {selectedCollection && (
             <button
@@ -188,21 +184,20 @@ export default function HomePage() {
           <EmptyState
             title={
               activeCollection
-                ? `No ${activeCollection.name} offers yet`
-                : "No open offers yet"
+                ? `No ${activeCollection.name} deals yet`
+                : "No open deals yet"
             }
             body={
               activeCollection
-                ? "Clear the filter or create the first offer for this collection."
-                : "Be the first to put a trade on the board."
+                ? "Clear the filter or propose the first deal for this collection."
+                : "Be the first to propose a deal on the board."
             }
           />
         )}
       </section>
 
-      {/* Recent trades */}
       <section className="border-t border-monad-purple/20 py-14">
-        <h2 className="mb-6 text-2xl font-semibold">Recent trades</h2>
+        <h2 className="mb-6 text-2xl font-semibold">Recent Handshakes</h2>
         {loadingRecent ? (
           <OfferGridSkeleton />
         ) : recentTrades && recentTrades.length > 0 ? (
@@ -213,8 +208,8 @@ export default function HomePage() {
           </div>
         ) : (
           <EmptyState
-            title="No trades settled yet"
-            body="Completed trades will show up here."
+            title="No completed handshakes yet"
+            body="Completed handshakes will show up here."
           />
         )}
       </section>
@@ -276,7 +271,7 @@ function WhyMonadSection() {
       </div>
       <div className="mt-6 text-center">
         <Link
-          href="/why-handshake"
+          href="/about"
           className="text-sm font-medium text-monad-purple underline-offset-4 hover:underline"
         >
           Why Handshake?
@@ -348,7 +343,7 @@ function HeroPreview() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
-                Live offer preview
+                Live deal preview
               </p>
               <h3 className="text-xl font-semibold">Human deal, wallet settled</h3>
             </div>

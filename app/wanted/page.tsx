@@ -119,7 +119,7 @@ export default function WantedPage() {
       <h1 className="mb-2 text-3xl font-bold">Wanted board</h1>
       <p className="mb-8 text-foreground">
         Post what you&apos;re hunting for. Posts are anonymous — if you can fill a
-        request, send the poster a private offer and they&apos;ll see it on their
+        request, send the poster a private deal and they&apos;ll see it on their
         dashboard.
       </p>
 
@@ -158,7 +158,7 @@ export default function WantedPage() {
               </select>
             </label>
             <Input
-              placeholder="Offer… (e.g. 25 MON or 10kSquad #123)"
+              placeholder="Deal offer… (e.g. 25 MON or 10kSquad #123)"
               value={offering}
               maxLength={280}
               onChange={(e) => setOffering(e.target.value)}
@@ -201,7 +201,7 @@ export default function WantedPage() {
                   <CardContent className="p-4">
                     <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                       <span className="flex items-center gap-2">
-                        Anonymous trader
+                        Anonymous collector
                         {isMine && <Badge variant="secondary">your post</Badge>}
                       </span>
                       <span>
@@ -225,13 +225,13 @@ export default function WantedPage() {
                         {post.notes}
                       </p>
                     )}
-                    <div className="mt-3 flex items-center gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       {!isMine && (
                         <Link
                           href={`/create?taker=${post.walletAddress}&private=1`}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                          className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                         >
-                          <Handshake className="h-3.5 w-3.5" /> Make private offer
+                          <Handshake className="h-4 w-4" /> Propose private deal
                         </Link>
                       )}
                       {isMine && (
@@ -241,7 +241,13 @@ export default function WantedPage() {
                           disabled={deletePost.isPending}
                           onClick={() => deletePost.mutate(post.id)}
                         >
-                          <Trash2 className="h-3.5 w-3.5" /> Remove
+                          {deletePost.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4" /> Delete
+                            </>
+                          )}
                         </Button>
                       )}
                     </div>
@@ -251,8 +257,8 @@ export default function WantedPage() {
             })
           ) : (
             <EmptyState
-              title="Nothing on the board"
-              body="Be the first to post what you're looking for."
+              title="No wanted requests yet"
+              body="Post the first request and let collectors come to you."
             />
           )}
         </div>

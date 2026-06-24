@@ -14,6 +14,13 @@ const statusVariant = {
   expired: "warning",
 } as const;
 
+const statusLabel = {
+  open: "Open Deal",
+  completed: "Handshake Completed",
+  cancelled: "Deal Cancelled",
+  expired: "Deal Expired",
+} as const;
+
 export function OfferCard({ offer }: { offer: TradeOffer }) {
   const makerNfts = offer.nfts.filter((n) => n.side === "maker");
   const takerNfts = offer.nfts.filter((n) => n.side === "taker");
@@ -25,11 +32,15 @@ export function OfferCard({ offer }: { offer: TradeOffer }) {
     >
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>{offer.isPrivate ? "Private Deal" : "Public Deal"}</span>
+          <span>·</span>
           <span>{shortAddress(offer.makerAddress)}</span>
           {offer.isPrivate && <Lock className="h-3.5 w-3.5" />}
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={statusVariant[offer.status]}>{offer.status}</Badge>
+          <Badge variant={statusVariant[offer.status]}>
+            {statusLabel[offer.status]}
+          </Badge>
           {offer.status === "open" && (
             <span className="text-xs text-muted-foreground">
               expires in {timeUntil(offer.expiry)}
@@ -39,9 +50,9 @@ export function OfferCard({ offer }: { offer: TradeOffer }) {
       </div>
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <TradeSide nfts={makerNfts} mon={offer.makerMonAmount} label="Offering" />
+        <TradeSide nfts={makerNfts} mon={offer.makerMonAmount} label="Maker gives" />
         <ArrowLeftRight className="h-5 w-5 text-monad-purple" />
-        <TradeSide nfts={takerNfts} mon={offer.takerMonAmount} label="For" />
+        <TradeSide nfts={takerNfts} mon={offer.takerMonAmount} label="Taker gives" />
       </div>
     </Link>
   );
@@ -57,6 +68,7 @@ function TradeSide({
   label: string;
 }) {
   const monAmount = BigInt(mon);
+
   return (
     <div>
       <p className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">

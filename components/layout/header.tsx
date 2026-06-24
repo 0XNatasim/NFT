@@ -9,9 +9,10 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Market" },
-  { href: "/create", label: "Trade" },
-  { href: "/wanted", label: "Want" },
+  { href: "/create", label: "Deal" },
+  { href: "/wanted", label: "Wanted" },
   { href: "/account", label: "Dashboard" },
+  { href: "/about", label: "About" },
 ];
 
 export function Header() {
@@ -36,7 +37,8 @@ export function Header() {
                 href={link.href}
                 className={cn(
                   "rounded-md px-3 py-2 text-sm transition-colors",
-                  pathname === link.href
+                  (pathname === link.href ||
+                    (link.href !== "/" && pathname.startsWith(link.href)))
                     ? "bg-monad-purple/15 text-monad-purple"
                     : "text-muted-foreground hover:bg-monad-purple/10 hover:text-foreground"
                 )}
@@ -62,7 +64,8 @@ export function Header() {
             href={link.href}
             className={cn(
               "whitespace-nowrap rounded-md px-3 py-1.5 text-sm",
-              pathname === link.href
+              (pathname === link.href ||
+                (link.href !== "/" && pathname.startsWith(link.href)))
                 ? "bg-monad-purple/15 text-monad-purple"
                 : "text-muted-foreground"
             )}

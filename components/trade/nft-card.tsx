@@ -22,7 +22,6 @@ export function NFTCard({
   selected?: boolean;
   onClick?: () => void;
   size?: "sm" | "md";
-  /** Live collection pricing (floor / top offer). */
   price?: {
     floorPrice: number | null;
     topOffer: number | null;
@@ -30,6 +29,7 @@ export function NFTCard({
   } | null;
 }) {
   const collectionBid = isCollectionBid(nft);
+
   return (
     <button
       type="button"

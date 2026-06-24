@@ -39,6 +39,13 @@ const statusVariant = {
   expired: "warning",
 } as const;
 
+const statusLabel = {
+  open: "Open Deal",
+  completed: "Handshake Completed",
+  cancelled: "Deal Cancelled",
+  expired: "Deal Expired",
+} as const;
+
 export default function OfferDetailPage({
   params,
 }: {
@@ -51,12 +58,8 @@ export default function OfferDetailPage({
   const { writeContractAsync } = useWriteContract();
   const [working, setWorking] = useState<
     "accept" | "cancel" | "approve" | "deposit" | null
-  >(
-    null
-  );
+  >(null);
 
-  // Maker-side escrow status: how much the maker still needs to deposit
-  // for this offer to be fillable. Only relevant when the maker offers MON.
   const escrowQuery = useQuery({
     queryKey: ["escrow-status", offer?.id, address],
     enabled:
@@ -71,12 +74,13 @@ export default function OfferDetailPage({
         functionName: "escrowBalance",
         args: [offer!.makerAddress as Address],
       });
-      // The fee is baked into the signed order, so use the order's feeBps.
+
       const required = quoteFees(
         BigInt(offer!.makerMonAmount),
         0n,
         BigInt(offer!.feeBps)
       ).makerEscrowRequired;
+
       return {
         balance,
         required,
@@ -93,10 +97,11 @@ export default function OfferDetailPage({
       </div>
     );
   }
+
   if (!offer) {
     return (
       <div className="container mx-auto px-4 py-20">
-        <EmptyState title="Offer not found" body="This trade offer does not exist." />
+        <EmptyState title="Deal not found" body="This deal does not exist." />
       </div>
     );
   }
@@ -147,6 +152,7 @@ export default function OfferDetailPage({
 
   async function ensureApprovals(o: TradeOffer, side: "maker" | "taker") {
     if (!publicClient || !address) return;
+
     const contracts = Array.from(
       new Set(
         o.nfts
@@ -154,6 +160,7 @@ export default function OfferDetailPage({
           .map((n) => n.contractAddress.toLowerCase())
       )
     );
+
     for (const contract of contracts) {
       const approved = await publicClient.readContract({
         address: contract as Address,
@@ -161,16 +168,19 @@ export default function OfferDetailPage({
         functionName: "isApprovedForAll",
         args: [address, SETTLEMENT_CONTRACT_ADDRESS],
       });
+
       if (!approved) {
         toast.info(
-          `Approving ${shortAddress(contract)}: this grants the settlement contract permission to transfer NFTs in this collection when a trade you signed/accept executes. Revocable anytime.`
+          `Approving ${shortAddress(contract)}: this grants the settlement contract permission to transfer NFTs in this collection when a deal you signed or accepted executes. Revocable anytime.`
         );
+
         const approveParams = {
           address: contract as Address,
           abi: erc721Abi,
           functionName: "setApprovalForAll" as const,
           args: [SETTLEMENT_CONTRACT_ADDRESS, true] as const,
         };
+
         const gas = await bufferedGas(publicClient, {
           ...approveParams,
           account: address,
@@ -197,10 +207,12 @@ export default function OfferDetailPage({
 
   async function handleDeposit() {
     if (!offer || !publicClient || !escrowQuery.data) return;
+
     if (chainId !== MONAD_CHAIN_ID) {
       toast.error(`Switch your wallet to Monad (chain ${MONAD_CHAIN_ID}) first`);
       return;
     }
+
     setWorking("deposit");
     try {
       const hash = await writeContractAsync({
@@ -209,10 +221,12 @@ export default function OfferDetailPage({
         functionName: "deposit",
         value: escrowQuery.data.shortfall,
       });
+
       toast.info("Depositing escrow…");
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") throw new Error("Deposit reverted");
-      toast.success("Escrow funded — your offer is now fillable");
+
+      toast.success("Escrow funded — your deal is now fillable");
       escrowQuery.refetch();
     } catch (err: any) {
       toast.error(err?.shortMessage ?? err?.message ?? "Deposit failed");
@@ -223,10 +237,12 @@ export default function OfferDetailPage({
 
   async function handleMakerApprove() {
     if (!offer) return;
+
     if (chainId !== MONAD_CHAIN_ID) {
       toast.error(`Switch your wallet to Monad (chain ${MONAD_CHAIN_ID}) first`);
       return;
     }
+
     setWorking("approve");
     try {
       await ensureApprovals(offer, "maker");
@@ -240,15 +256,16 @@ export default function OfferDetailPage({
 
   async function handleAccept() {
     if (!offer || !publicClient || !address) return;
+
     if (chainId !== MONAD_CHAIN_ID) {
       toast.error("Switch to the Monad network first");
       return;
     }
+
     setWorking("accept");
     try {
       await ensureApprovals(offer, "taker");
 
-      // Fees are fixed in the signed order — quote from the order itself.
       const quote = quoteFees(
         makerMon,
         takerMon,
@@ -256,8 +273,6 @@ export default function OfferDetailPage({
         BigInt(offer.flatFee)
       );
 
-      // Pre-flight simulation: surfaces the exact revert reason (missing
-      // maker approval, insufficient escrow, ...) before any gas is spent.
       try {
         await publicClient.simulateContract({
           account: address,
@@ -280,7 +295,8 @@ export default function OfferDetailPage({
         args: [buildOrder(offer), offer.signature as `0x${string}`],
         value: quote.takerPays,
       });
-      toast.info("Settling trade on-chain…");
+
+      toast.info("Executing trade on-chain…");
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") throw new Error("Settlement reverted");
 
@@ -289,14 +305,16 @@ export default function OfferDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ txHash: hash, takerAddress: address }),
       });
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? "Trade settled but status update failed");
+        throw new Error(body.error ?? "Trade executed but handshake update failed");
       }
-      toast.success("Trade settled 🎉");
+
+      toast.success("Handshake completed 🎉");
       refetch();
     } catch (err: any) {
-      toast.error(err?.shortMessage ?? err?.message ?? "Failed to settle trade");
+      toast.error(err?.shortMessage ?? err?.message ?? "Failed to execute trade");
     } finally {
       setWorking(null);
     }
@@ -304,10 +322,12 @@ export default function OfferDetailPage({
 
   async function handleCancel() {
     if (!offer || !publicClient || !address) return;
+
     if (chainId !== MONAD_CHAIN_ID) {
       toast.error("Switch to the Monad network first");
       return;
     }
+
     setWorking("cancel");
     try {
       const hash = await writeContractAsync({
@@ -316,6 +336,7 @@ export default function OfferDetailPage({
         functionName: "cancelNonce",
         args: [BigInt(offer.nonce)],
       });
+
       toast.info("Cancelling on-chain…");
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") throw new Error("Cancellation reverted");
@@ -325,11 +346,13 @@ export default function OfferDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ txHash: hash, walletAddress: address }),
       });
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? "Cancelled on-chain but status update failed");
       }
-      toast.success("Offer cancelled");
+
+      toast.success("Deal cancelled");
       refetch();
     } catch (err: any) {
       toast.error(err?.shortMessage ?? err?.message ?? "Failed to cancel");
@@ -341,8 +364,10 @@ export default function OfferDetailPage({
   return (
     <div className="container mx-auto px-4 py-10">
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold">Trade offer</h1>
-        <Badge variant={statusVariant[offer.status]}>{offer.status}</Badge>
+        <h1 className="text-2xl font-bold">Deal</h1>
+        <Badge variant={statusVariant[offer.status]}>
+          {statusLabel[offer.status]}
+        </Badge>
         {offer.isPrivate && (
           <Badge variant="secondary">
             <Lock className="mr-1 h-3 w-3" /> private
@@ -358,7 +383,7 @@ export default function OfferDetailPage({
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="grid items-start gap-4 md:grid-cols-[1fr_auto_1fr]">
           <SideCard
-            title={`Maker offers — ${shortAddress(offer.makerAddress)}`}
+            title={`Maker gives — ${shortAddress(offer.makerAddress)}`}
             nfts={makerNfts}
             mon={makerMon}
           />
@@ -368,8 +393,8 @@ export default function OfferDetailPage({
           <SideCard
             title={
               offer.takerAddress
-                ? `Taker provides — ${shortAddress(offer.takerAddress)}`
-                : "Taker provides — anyone"
+                ? `Taker gives — ${shortAddress(offer.takerAddress)}`
+                : "Taker gives — anyone"
             }
             nfts={takerNfts}
             mon={takerMon}
@@ -391,7 +416,7 @@ export default function OfferDetailPage({
                   Accepting first approves the settlement contract to transfer
                   the requested NFT(s) from your wallet — this is a collection-wide{" "}
                   <code>setApprovalForAll</code> that stays until you revoke it.
-                  Only the exact NFTs in this signed trade move now; settlement is
+                  Only the exact NFTs in this signed deal move now; settlement is
                   simulated before you pay any gas.
                 </p>
               )}
@@ -406,33 +431,35 @@ export default function OfferDetailPage({
                     <Loader2 className="h-4 w-4 animate-spin" /> Settling…
                   </>
                 ) : (
-                  "Accept trade"
+                  "Accept Deal"
                 )}
               </Button>
             </>
           )}
+
           {hasCollectionBid && offer.status === "open" && !isMaker && (
             <div className="space-y-3 rounded-lg border border-monad-purple/30 bg-monad-purple/10 p-3 text-sm text-foreground">
               <p>
-                This is a collection-wide buy request. The maker is offering MON
+                This is a collection-wide buy deal. The maker is offering MON
                 for any matching NFT in the requested collection, so choose one
-                of your NFTs and send them a private trade to complete the
+                of your NFTs and send them a private deal to complete the
                 handshake.
               </p>
               <a
                 href={`/create?taker=${offer.makerAddress}&private=1`}
                 className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                Make private offer
+                Propose Private Deal
               </a>
             </div>
           )}
+
           {offer.status === "open" &&
             escrowQuery.data &&
             escrowQuery.data.shortfall > 0n && (
               <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
                 <p>
-                  This offer needs {formatMon(escrowQuery.data.required)} MON in
+                  This deal needs {formatMon(escrowQuery.data.required)} MON in
                   maker escrow ({formatMon(escrowQuery.data.balance)} funded).
                   {!isMaker && " It can't be accepted until the maker deposits."}
                 </p>
@@ -453,13 +480,14 @@ export default function OfferDetailPage({
                 )}
               </div>
             )}
+
           {isMaker && offer.status === "open" && makerNfts.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 Approval grants the settlement contract permission to transfer
                 NFTs in the offered collection(s) — a collection-wide{" "}
                 <code>setApprovalForAll</code> that stays until you revoke it.
-                Nothing moves until a taker settles this signed trade.
+                Nothing moves until a taker accepts and settles this signed deal.
               </p>
               <Button
                 className="w-full"
@@ -477,6 +505,7 @@ export default function OfferDetailPage({
               </Button>
             </div>
           )}
+
           {isMaker && offer.status === "open" && (
             <Button
               className="w-full"
@@ -489,21 +518,24 @@ export default function OfferDetailPage({
                   <Loader2 className="h-4 w-4 animate-spin" /> Cancelling…
                 </>
               ) : (
-                "Cancel offer (on-chain)"
+                "Cancel Deal (on-chain)"
               )}
             </Button>
           )}
+
           {isWrongChain && (
             <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
-              This offer was signed for chain {offer.chainId} and can&apos;t be
+              This deal was signed for chain {offer.chainId} and can&apos;t be
               settled on chain {MONAD_CHAIN_ID}.
             </p>
           )}
+
           {!address && offer.status === "open" && (
             <p className="text-sm text-muted-foreground">
-              Connect your wallet to accept this trade.
+              Connect your wallet to accept this deal.
             </p>
           )}
+
           {offer.completedTxHash && (
             <TxLink label="Settlement transaction" hash={offer.completedTxHash} />
           )}
@@ -558,6 +590,7 @@ function SideCard({
         ) : (
           <p className="text-sm text-muted-foreground">No NFTs</p>
         )}
+
         {mon > 0n && (
           <p className="text-lg font-semibold text-monad-purple">
             + {formatMon(mon)} MON

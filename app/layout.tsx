@@ -8,7 +8,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Handshake: P2P NFT Trading on Monad",
   description:
-    "Trade NFTs wallet-to-wallet on Monad — no bots, no snipers. NFT-for-NFT, NFT+MON, private offers. Atomic settlement, zero custody.",
+    "Propose NFT deals wallet-to-wallet on Monad — no bots, no snipers. NFT-for-NFT, NFT+MON, private offers. Atomic settlement, zero custody.",
   icons: {
     icon: "/favicon.svg",
   },
@@ -33,13 +33,29 @@ export default function RootLayout({
             <footer className="border-t border-monad-purple/20 bg-gradient-to-r from-monad-purple/10 via-fuchsia-500/5 to-cyan-400/10 py-8">
               <div className="container mx-auto flex flex-col items-center justify-between gap-3 px-4 text-center text-sm text-foreground sm:flex-row sm:text-left">
                 <span>
-                  Handshake — peer-to-peer NFT trading on Monad. No bots, no
-                  custody, one-transaction settlement.
+                  Handshake — human-to-human NFT deals on Monad. No bots, no
+                  custody, completed handshakes.
                 </span>
                 <div className="flex items-center gap-4 text-monad-purple">
-                  <Link href="/why-handshake" className="hover:underline">Why Handshake</Link>
-                  <a href="https://x.com" target="_blank" rel="noreferrer" className="hover:underline">X</a>
-                  <a href="https://discord.com" target="_blank" rel="noreferrer" className="hover:underline">Discord</a>
+                  <Link href="/about" className="hover:underline">
+                    About
+                  </Link>
+                  <a
+                    href="https://x.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline"
+                  >
+                    X
+                  </a>
+                  <a
+                    href="https://discord.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline"
+                  >
+                    Discord
+                  </a>
                 </div>
               </div>
             </footer>
