@@ -24,7 +24,7 @@ export default function AccountPage() {
       <div className="container mx-auto px-4 py-20">
         <EmptyState
           title="Connect your wallet"
-          body="Connect a wallet to see your NFTs, offers and trade history."
+          body="Connect a wallet to see your NFTs, offers and dashboard history."
         />
       </div>
     );
@@ -42,7 +42,8 @@ export default function AccountPage() {
   return (
     <div className="container mx-auto space-y-12 px-4 py-10">
       <div>
-        <h1 className="text-3xl font-bold">{shortAddress(address)}</h1>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="mt-1 text-foreground">{shortAddress(address)}</p>
         <div className="mt-4 grid max-w-2xl grid-cols-3 gap-4">
           <StatCard label="Completed trades" value={reputation?.completedTradesCount ?? 0} />
           <StatCard label="Cancelled offers" value={reputation?.cancelledTradesCount ?? 0} />

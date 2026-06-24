@@ -42,6 +42,7 @@ import {
   ORDER_TYPES,
   ZERO_ADDRESS,
 } from "@/lib/orders/eip712";
+import { COLLECTION_BID_TOKEN_ID } from "@/lib/collection-bids";
 import { formatMon } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -63,26 +64,26 @@ const INTENTS: {
 }[] = [
   {
     id: "sell",
-    title: "Sell an NFT for MON",
-    blurb: "List one or more of your NFTs and ask for MON in return.",
+    title: "Sell NFTs for MON",
+    blurb: "List NFTs and receive MON in return.",
     icon: Tag,
   },
   {
     id: "buy",
     title: "Buy an NFT with MON",
-    blurb: "Offer MON for a specific NFT you want from someone else.",
+    blurb: "Offer MON for NFTs you want.",
     icon: ShoppingCart,
   },
   {
     id: "swap",
-    title: "Swap NFT for NFT",
-    blurb: "Trade your NFT(s) directly for another NFT — no MON.",
+    title: "Swap NFTs for NFTs",
+    blurb: "Trade NFTs directly for other non-fungible tokens.",
     icon: Sparkles,
   },
   {
     id: "custom",
-    title: "Custom trade",
-    blurb: "Mix NFTs and MON on either side. Full control.",
+    title: "Custom Trade",
+    blurb: "Offer both NFTs and MON for more control.",
     icon: Coins,
   },
 ];
@@ -204,25 +205,37 @@ function CreateTradeForm() {
       toast.error("Enter a valid NFT contract address");
       return;
     }
-    if (!/^\d+$/.test(requestTokenId)) {
+    const collection = FEATURED_COLLECTIONS.find(
+      (c) => c.address.toLowerCase() === requestContract.toLowerCase()
+    );
+    const isCollectionWideBuy = intent === "buy" && requestTokenId.trim() === "";
+    if (!isCollectionWideBuy && !/^\d+$/.test(requestTokenId)) {
       toast.error("Enter a numeric token ID");
       return;
     }
     const nft: NFTAsset = {
       contractAddress: requestContract.toLowerCase(),
-      tokenId: requestTokenId,
+      tokenId: isCollectionWideBuy ? COLLECTION_BID_TOKEN_ID : requestTokenId,
       tokenStandard: "ERC721",
-      name: `#${requestTokenId}`,
-      collectionName:
-        FEATURED_COLLECTIONS.find(
-          (c) => c.address.toLowerCase() === requestContract.toLowerCase()
-        )?.name ?? null,
-      imageUrl: null,
+      name: isCollectionWideBuy
+        ? `Any ${collection?.name ?? "collection"} NFT`
+        : `#${requestTokenId}`,
+      collectionName: collection?.name ?? null,
+      imageUrl: isCollectionWideBuy ? (collection?.logo ?? null) : null,
+      metadata: isCollectionWideBuy ? { collectionBid: true } : null,
     };
     if (requestedNfts.some((n) => nftKey(n) === nftKey(nft))) return;
     setRequestedNfts((prev) => [...prev, nft]);
     setRequestContract("");
     setRequestTokenId("");
+    if (isCollectionWideBuy) {
+      toast.success(
+        `Added a collection-wide buy request for ${
+          nft.collectionName ?? "this collection"
+        }`
+      );
+      return;
+    }
     // Enrich asynchronously; update the entry in place when metadata lands.
     fetch(
       `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`
@@ -495,7 +508,7 @@ function CreateTradeForm() {
     );
   }
 
-  const steps = ["What", "Details", "Visibility", "Review"];
+  const steps = ["Type", "Details", "Visibility", "Review"];
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-10">
@@ -652,9 +665,9 @@ function StepIntent({
 }) {
   return (
     <div>
-      <h2 className="mb-1 text-xl font-semibold">What do you want to do?</h2>
-      <p className="mb-6 text-sm text-muted-foreground">
-        Pick the kind of trade — we&apos;ll only ask for what that needs.
+      <h2 className="mb-1 text-xl font-semibold">Choose a trade type</h2>
+      <p className="mb-6 text-sm text-foreground">
+        Choose a type of trade, and we&apos;ll only ask for the details that matter.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {INTENTS.map((opt) => {
@@ -667,24 +680,24 @@ function StepIntent({
               onClick={() => onPick(opt.id)}
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
                 selected
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "border-border hover:border-primary/50 hover:bg-secondary/40"
+                  ? "border-monad-purple bg-monad-purple/15 shadow-lg shadow-monad-purple/10 ring-1 ring-monad-purple"
+                  : "border-monad-purple/30 bg-monad-purple/5 hover:border-monad-purple hover:bg-monad-purple/10"
               }`}
             >
               <span
                 className={`mt-0.5 rounded-lg p-2 ${
-                  selected ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"
+                  selected ? "bg-monad-purple text-monad-black" : "bg-monad-purple/15 text-monad-purple"
                 }`}
               >
                 <Icon className="h-5 w-5" />
               </span>
               <span>
                 <span className="block font-medium">{opt.title}</span>
-                <span className="block text-sm text-muted-foreground">
+                <span className="block text-sm text-foreground">
                   {opt.blurb}
                 </span>
               </span>
-              {selected && <Check className="ml-auto h-5 w-5 text-primary" />}
+              {selected && <Check className="ml-auto h-5 w-5 text-monad-purple" />}
             </button>
           );
         })}
@@ -746,6 +759,12 @@ function StepDetails(props: {
     addingOffered,
     addOfferedNftManually,
   } = props;
+  const canAddOfferedNft =
+    isAddress(offerContract) && /^\d+$/.test(offerTokenId) && !addingOffered;
+  const canAddRequestedNft =
+    isAddress(requestContract) &&
+    (/^\d+$/.test(requestTokenId) ||
+      (props.intent === "buy" && requestTokenId.trim() === ""));
 
   return (
     <div className="space-y-6">
@@ -791,7 +810,7 @@ function StepDetails(props: {
                   />
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant={canAddOfferedNft ? "default" : "secondary"}
                     disabled={addingOffered}
                     onClick={addOfferedNftManually}
                   >
@@ -869,7 +888,10 @@ function StepDetails(props: {
           {requestsNft && (
             <>
               <p className="text-sm text-muted-foreground">
-                The NFT(s) you want, by contract + token ID:
+                The NFT(s) you want, by contract + token ID. For buy trades,
+                select a collection and leave Token ID empty to offer MON for
+                any NFT in that collection; holders can answer with a private
+                offer.
               </p>
               <div className="flex flex-wrap gap-2">
                 {FEATURED_COLLECTIONS.map((c) => (
@@ -888,12 +910,18 @@ function StepDetails(props: {
                   onChange={(e) => setRequestContract(e.target.value)}
                 />
                 <Input
-                  placeholder="Token ID"
+                  placeholder={
+                    props.intent === "buy" ? "Token ID (optional)" : "Token ID"
+                  }
                   className="w-32"
                   value={requestTokenId}
                   onChange={(e) => setRequestTokenId(e.target.value)}
                 />
-                <Button type="button" variant="secondary" onClick={addRequestedNft}>
+                <Button
+                  type="button"
+                  variant={canAddRequestedNft ? "default" : "secondary"}
+                  onClick={addRequestedNft}
+                >
                   Add
                 </Button>
               </div>

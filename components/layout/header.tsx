@@ -9,16 +9,16 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Market" },
-  { href: "/create", label: "Create Trade" },
-  { href: "/wanted", label: "Wanted" },
-  { href: "/account", label: "Account" },
+  { href: "/create", label: "Trade" },
+  { href: "/wanted", label: "Want" },
+  { href: "/account", label: "Dashboard" },
 ];
 
 export function Header() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-monad-purple/20 bg-background/70 shadow-lg shadow-monad-purple/5 backdrop-blur">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2">
@@ -37,8 +37,8 @@ export function Header() {
                 className={cn(
                   "rounded-md px-3 py-2 text-sm transition-colors",
                   pathname === link.href
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-monad-purple/15 text-monad-purple"
+                    : "text-muted-foreground hover:bg-monad-purple/10 hover:text-foreground"
                 )}
               >
                 {link.label}
@@ -55,7 +55,7 @@ export function Header() {
           />
         </div>
       </div>
-      <nav className="flex items-center gap-1 overflow-x-auto border-t border-border px-4 py-2 md:hidden">
+      <nav className="flex items-center gap-1 overflow-x-auto border-t border-monad-purple/20 px-4 py-2 md:hidden">
         {links.map((link) => (
           <Link
             key={link.href}
@@ -63,7 +63,7 @@ export function Header() {
             className={cn(
               "whitespace-nowrap rounded-md px-3 py-1.5 text-sm",
               pathname === link.href
-                ? "bg-secondary text-foreground"
+                ? "bg-monad-purple/15 text-monad-purple"
                 : "text-muted-foreground"
             )}
           >

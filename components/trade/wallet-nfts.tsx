@@ -21,6 +21,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
 
   const [query, setQuery] = useState("");
   const [collection, setCollection] = useState<string | null>(null);
+  const [selectedNft, setSelectedNft] = useState<NFTAsset | null>(null);
 
   const nfts = useMemo<NFTAsset[]>(
     () => data?.pages.flatMap((p) => p.nfts) ?? [],
@@ -134,6 +135,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
               key={`${nft.contractAddress}:${nft.tokenId}`}
               nft={nft}
               price={prices?.[nft.contractAddress.toLowerCase()]}
+              onClick={() => setSelectedNft(nft)}
             />
           ))}
         </div>
@@ -155,6 +157,82 @@ export function WalletNFTs({ owner }: { owner: string }) {
           </Button>
         </div>
       )}
+
+      {selectedNft && (
+        <div className="rounded-xl border border-monad-purple/30 bg-card p-4">
+          <div className="mb-3 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
+                NFT details
+              </p>
+              <h3 className="text-lg font-semibold">
+                {selectedNft.name ?? `#${selectedNft.tokenId}`}
+              </h3>
+              <p className="text-sm text-foreground">
+                {prettyCollectionName(selectedNft.collectionName) ??
+                  shortAddress(selectedNft.contractAddress)}
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedNft(null)}>
+              Close
+            </Button>
+          </div>
+          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <Detail label="Token ID" value={selectedNft.tokenId} />
+            <Detail
+              label="Contract"
+              value={selectedNft.contractAddress}
+              mono
+            />
+            <Detail
+              label="Floor"
+              value={
+                prices?.[selectedNft.contractAddress.toLowerCase()]?.floorPrice != null
+                  ? `${prices[selectedNft.contractAddress.toLowerCase()].floorPrice} ${
+                      prices[selectedNft.contractAddress.toLowerCase()].currency
+                    }`
+                  : "Unavailable"
+              }
+            />
+            <Detail
+              label="Top offer"
+              value={
+                prices?.[selectedNft.contractAddress.toLowerCase()]?.topOffer != null
+                  ? `${prices[selectedNft.contractAddress.toLowerCase()].topOffer} ${
+                      prices[selectedNft.contractAddress.toLowerCase()].currency
+                    }`
+                  : "Unavailable"
+              }
+            />
+          </div>
+          <p className="mt-3 text-sm text-foreground">
+            Traits and price history will appear here when the metadata provider
+            includes them; the contract address and token ID are available now so
+            traders can verify the asset without leaving Handshake.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Detail({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-background/60 p-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
+        {label}
+      </p>
+      <p className={cn("mt-1 break-all text-foreground", mono && "font-mono text-xs")}>
+        {value}
+      </p>
     </div>
   );
 }
