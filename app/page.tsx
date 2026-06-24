@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfferCard } from "@/components/trade/offer-card";
 import { EmptyState } from "@/components/empty-state";
+import { WelcomeTutorial } from "@/components/tutorial/welcome-tutorial";
 import { useMarketStats, useOffers } from "@/hooks/use-market";
 import { FEATURED_COLLECTIONS, type FeaturedCollection } from "@/lib/featured-collections";
 import { formatMon } from "@/lib/utils";
@@ -50,6 +51,8 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto px-4">
+      <WelcomeTutorial />
+
       <section className="relative my-6 grid gap-10 overflow-hidden rounded-[2rem] border border-monad-purple/20 bg-gradient-to-br from-monad-purple/15 via-fuchsia-500/10 to-cyan-400/10 px-5 py-16 shadow-2xl shadow-monad-purple/10 md:grid-cols-[1.05fr_0.95fr] md:items-center md:px-8 md:py-24">
         <div className="pointer-events-none absolute right-12 top-10 h-24 w-24 rounded-full bg-fuchsia-400/20 blur-2xl" />
         <div className="pointer-events-none absolute bottom-8 left-1/3 h-32 w-32 rounded-full bg-cyan-300/10 blur-2xl" />
