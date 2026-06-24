@@ -1,21 +1,16 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
   Handshake,
-  HeartHandshake,
-  Search,
   ShieldCheck,
-  ShoppingCart,
   Sparkles,
-  X,
   Zap,
 } from "lucide-react";
 import { useAccount } from "wagmi";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfferCard } from "@/components/trade/offer-card";
@@ -55,8 +50,6 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto px-4">
-      <WelcomeTutorial />
-
       {/* Hero */}
       <section className="relative my-6 grid gap-10 overflow-hidden rounded-[2rem] border border-monad-purple/20 bg-gradient-to-br from-monad-purple/15 via-fuchsia-500/10 to-cyan-400/10 px-5 py-16 shadow-2xl shadow-monad-purple/10 md:grid-cols-[1.05fr_0.95fr] md:items-center md:px-8 md:py-24">
         <div className="pointer-events-none absolute right-12 top-10 h-24 w-24 rounded-full bg-fuchsia-400/20 blur-2xl" />
@@ -69,12 +62,16 @@ export default function HomePage() {
             Every trade is a <span className="text-monad-purple">handshake</span>.
             Human to human.
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg text-foreground md:mx-0">
-            Deal NFTs directly with another wallet on Monad, a high-speed
-            EVM-compatible chain — no bots, no snipers, no middleman. You set the
-            terms, they shake on it, and one transaction swaps everything or
-            nothing. We never hold your NFTs; your wallet stays in control.
-          </p>
+          <div className="mx-auto mt-5 max-w-xl space-y-3 text-foreground md:mx-0">
+            <p className="text-lg">
+              Create public or private NFT deals on Monad, a high-speed
+              EVM-compatible chain — no bots, no snipers, no custody.
+            </p>
+            <p className="text-base text-foreground/85">
+              Your NFTs stay in your wallet until the deal executes.
+            </p>
+            <BuiltOnMonadBadge />
+          </div>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row md:justify-start">
             <Link
               href="/create"
@@ -107,6 +104,8 @@ export default function HomePage() {
 
         <HeroPreview />
       </section>
+
+      <WhyMonadSection />
 
       {/* How it works */}
       <section className="border-t border-monad-purple/20 py-14">
@@ -223,222 +222,77 @@ export default function HomePage() {
   );
 }
 
-const TUTORIAL_STORAGE_KEY = "handshake-hide-welcome-tutorial";
-
-function WelcomeTutorial() {
-  const [open, setOpen] = useState(false);
-  const [dontShowAgain, setDontShowAgain] = useState(false);
-  const [pageIndex, setPageIndex] = useState(0);
-  const tutorialPages = [
-    {
-      icon: <ShoppingCart className="h-5 w-5" />,
-      title: "Buy an NFT with MON",
-      eyebrow: "Page 1 of 3",
-      example: "Example: buy 1x 10kSquad for 3,000 MON",
-      description:
-        "Use this when you know the NFT you want and want to offer MON directly to the owner.",
-      steps: [
-        "Choose Buy NFTs with MON in the trade builder.",
-        "Enter 3,000 MON as the amount you give.",
-        "Add the 10kSquad NFT you want by contract + token ID.",
-        "Sign the offer for free. The owner can accept and settle everything in one transaction.",
-      ],
-      ctaHref: "/create",
-      ctaLabel: "Create buy offer",
-    },
-    {
-      icon: <HeartHandshake className="h-5 w-5" />,
-      title: "Create a custom trade",
-      eyebrow: "Page 2 of 3",
-      example: "Example: trade 1x 10kSquad + 10,000 MON for 1x r3tard",
-      description:
-        "Use custom trades when both sides include NFTs and MON, or when you need more control than a simple buy/sell/swap.",
-      steps: [
-        "Choose Custom Trade in the trade builder.",
-        "Add your 10kSquad NFT and 10,000 MON on the side you give.",
-        "Request the r3tard NFT on the side you get.",
-        "Handshake only settles if both wallets still match the signed deal.",
-      ],
-      ctaHref: "/create",
-      ctaLabel: "Build custom trade",
-    },
-    {
-      icon: <Search className="h-5 w-5" />,
-      title: "Post on the Wanted board",
-      eyebrow: "Page 3 of 3",
-      example: "Example: wanted — 1x 10kSquad",
-      description:
-        "Use the Wanted board when you are hunting for a collection and want other traders to send you private offers.",
-      steps: [
-        "Open Want and choose 10kSquad as the collection.",
-        "Pick a rarity, add your offer, and leave notes if needed.",
-        "Other traders can answer your post with a private offer.",
-        "Review matching offers from your Dashboard before accepting.",
-      ],
-      ctaHref: "/wanted",
-      ctaLabel: "Post wanted request",
-    },
-  ];
-  const currentPage = tutorialPages[pageIndex];
-  const isFirstPage = pageIndex === 0;
-  const isLastPage = pageIndex === tutorialPages.length - 1;
-
-  useEffect(() => {
-    if (window.localStorage.getItem(TUTORIAL_STORAGE_KEY) !== "true") {
-      setOpen(true);
-    }
-  }, []);
-
-  function closeTutorial() {
-    if (dontShowAgain) {
-      window.localStorage.setItem(TUTORIAL_STORAGE_KEY, "true");
-    }
-    setOpen(false);
-  }
-
-  if (!open) return null;
-
+function BuiltOnMonadBadge() {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4 py-6 backdrop-blur"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="welcome-tutorial-title"
-    >
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-monad-purple/30 bg-card p-5 shadow-2xl shadow-monad-purple/20">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-monad-purple/30 bg-monad-purple/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-monad-purple">
-              <Sparkles className="h-3.5 w-3.5" /> Quick tutorial
-            </p>
-            <h2 id="welcome-tutorial-title" className="text-2xl font-bold">
-              {currentPage.title}
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm text-foreground">
-              {currentPage.description}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            onClick={closeTutorial}
-            aria-label="Close tutorial"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="mb-5 grid gap-2 sm:grid-cols-3">
-          {tutorialPages.map((page, index) => (
-            <button
-              key={page.title}
-              type="button"
-              onClick={() => setPageIndex(index)}
-              className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
-                index === pageIndex
-                  ? "border-monad-purple bg-monad-purple/15 text-foreground"
-                  : "border-border bg-background/60 text-muted-foreground hover:border-monad-purple/50 hover:text-foreground"
-              }`}
-            >
-              <span className="mb-1 block text-xs uppercase tracking-wide">
-                Page {index + 1}
-              </span>
-              <span className="font-medium">{page.title}</span>
-            </button>
-          ))}
-        </div>
-
-        <TutorialPage
-          icon={currentPage.icon}
-          eyebrow={currentPage.eyebrow}
-          title={currentPage.title}
-          example={currentPage.example}
-          steps={currentPage.steps}
-        />
-
-        <label className="mt-5 flex items-start gap-3 rounded-xl border border-border bg-background/60 p-3 text-sm">
-          <input
-            type="checkbox"
-            className="mt-1 h-4 w-4 accent-monad-purple"
-            checked={dontShowAgain}
-            onChange={(event) => setDontShowAgain(event.target.checked)}
-          />
-          <span>
-            <span className="block font-medium">Don&apos;t show this again</span>
-            <span className="text-muted-foreground">
-              You must check this box before closing if you do not want the
-              tutorial to appear the next time you open Handshake.
-            </span>
-          </span>
-        </label>
-
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Button
-            variant="outline"
-            disabled={isFirstPage}
-            onClick={() => setPageIndex((index) => Math.max(0, index - 1))}
-          >
-            Back
-          </Button>
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-            {!isLastPage ? (
-              <Button onClick={() => setPageIndex((index) => index + 1)}>
-                Next <ArrowRight className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button variant="outline" onClick={closeTutorial}>
-                Close for now
-              </Button>
-            )}
-            <Link
-              href={currentPage.ctaHref}
-              onClick={closeTutorial}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-gradient-to-r from-monad-purple to-fuchsia-400 px-4 text-sm font-medium text-primary-foreground shadow-lg shadow-monad-purple/20 transition-colors hover:from-monad-purple/90 hover:to-fuchsia-400/90"
-            >
-              {currentPage.ctaLabel} <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
+    <div className="group relative inline-flex flex-col items-center gap-2 md:items-start">
+      <div className="inline-flex items-center gap-2 rounded-full border border-monad-purple/40 bg-monad-purple/15 px-3 py-1.5 text-sm font-medium text-foreground shadow-lg shadow-monad-purple/10">
+        <span>⚡ Built on Monad</span>
+        <a
+          href="https://monad.xyz"
+          target="_blank"
+          rel="noreferrer"
+          className="text-monad-purple underline-offset-4 hover:underline"
+        >
+          Learn more
+        </a>
+      </div>
+      <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-72 -translate-x-1/2 rounded-xl border border-monad-purple/25 bg-background/95 p-3 text-left text-xs text-foreground opacity-0 shadow-2xl shadow-monad-purple/20 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 md:left-0 md:translate-x-0">
+        Monad is a high-performance EVM-compatible blockchain designed for
+        fast, low-cost apps.
       </div>
     </div>
   );
 }
 
-function TutorialPage({
-  icon,
-  eyebrow,
-  title,
-  example,
-  steps,
-}: {
-  icon: ReactNode;
-  eyebrow: string;
-  title: string;
-  example: string;
-  steps: string[];
-}) {
+function WhyMonadSection() {
   return (
-    <Card className="border-monad-purple/20 bg-background/60">
-      <CardContent className="p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-monad-purple text-monad-black">
-            {icon}
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
-              {eyebrow}
-            </p>
-            <h3 className="text-xl font-semibold">{title}</h3>
-          </div>
-        </div>
-        <p className="rounded-xl border border-monad-purple/30 bg-monad-purple/10 p-3 text-base font-medium text-monad-purple">
-          {example}
+    <section
+      id="why-monad"
+      className="border-t border-monad-purple/20 py-14"
+    >
+      <div className="mx-auto max-w-3xl text-center">
+        <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-monad-purple/30 bg-monad-purple/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-monad-purple">
+          <Zap className="h-3.5 w-3.5" /> Why Monad?
         </p>
-        <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-foreground">
-          {steps.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
+        <h2 className="text-3xl font-semibold">Why Handshake runs on Monad</h2>
+        <p className="mt-3 text-base text-foreground/85">
+          Handshake needs fast settlement, low fees, and familiar wallet tooling.
+          Monad gives NFT traders that without changing the EVM experience.
+        </p>
+      </div>
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <WhyMonadCard
+          title="Fast settlement"
+          body="Deals should feel instant. Monad is designed for high-throughput applications and responsive trading experiences."
+        />
+        <WhyMonadCard
+          title="Lower-cost trading"
+          body="NFT collectors should not hesitate because every action feels expensive. Handshake uses signatures for deal creation and on-chain settlement only when a deal executes."
+        />
+        <WhyMonadCard
+          title="EVM-compatible"
+          body="Collectors can use familiar wallets and smart contract patterns while trading on a faster execution layer."
+        />
+      </div>
+      <div className="mt-6 text-center">
+        <Link
+          href="/why-handshake"
+          className="text-sm font-medium text-monad-purple underline-offset-4 hover:underline"
+        >
+          Why Handshake?
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function WhyMonadCard({ title, body }: { title: string; body: string }) {
+  return (
+    <Card className="group border-monad-purple/20 bg-card/60 backdrop-blur transition-all hover:-translate-y-1 hover:border-monad-purple/50 hover:shadow-2xl hover:shadow-monad-purple/15">
+      <CardContent className="p-6">
+        <div className="mb-4 h-1.5 w-16 rounded-full bg-gradient-to-r from-monad-purple to-fuchsia-400" />
+        <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
+        <p className="text-sm leading-6 text-foreground/85">{body}</p>
       </CardContent>
     </Card>
   );

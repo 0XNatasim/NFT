@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Providers } from "./providers";
 import { Header } from "@/components/layout/header";
 import { NetworkGuard } from "@/components/wallet/network-guard";
@@ -36,6 +37,7 @@ export default function RootLayout({
                   custody, one-transaction settlement.
                 </span>
                 <div className="flex items-center gap-4 text-monad-purple">
+                  <Link href="/why-handshake" className="hover:underline">Why Handshake</Link>
                   <a href="https://x.com" target="_blank" rel="noreferrer" className="hover:underline">X</a>
                   <a href="https://discord.com" target="_blank" rel="noreferrer" className="hover:underline">Discord</a>
                 </div>
