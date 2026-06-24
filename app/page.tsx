@@ -20,7 +20,6 @@ import { useMarketStats, useOffers } from "@/hooks/use-market";
 import { FEATURED_COLLECTIONS, type FeaturedCollection } from "@/lib/featured-collections";
 import { formatMon } from "@/lib/utils";
 
-
 export default function HomePage() {
   const { address } = useAccount();
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
