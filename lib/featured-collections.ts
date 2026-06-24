@@ -18,7 +18,7 @@ export const FEATURED_COLLECTIONS: FeaturedCollection[] = [
   {
     name: "Erebus",
     address: "0x2a0001f3d4c98881376f8d36b3c61f163d84a095",
-    logo: "/collections/erebus.png",
+    logo: "/collections/Erebus.png",
   },
   {
     name: "r3tards",
@@ -33,22 +33,27 @@ export const FEATURED_COLLECTIONS: FeaturedCollection[] = [
   {
     name: "Roarrr",
     address: "0xcbdfad1bfb6a4414dd4d84b7a6420dc43683deb0",
+    logo: "/collections/Roarrr.png",
   },
   {
     name: "Sealuminati",
     address: "0xaeaa920165fd7ce58a0e0772ffc97f06626572cd",
+    logo: "/collections/Sealuminati.png",
   },
   {
     name: "The Daks",
     address: "0x9f8514cebee138b61806d4651f51d26c8098b463",
+    logo: "/collections/The Daks.png",
   },
   {
     name: "Overnads",
     address: "0xfb5ba4061f5c50b1daa6c067bb2dfb0a8ebf6a8d",
+    logo: "/collections/Overnads.png",
   },
   {
     name: "Chewy",
     address: "0xe1ddf619bb352e6eb25367be99606be02836cbbc",
+    logo: "/collections/Chewy.png",
   },
   {
     name: "skrumpeys",

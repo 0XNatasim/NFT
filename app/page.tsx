@@ -3,7 +3,14 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Handshake, ShieldCheck, Sparkles, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  Handshake,
+  ShieldCheck,
+  Sparkles,
+  Zap,
+} from "lucide-react";
+import { useAccount } from "wagmi";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfferCard } from "@/components/trade/offer-card";
@@ -13,6 +20,7 @@ import { FEATURED_COLLECTIONS, type FeaturedCollection } from "@/lib/featured-co
 import { formatMon } from "@/lib/utils";
 
 export default function HomePage() {
+  const { address } = useAccount();
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const activeCollection = FEATURED_COLLECTIONS.find(
     (collection) => collection.address.toLowerCase() === selectedCollection
@@ -27,48 +35,80 @@ export default function HomePage() {
     limit: 6,
   });
   const { data: stats } = useMarketStats();
+  const { data: walletOffers } = useOffers({
+    wallet: address,
+    status: "open",
+    limit: 100,
+  });
+  const privateOffers =
+    walletOffers?.filter(
+      (offer) =>
+        offer.isPrivate &&
+        offer.takerAddress?.toLowerCase() === address?.toLowerCase() &&
+        offer.makerAddress.toLowerCase() !== address?.toLowerCase()
+    ).length ?? null;
 
   return (
     <div className="container mx-auto px-4">
       {/* Hero */}
-      <section className="py-16 text-center md:py-24">
-        <h1 className="text-balance mx-auto max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
-          Every trade is a <span className="text-monad-purple">handshake</span>.
-          Human to human.
-        </h1>
-        <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
-          Deal NFTs directly with another wallet on Monad — no bots, no snipers,
-          no middleman. You set the terms, they shake on it, and the contract
-          settles it atomically. Zero custody.
-        </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Link
-            href="/create"
-            className="inline-flex h-12 items-center gap-2 rounded-md bg-primary px-8 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Create a trade <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/wanted"
-            className="inline-flex h-12 items-center rounded-md bg-secondary px-8 text-base font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
-          >
-            Browse wanted board
-          </Link>
+      <section className="relative my-6 grid gap-10 overflow-hidden rounded-[2rem] border border-monad-purple/20 bg-gradient-to-br from-monad-purple/15 via-fuchsia-500/10 to-cyan-400/10 px-5 py-16 shadow-2xl shadow-monad-purple/10 md:grid-cols-[1.05fr_0.95fr] md:items-center md:px-8 md:py-24">
+        <div className="pointer-events-none absolute right-12 top-10 h-24 w-24 rounded-full bg-fuchsia-400/20 blur-2xl" />
+        <div className="pointer-events-none absolute bottom-8 left-1/3 h-32 w-32 rounded-full bg-cyan-300/10 blur-2xl" />
+        <div className="text-center md:text-left">
+          <p className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-cyan-200 md:mx-0">
+            <Sparkles className="h-3.5 w-3.5" /> Bright wallet-to-wallet deals
+          </p>
+          <h1 className="text-balance mx-auto max-w-3xl text-4xl font-bold tracking-tight md:mx-0 md:text-6xl">
+            Every trade is a <span className="text-monad-purple">handshake</span>.
+            Human to human.
+          </h1>
+          <div className="mx-auto mt-5 max-w-xl space-y-3 text-foreground md:mx-0">
+            <p className="text-lg">
+              Create public or private NFT deals on Monad, a high-speed
+              EVM-compatible chain — no bots, no snipers, no custody.
+            </p>
+            <p className="text-base text-foreground/85">
+              Your NFTs stay in your wallet until the deal executes.
+            </p>
+            <BuiltOnMonadBadge />
+          </div>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row md:justify-start">
+            <Link
+              href="/create"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-gradient-to-r from-monad-purple to-fuchsia-400 px-8 text-base font-medium text-primary-foreground shadow-lg shadow-monad-purple/20 transition-colors hover:from-monad-purple/90 hover:to-fuchsia-400/90"
+            >
+              Propose a deal <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/wanted"
+              className="inline-flex h-12 items-center justify-center rounded-md border border-monad-purple/50 bg-transparent px-8 text-base font-medium text-foreground transition-colors hover:bg-monad-purple/10"
+            >
+              Browse wanted board
+            </Link>
+          </div>
+
+          {/* Stats */}
+          <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4 md:mx-0">
+            <Stat label="Trades settled" value={String(stats?.totalTrades ?? "—")} />
+            <Stat label="Open offers" value={String(stats?.openOffers ?? "—")} />
+            <Stat
+              label="Private offers"
+              value={address ? String(privateOffers ?? "—") : "Connect"}
+            />
+            <Stat
+              label="MON volume"
+              value={stats ? formatMon(BigInt(stats.totalVolumeWei)) : "—"}
+            />
+          </div>
         </div>
 
-        {/* Stats */}
-        <div className="mx-auto mt-12 grid max-w-2xl grid-cols-3 gap-4">
-          <Stat label="Trades settled" value={String(stats?.totalTrades ?? "—")} />
-          <Stat label="Open offers" value={String(stats?.openOffers ?? "—")} />
-          <Stat
-            label="MON volume"
-            value={stats ? formatMon(BigInt(stats.totalVolumeWei)) : "—"}
-          />
-        </div>
+        <HeroPreview />
       </section>
 
+      <WhyMonadSection />
+
       {/* How it works */}
-      <section className="border-t border-border py-14">
+      <section className="border-t border-monad-purple/20 py-14">
         <h2 className="mb-8 text-center text-2xl font-semibold">How it works</h2>
         <div className="grid gap-4 md:grid-cols-3">
           <HowCard
@@ -83,14 +123,22 @@ export default function HomePage() {
           />
           <HowCard
             icon={<Zap className="h-6 w-6 text-monad-purple" />}
-            title="3. Atomic settlement"
-            body="One transaction swaps everything or nothing. No escrow middlemen, no platform custody — the contract verifies signatures, ownership and approvals."
+            title="3. Everything swaps or nothing does"
+            body="One transaction instantly settles the deal. That’s atomic settlement: no escrow middlemen, no platform custody — the contract verifies signatures, ownership and approvals."
           />
+        </div>
+        <div className="mt-8 flex justify-center">
+          <Link
+            href="/create"
+            className="inline-flex h-11 items-center gap-2 rounded-md bg-gradient-to-r from-monad-purple to-fuchsia-400 px-6 font-medium text-primary-foreground shadow-lg shadow-monad-purple/20 transition-colors hover:from-monad-purple/90 hover:to-fuchsia-400/90"
+          >
+            Start your first trade <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </section>
 
       {/* Marketplace feed */}
-      <section className="border-t border-border py-14">
+      <section className="border-t border-monad-purple/20 py-14">
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-monad-purple/30 bg-monad-purple/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-monad-purple">
@@ -153,7 +201,7 @@ export default function HomePage() {
       </section>
 
       {/* Recent trades */}
-      <section className="border-t border-border py-14">
+      <section className="border-t border-monad-purple/20 py-14">
         <h2 className="mb-6 text-2xl font-semibold">Recent trades</h2>
         {loadingRecent ? (
           <OfferGridSkeleton />
@@ -174,6 +222,82 @@ export default function HomePage() {
   );
 }
 
+function BuiltOnMonadBadge() {
+  return (
+    <div className="group relative inline-flex flex-col items-center gap-2 md:items-start">
+      <div className="inline-flex items-center gap-2 rounded-full border border-monad-purple/40 bg-monad-purple/15 px-3 py-1.5 text-sm font-medium text-foreground shadow-lg shadow-monad-purple/10">
+        <span>⚡ Built on Monad</span>
+        <a
+          href="https://monad.xyz"
+          target="_blank"
+          rel="noreferrer"
+          className="text-monad-purple underline-offset-4 hover:underline"
+        >
+          Learn more
+        </a>
+      </div>
+      <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-72 -translate-x-1/2 rounded-xl border border-monad-purple/25 bg-background/95 p-3 text-left text-xs text-foreground opacity-0 shadow-2xl shadow-monad-purple/20 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 md:left-0 md:translate-x-0">
+        Monad is a high-performance EVM-compatible blockchain designed for
+        fast, low-cost apps.
+      </div>
+    </div>
+  );
+}
+
+function WhyMonadSection() {
+  return (
+    <section
+      id="why-monad"
+      className="border-t border-monad-purple/20 py-14"
+    >
+      <div className="mx-auto max-w-3xl text-center">
+        <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-monad-purple/30 bg-monad-purple/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-monad-purple">
+          <Zap className="h-3.5 w-3.5" /> Why Monad?
+        </p>
+        <h2 className="text-3xl font-semibold">Why Handshake runs on Monad</h2>
+        <p className="mt-3 text-base text-foreground/85">
+          Handshake needs fast settlement, low fees, and familiar wallet tooling.
+          Monad gives NFT traders that without changing the EVM experience.
+        </p>
+      </div>
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <WhyMonadCard
+          title="Fast settlement"
+          body="Deals should feel instant. Monad is designed for high-throughput applications and responsive trading experiences."
+        />
+        <WhyMonadCard
+          title="Lower-cost trading"
+          body="NFT collectors should not hesitate because every action feels expensive. Handshake uses signatures for deal creation and on-chain settlement only when a deal executes."
+        />
+        <WhyMonadCard
+          title="EVM-compatible"
+          body="Collectors can use familiar wallets and smart contract patterns while trading on a faster execution layer."
+        />
+      </div>
+      <div className="mt-6 text-center">
+        <Link
+          href="/why-handshake"
+          className="text-sm font-medium text-monad-purple underline-offset-4 hover:underline"
+        >
+          Why Handshake?
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function WhyMonadCard({ title, body }: { title: string; body: string }) {
+  return (
+    <Card className="group border-monad-purple/20 bg-card/60 backdrop-blur transition-all hover:-translate-y-1 hover:border-monad-purple/50 hover:shadow-2xl hover:shadow-monad-purple/15">
+      <CardContent className="p-6">
+        <div className="mb-4 h-1.5 w-16 rounded-full bg-gradient-to-r from-monad-purple to-fuchsia-400" />
+        <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
+        <p className="text-sm leading-6 text-foreground/85">{body}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function CollectionFilterBanner({
   selectedCollection,
   onSelect,
@@ -182,7 +306,7 @@ function CollectionFilterBanner({
   onSelect: (collection: string | null) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-card/70 p-3 shadow-sm">
+    <div className="rounded-2xl border border-monad-purple/20 bg-gradient-to-r from-monad-purple/10 via-card/80 to-cyan-400/10 p-3 shadow-lg shadow-monad-purple/5">
       <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:thin]">
         <button
           type="button"
@@ -207,6 +331,91 @@ function CollectionFilterBanner({
             }
             onClick={() => onSelect(collection.address.toLowerCase())}
           />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HeroPreview() {
+  const featured = FEATURED_COLLECTIONS.slice(0, 4);
+
+  return (
+    <div className="relative mx-auto w-full max-w-md">
+      <div className="absolute -inset-6 rounded-[2rem] bg-monad-purple/20 blur-3xl" />
+      <Card className="relative overflow-hidden border-monad-purple/30 bg-gradient-to-br from-card/95 via-monad-purple/10 to-cyan-400/10 shadow-2xl shadow-monad-purple/10">
+        <CardContent className="space-y-5 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
+                Live offer preview
+              </p>
+              <h3 className="text-xl font-semibold">Human deal, wallet settled</h3>
+            </div>
+            <span className="rounded-full border border-monad-purple/40 bg-monad-purple/10 px-3 py-1 text-xs text-monad-purple">
+              No custody
+            </span>
+          </div>
+
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <PreviewSide title="You give" collections={featured.slice(0, 2)} />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-monad-purple text-monad-black">
+              <Handshake className="h-5 w-5" />
+            </div>
+            <PreviewSide title="You get" collections={featured.slice(2, 4)} />
+          </div>
+
+          <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-3">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="font-medium">Settlement</span>
+              <span className="text-monad-purple">1 transaction</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full w-4/5 rounded-full bg-gradient-to-r from-monad-purple to-fuchsia-400" />
+            </div>
+            <p className="mt-2 text-xs text-foreground">
+              Both wallets sign. The contract verifies ownership, approvals, and
+              terms before anything moves.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function PreviewSide({
+  title,
+  collections,
+}: {
+  title: string;
+  collections: FeaturedCollection[];
+}) {
+  return (
+    <div className="rounded-xl border border-monad-purple/20 bg-background/60 p-3">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-foreground">
+        {title}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {collections.map((collection) => (
+          <div
+            key={collection.address}
+            className="overflow-hidden rounded-lg border border-monad-purple/20 bg-secondary shadow-md shadow-monad-purple/10"
+          >
+            {collection.logo ? (
+              <Image
+                src={collection.logo}
+                alt={collection.name}
+                width={96}
+                height={96}
+                className="aspect-square w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-square items-center justify-center text-monad-purple">
+                <Sparkles className="h-5 w-5" />
+              </div>
+            )}
+          </div>
         ))}
       </div>
     </div>
@@ -253,7 +462,7 @@ function CollectionFilterButton({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <Card>
+    <Card className="border-monad-purple/20 bg-gradient-to-br from-monad-purple/15 via-card to-cyan-400/10 shadow-lg shadow-monad-purple/5">
       <CardContent className="p-4 text-center">
         <p className="text-2xl font-bold text-monad-purple">{value}</p>
         <p className="text-xs text-muted-foreground">{label}</p>
@@ -272,11 +481,13 @@ function HowCard({
   body: string;
 }) {
   return (
-    <Card>
+    <Card className="border-monad-purple/20 bg-gradient-to-br from-card via-monad-purple/10 to-fuchsia-500/10 shadow-lg shadow-monad-purple/5">
       <CardContent className="p-6">
-        <div className="mb-3">{icon}</div>
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-monad-purple/15">
+          {icon}
+        </div>
         <h3 className="mb-2 font-semibold">{title}</h3>
-        <p className="text-sm text-muted-foreground">{body}</p>
+        <p className="text-sm text-foreground/80">{body}</p>
       </CardContent>
     </Card>
   );

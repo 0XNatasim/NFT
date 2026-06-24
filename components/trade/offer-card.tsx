@@ -63,12 +63,12 @@ function TradeSide({
         {label}
       </p>
       <div className="grid grid-cols-2 gap-1.5">
-        {nfts.slice(0, 2).map((nft) => (
+        {nfts.slice(0, 4).map((nft) => (
           <NFTCard key={nft.id} nft={nft} size="sm" />
         ))}
       </div>
-      {nfts.length > 2 && (
-        <p className="mt-1 text-xs text-muted-foreground">+{nfts.length - 2} more</p>
+      {nfts.length > 4 && (
+        <p className="mt-1 text-xs text-foreground">+{nfts.length - 4} more</p>
       )}
       {monAmount > 0n && (
         <p className="mt-1.5 text-sm font-semibold text-monad-purple">

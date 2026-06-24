@@ -29,7 +29,12 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    background:
+      radial-gradient(circle at 15% 10%, hsl(249 92% 70% / 0.18), transparent 28rem),
+      radial-gradient(circle at 85% 18%, hsl(292 90% 64% / 0.14), transparent 26rem),
+      radial-gradient(circle at 55% 92%, hsl(185 95% 55% / 0.1), transparent 30rem),
+      hsl(var(--background));
+    @apply text-foreground antialiased;
   }
 }
 

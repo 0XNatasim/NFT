@@ -27,6 +27,7 @@ import {
   settlementErrorMessages,
 } from "@/lib/contracts/settlement";
 import { ZERO_ADDRESS } from "@/lib/orders/eip712";
+import { isCollectionBid } from "@/lib/collection-bids";
 import { quoteFees } from "@/lib/fees";
 import { formatMon, shortAddress, timeUntil } from "@/lib/utils";
 import type { TradeOffer } from "@/lib/types";
@@ -104,6 +105,7 @@ export default function OfferDetailPage({
   const takerNfts = offer.nfts.filter((n) => n.side === "taker");
   const makerMon = BigInt(offer.makerMonAmount);
   const takerMon = BigInt(offer.takerMonAmount);
+  const hasCollectionBid = takerNfts.some(isCollectionBid);
   const isMaker = address?.toLowerCase() === offer.makerAddress.toLowerCase();
   const isDesignatedTaker =
     !offer.takerAddress || address?.toLowerCase() === offer.takerAddress.toLowerCase();
@@ -113,6 +115,7 @@ export default function OfferDetailPage({
     offer.status === "open" &&
     !isMaker &&
     isDesignatedTaker &&
+    !hasCollectionBid &&
     !isExpired &&
     !isWrongChain &&
     !!address;
@@ -408,6 +411,22 @@ export default function OfferDetailPage({
               </Button>
             </>
           )}
+          {hasCollectionBid && offer.status === "open" && !isMaker && (
+            <div className="space-y-3 rounded-lg border border-monad-purple/30 bg-monad-purple/10 p-3 text-sm text-foreground">
+              <p>
+                This is a collection-wide buy request. The maker is offering MON
+                for any matching NFT in the requested collection, so choose one
+                of your NFTs and send them a private trade to complete the
+                handshake.
+              </p>
+              <a
+                href={`/create?taker=${offer.makerAddress}&private=1`}
+                className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Make private offer
+              </a>
+            </div>
+          )}
           {offer.status === "open" &&
             escrowQuery.data &&
             escrowQuery.data.shortfall > 0n && (
@@ -517,16 +536,22 @@ function SideCard({
             {nfts.map((nft) => (
               <div key={nft.id} className="space-y-1">
                 <NFTCard nft={nft} />
-                <a
-                  href={explorerTokenUrl(nft.contractAddress, nft.tokenId)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-monad-purple"
-                  title={nft.contractAddress}
-                >
-                  {shortAddress(nft.contractAddress)}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
+                {isCollectionBid(nft) ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    Any token from {shortAddress(nft.contractAddress)}
+                  </p>
+                ) : (
+                  <a
+                    href={explorerTokenUrl(nft.contractAddress, nft.tokenId)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-monad-purple"
+                    title={nft.contractAddress}
+                  >
+                    {shortAddress(nft.contractAddress)}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
               </div>
             ))}
           </div>
