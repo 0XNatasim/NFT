@@ -903,7 +903,7 @@ function StepDetails(props: {
                   />
                 ))}
               </div>
-              <div className="flex gap-2">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
                 <Input
                   placeholder="NFT contract address (0x…)"
                   value={requestContract}
@@ -913,12 +913,13 @@ function StepDetails(props: {
                   placeholder={
                     props.intent === "buy" ? "Token ID (optional)" : "Token ID"
                   }
-                  className="w-32"
+                  className="w-full"
                   value={requestTokenId}
                   onChange={(e) => setRequestTokenId(e.target.value)}
                 />
                 <Button
                   type="button"
+                  className="w-full sm:w-auto"
                   variant={canAddRequestedNft ? "default" : "secondary"}
                   onClick={addRequestedNft}
                 >
