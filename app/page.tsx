@@ -19,6 +19,7 @@ import { WelcomeTutorial } from "@/components/tutorial/welcome-tutorial";
 import { useMarketStats, useOffers } from "@/hooks/use-market";
 import { FEATURED_COLLECTIONS, type FeaturedCollection } from "@/lib/featured-collections";
 import { formatMon } from "@/lib/utils";
+import { Target, Upload, Sliders, Lock } from "lucide-react";
 
 export default function HomePage() {
   const { address } = useAccount();
@@ -336,49 +337,76 @@ function CollectionFilterBanner({
 }
 
 function HeroPreview() {
-  const featured = FEATURED_COLLECTIONS.slice(0, 4);
+  const examples = [
+    {
+      id: 1,
+      title: "Wanted",
+      description: "Buy an NFT you’re looking for",
+      Icon: Target,
+    },
+    {
+      id: 2,
+      title: "Sell NFT",
+      description: "List your NFT for sale",
+      Icon: Upload,
+    },
+    {
+      id: 3,
+      title: "Custom Deal",
+      description: "Create a trade with custom terms",
+      Icon: Sliders,
+    },
+    {
+      id: 4,
+      title: "Private Option",
+      description: "Offer a deal to a specific wallet",
+      Icon: Lock,
+    },
+  ];
 
   return (
     <div className="relative mx-auto w-full max-w-md">
       <div className="absolute -inset-6 rounded-[2rem] bg-monad-purple/20 blur-3xl" />
       <Card className="relative overflow-hidden border-monad-purple/30 bg-gradient-to-br from-card/95 via-monad-purple/10 to-cyan-400/10 shadow-2xl shadow-monad-purple/10">
-        <CardContent className="space-y-5 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
-                Live deal preview
-              </p>
-              <h3 className="text-xl font-semibold">Human deal, wallet settled</h3>
+        <CardContent className="p-5">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
+                  Live deal preview
+                </p>
+                <h3 className="text-xl font-semibold">Human deal, wallet settled</h3>
+              </div>
+              <span className="rounded-full border border-monad-purple/40 bg-monad-purple/10 px-3 py-1 text-xs text-monad-purple">
+                No custody
+              </span>
             </div>
-            <span className="rounded-full border border-monad-purple/40 bg-monad-purple/10 px-3 py-1 text-xs text-monad-purple">
-              No custody
-            </span>
-          </div>
 
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-            <PreviewSide title="You give" collections={featured.slice(0, 2)} />
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-monad-purple text-monad-black">
-              <Handshake className="h-5 w-5" />
+            <div className="overflow-x-auto whitespace-nowrap scrollbar-hidden">
+              <div className="inline-flex space-x-4">
+                {examples.map((ex) => (
+                  <ExampleCard key={ex.id} title={ex.title} description={ex.description} Icon={ex.Icon} />
+                ))}
+              </div>
             </div>
-            <PreviewSide title="You get" collections={featured.slice(2, 4)} />
-          </div>
-
-          <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-3">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="font-medium">Settlement</span>
-              <span className="text-monad-purple">1 transaction</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-secondary">
-              <div className="h-full w-4/5 rounded-full bg-gradient-to-r from-monad-purple to-fuchsia-400" />
-            </div>
-            <p className="mt-2 text-xs text-foreground">
-              Both wallets sign. The contract verifies ownership, approvals, and
-              terms before anything moves.
-            </p>
           </div>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ExampleCard({ title, description, Icon }: { title: string; description: string; Icon: React.ComponentType<{ className?: string }> }) {
+  return (
+    <Card className="flex-shrink-0 w-56 border-monad-purple/20 bg-card/60 backdrop-blur transition-all hover:-translate-y-1 hover:border-monad-purple/50 hover:shadow-2xl hover:shadow-monad-purple/15">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-monad-purple/20 text-monad-purple">
+          <Icon className="h-5 w-5" />
+        </div>
+        <h3 className="font-semibold">{title}</h3>
+        <p className="text-sm text-foreground/80">{description}</p>
+      </CardContent>
+    </Card>
   );
 }
 
