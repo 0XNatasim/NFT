@@ -1,5 +1,3 @@
-"use client";
-
 /* eslint-disable @next/next/no-img-element */
 import { cn, shortAddress } from "@/lib/utils";
 import { isCollectionBid } from "@/lib/collection-bids";
