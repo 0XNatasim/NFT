@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
-import { FEATURED_COLLECTIONS, type FeaturedCollection } from '@/lib/featured-collections';
+import { FEATURED_COLLECTIONS } from '@/lib/featured-collections';
 
 export default function LiveDealPreviewCarousel() {
   const collections = FEATURED_COLLECTIONS.slice(0, 6); // show first 6 as examples

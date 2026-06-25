@@ -43,3 +43,18 @@
     text-wrap: balance;
   }
 }
+@layer utilities {
+  .hero-carousel-card {
+    backface-visibility: hidden;
+    transform-style: preserve-3d;
+    transition:
+      transform 700ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 700ms ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-carousel-card {
+      transition: none;
+    }
+  }
+}
