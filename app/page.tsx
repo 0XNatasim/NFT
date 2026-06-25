@@ -395,7 +395,7 @@ function HeroPreview() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       setActiveSlide((current) => (current + 1) % carouselSlides.length);
-    }, 3500);
+    }, 10000);
 
     return () => window.clearInterval(timer);
   }, [carouselSlides.length]);
