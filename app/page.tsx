@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Handshake,
+  Lock,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
+  Upload,
   Zap,
 } from "lucide-react";
 import { useAccount } from "wagmi";
@@ -69,7 +74,7 @@ export default function HomePage() {
               Create public or private NFT deals on Monad, a high-speed
               EVM-compatible chain — no bots, no snipers, no custody.
             </p>
-            <p className="text-base text-foreground/85">
+            <p className="text-base text-foreground/95">
               Your NFTs stay in your wallet until the deal executes.
             </p>
             <BuiltOnMonadBadge />
@@ -253,7 +258,7 @@ function WhyMonadSection() {
           <Zap className="h-3.5 w-3.5" /> Why Monad?
         </p>
         <h2 className="text-3xl font-semibold">Why Handshake runs on Monad</h2>
-        <p className="mt-3 text-base text-foreground/85">
+        <p className="mt-3 text-base text-foreground/95">
           Handshake needs fast settlement, low fees, and familiar wallet tooling.
           Monad gives NFT traders that without changing the EVM experience.
         </p>
@@ -290,7 +295,7 @@ function WhyMonadCard({ title, body }: { title: string; body: string }) {
       <CardContent className="p-6">
         <div className="mb-4 h-1.5 w-16 rounded-full bg-gradient-to-r from-monad-purple to-fuchsia-400" />
         <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
-        <p className="text-sm leading-6 text-foreground/85">{body}</p>
+        <p className="text-sm leading-6 text-foreground/95">{body}</p>
       </CardContent>
     </Card>
   );
@@ -336,48 +341,349 @@ function CollectionFilterBanner({
 }
 
 function HeroPreview() {
+  const [activeSlide, setActiveSlide] = useState(0);
+  const carouselSlides = [
+    {
+      id: "preview",
+      label: "Live deal preview",
+      title: "Human deal, wallet settled",
+      badge: "No custody",
+      content: <LivePreviewSlide />,
+    },
+    {
+      id: "wanted",
+      label: "Example offer",
+      title: "Wanted",
+      badge: "Collector ask",
+      content: <WantedOfferSlide />,
+    },
+    {
+      id: "sell",
+      label: "Sell NFT",
+      title: "Upload an asset",
+      badge: "List fast",
+      content: (
+        <IconDealSlide
+          icon={<Upload className="h-9 w-9" />}
+          title="Sell NFT"
+          body="Upload or pick an NFT, set what you want back, then publish a wallet-to-wallet offer."
+        />
+      ),
+    },
+    {
+      id: "custom",
+      label: "Custom Deal",
+      title: "Create a custom trade",
+      badge: "Sliders",
+      content: <CustomDealSlide />,
+    },
+    {
+      id: "private",
+      label: "Private Option",
+      title: "Invite one wallet",
+      badge: "Locked",
+      content: (
+        <IconDealSlide
+          icon={<Lock className="h-9 w-9" />}
+          title="Private Option"
+          body="Lock a deal to a specific wallet so only the intended collector can accept."
+        />
+      ),
+    },
+  ];
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % carouselSlides.length);
+    }, 3500);
+
+    return () => window.clearInterval(timer);
+  }, [carouselSlides.length]);
+
+  const moveSlide = (direction: 1 | -1) => {
+    setActiveSlide(
+      (current) =>
+        (current + direction + carouselSlides.length) % carouselSlides.length
+    );
+  };
+
+  return (
+    <div className="relative mx-auto h-[34rem] w-full max-w-2xl overflow-visible [perspective:1200px] sm:h-[31rem]">
+      <div className="absolute -inset-8 rounded-[2.5rem] bg-monad-purple/20 blur-3xl" />
+
+      <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+        <span className="rounded-full border border-monad-purple/30 bg-background/70 px-3 py-1 backdrop-blur">
+          3D carousel slides
+        </span>
+      </div>
+
+      <div className="absolute inset-x-0 top-9 h-[26rem] [transform-style:preserve-3d] sm:h-[25rem]">
+        {carouselSlides.map((slide, index) => {
+          const rawOffset = index - activeSlide;
+          const offset =
+            rawOffset > carouselSlides.length / 2
+              ? rawOffset - carouselSlides.length
+              : rawOffset < -carouselSlides.length / 2
+                ? rawOffset + carouselSlides.length
+                : rawOffset;
+          const isActive = offset === 0;
+
+          return (
+            <Card
+              key={slide.id}
+              aria-hidden={!isActive}
+              className="hero-carousel-card absolute left-1/2 top-1/2 h-[25rem] w-[min(82vw,26rem)] overflow-hidden border-monad-purple/30 bg-gradient-to-br from-card/95 via-monad-purple/10 to-cyan-400/10 shadow-2xl shadow-monad-purple/10"
+              style={{
+                opacity: Math.abs(offset) > 2 ? 0 : isActive ? 1 : 0.5,
+                pointerEvents: isActive ? "auto" : "none",
+                transform: `translate(-50%, -50%) translateX(${offset * 34}%) translateZ(${-Math.abs(offset) * 150}px) rotateY(${-offset * 28}deg) scale(${isActive ? 1 : 0.82})`,
+                zIndex: 10 - Math.abs(offset),
+              }}
+            >
+              <CardContent className="flex h-full flex-col space-y-5 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
+                      {slide.label}
+                    </p>
+                    <h3 className="text-xl font-semibold">{slide.title}</h3>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-monad-purple/40 bg-monad-purple/10 px-3 py-1 text-xs text-monad-purple">
+                    {slide.badge}
+                  </span>
+                </div>
+                {slide.content}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 z-30 flex items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => moveSlide(-1)}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-monad-purple/40 bg-background/80 text-monad-purple backdrop-blur transition hover:bg-monad-purple/10"
+          aria-label="Previous carousel slide"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+
+        <div className="flex items-center gap-2 rounded-full border border-monad-purple/30 bg-background/80 px-3 py-2 backdrop-blur">
+          {carouselSlides.map((slide, index) => (
+            <button
+              key={slide.id}
+              type="button"
+              onClick={() => setActiveSlide(index)}
+              className={`h-2.5 rounded-full transition-all ${
+                activeSlide === index
+                  ? "w-8 bg-monad-purple"
+                  : "w-2.5 bg-monad-purple/30 hover:bg-monad-purple/60"
+              }`}
+              aria-label={`Show ${slide.title} slide`}
+              aria-current={activeSlide === index ? "true" : undefined}
+            />
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => moveSlide(1)}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-monad-purple/40 bg-background/80 text-monad-purple backdrop-blur transition hover:bg-monad-purple/10"
+          aria-label="Next carousel slide"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LivePreviewSlide() {
   const featured = FEATURED_COLLECTIONS.slice(0, 4);
 
   return (
-    <div className="relative mx-auto w-full max-w-md">
-      <div className="absolute -inset-6 rounded-[2rem] bg-monad-purple/20 blur-3xl" />
-      <Card className="relative overflow-hidden border-monad-purple/30 bg-gradient-to-br from-card/95 via-monad-purple/10 to-cyan-400/10 shadow-2xl shadow-monad-purple/10">
-        <CardContent className="space-y-5 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-monad-purple">
-                Live deal preview
-              </p>
-              <h3 className="text-xl font-semibold">Human deal, wallet settled</h3>
-            </div>
-            <span className="rounded-full border border-monad-purple/40 bg-monad-purple/10 px-3 py-1 text-xs text-monad-purple">
-              No custody
-            </span>
-          </div>
+    <>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <PreviewSide title="You give" collections={featured.slice(0, 2)} />
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-monad-purple text-monad-black">
+          <Handshake className="h-5 w-5" />
+        </div>
+        <PreviewSide title="You get" collections={featured.slice(2, 4)} />
+      </div>
 
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-            <PreviewSide title="You give" collections={featured.slice(0, 2)} />
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-monad-purple text-monad-black">
-              <Handshake className="h-5 w-5" />
-            </div>
-            <PreviewSide title="You get" collections={featured.slice(2, 4)} />
-          </div>
+      <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-3">
+        <div className="mb-2 flex items-center justify-between text-sm">
+          <span className="font-medium">Settlement</span>
+          <span className="text-monad-purple">1 transaction</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-secondary">
+          <div className="h-full w-4/5 rounded-full bg-gradient-to-r from-monad-purple to-fuchsia-400" />
+        </div>
+        <p className="mt-2 text-xs text-foreground">
+          Both wallets sign. The contract verifies ownership, approvals, and
+          terms before anything moves.
+        </p>
+      </div>
+    </>
+  );
+}
 
-          <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-3">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="font-medium">Settlement</span>
-              <span className="text-monad-purple">1 transaction</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-secondary">
-              <div className="h-full w-4/5 rounded-full bg-gradient-to-r from-monad-purple to-fuchsia-400" />
-            </div>
-            <p className="mt-2 text-xs text-foreground">
-              Both wallets sign. The contract verifies ownership, approvals, and
-              terms before anything moves.
+function WantedOfferSlide() {
+  return (
+    <div className="space-y-4 rounded-2xl border border-cyan-300/20 bg-background/60 p-4">
+      <div className="rounded-2xl border border-monad-purple/20 bg-gradient-to-br from-monad-purple/15 via-card to-cyan-300/10 p-4 shadow-lg shadow-monad-purple/10">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-cyan-200">
+              Wanted offer
             </p>
+            <h4 className="mt-1 text-lg font-semibold">Looking for 2 10KSquad NFT</h4>
           </div>
-        </CardContent>
-      </Card>
+          <span className="rounded-full border border-fuchsia-300/30 bg-fuchsia-300/10 px-3 py-1 text-xs text-fuchsia-200">
+            Open ask
+          </span>
+        </div>
+
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div className="rounded-xl border border-monad-purple/20 bg-secondary/70 p-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-foreground">
+              Collector offers
+            </p>
+            <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3 text-center">
+              <p className="text-2xl font-bold text-cyan-200">6000 MON</p>
+              <Image
+                src="/monad-logo.svg"
+                alt="Monad logo"
+                width={28}
+                height={28}
+                className="mx-auto mt-2"
+              />
+              <p className="mt-1 text-xs text-foreground/90">plus fees</p>
+            </div>
+          </div>
+
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-monad-purple text-monad-black">
+            <Handshake className="h-5 w-5" />
+          </div>
+
+          <div className="rounded-xl border border-monad-purple/20 bg-secondary/70 p-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-foreground">
+              Wants
+            </p>
+            <div className="flex aspect-square items-center justify-center rounded-lg border border-monad-purple/30 bg-gradient-to-br from-fuchsia-400/30 to-cyan-300/20 text-monad-purple">
+              <Sparkles className="h-8 w-8" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-sm text-foreground/95">
+        A code-built “Wanted” example card: show what a collector offers and the
+        NFT they want without relying on a binary image asset.
+      </p>
+    </div>
+  );
+}
+
+function CustomDealSlide() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-2xl border border-cyan-300/20 bg-background/60 p-3">
+      <div className="grid grid-cols-3 gap-2 text-[10px] uppercase tracking-wide text-foreground/95">
+        <div className="rounded-lg border border-border bg-secondary/50 p-2">
+          <span className="block text-foreground/90">Page 1</span>
+          <span className="font-semibold normal-case text-foreground">Buy with MON</span>
+        </div>
+        <div className="rounded-lg border border-monad-purple bg-monad-purple/20 p-2 shadow-sm shadow-monad-purple/20">
+          <span className="block text-monad-purple">Page 2</span>
+          <span className="font-semibold normal-case text-foreground">Custom trade</span>
+        </div>
+        <div className="rounded-lg border border-border bg-secondary/50 p-2">
+          <span className="block text-foreground/90">Page 3</span>
+          <span className="font-semibold normal-case text-foreground">Wanted board</span>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-monad-purple/25 bg-card/80 p-3">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-monad-purple text-monad-black">
+            <SlidersHorizontal className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-monad-purple">
+              Page 2 of 3
+            </p>
+            <h4 className="text-base font-semibold">Create a custom trade</h4>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-monad-purple/30 bg-monad-purple/10 px-3 py-2 text-sm font-semibold text-monad-purple">
+          Example: trade 1 10kSquad + 10,000 MON for 1 r3tard
+        </div>
+
+        <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <TradeMiniPanel
+            title="You give"
+            items={["1 10kSquad NFT", "10,000 MON"]}
+          />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-monad-purple text-monad-black">
+            <Handshake className="h-4 w-4" />
+          </div>
+          <TradeMiniPanel title="You get" items={["1 r3tard NFT"]} />
+        </div>
+
+        <ol className="mt-3 space-y-1 text-xs leading-5 text-foreground/95">
+          <li>1. Choose Custom Trade in the builder.</li>
+          <li>2. Add NFTs and MON on either side.</li>
+          <li>3. Handshake settles only if both wallets still match.</li>
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+function TradeMiniPanel({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
+  return (
+    <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-2">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-foreground">
+        {title}
+      </p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <div
+            key={item}
+            className="rounded-md border border-monad-purple/20 bg-background/60 px-2 py-1 text-xs text-foreground/95"
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function IconDealSlide({
+  icon,
+  title,
+  body,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-5 text-center">
+      <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl border border-monad-purple/30 bg-monad-purple/15 text-monad-purple shadow-lg shadow-monad-purple/20">
+        {icon}
+      </div>
+      <h4 className="text-2xl font-semibold">{title}</h4>
+      <p className="mx-auto mt-3 max-w-xs text-sm text-foreground/95">{body}</p>
     </div>
   );
 }
