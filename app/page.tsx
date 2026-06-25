@@ -544,7 +544,7 @@ function WantedOfferSlide() {
             <p className="text-xs font-medium uppercase tracking-wide text-cyan-200">
               Wanted offer
             </p>
-            <h4 className="mt-1 text-lg font-semibold">Looking for a grail NFT</h4>
+            <h4 className="mt-1 text-lg font-semibold">Looking for 2 10KSquad NFT</h4>
           </div>
           <span className="rounded-full border border-fuchsia-300/30 bg-fuchsia-300/10 px-3 py-1 text-xs text-fuchsia-200">
             Open ask
@@ -557,8 +557,15 @@ function WantedOfferSlide() {
               Collector offers
             </p>
             <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-200">25 MON</p>
-              <p className="text-xs text-foreground/70">plus fees</p>
+              <p className="text-2xl font-bold text-cyan-200">6000 MON</p>
+              <Image
+                src="/monad-logo.svg"
+                alt="Monad logo"
+                width={28}
+                height={28}
+                className="mx-auto mt-2"
+              />
+              <p className="mt-1 text-xs text-foreground/70">plus fees</p>
             </div>
           </div>
 
