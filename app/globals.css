@@ -43,3 +43,34 @@
     text-wrap: balance;
   }
 }
+@layer utilities {
+  .hero-3d-carousel {
+    animation: hero-carousel-spin 22s linear infinite;
+  }
+
+  .hero-3d-carousel:hover {
+    animation-play-state: paused;
+  }
+
+  .hero-3d-carousel-slide {
+    --slide-count: 5;
+    --carousel-radius: clamp(15rem, 34vw, 24rem);
+    transform: translate(-50%, -50%) rotateY(calc(var(--slide-index) * 72deg)) translateZ(var(--carousel-radius));
+    backface-visibility: hidden;
+  }
+
+  @keyframes hero-carousel-spin {
+    from {
+      transform: rotateY(0deg);
+    }
+    to {
+      transform: rotateY(-360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-3d-carousel {
+      animation: none;
+    }
+  }
+}
