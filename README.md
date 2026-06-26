@@ -65,10 +65,16 @@ All of these live in `.env.example`. ★ = required for the app to function.
 | `SUPABASE_SERVICE_ROLE_KEY` | ★ | Supabase → Project Settings → API (service_role). Bypasses RLS — server only. |
 | `NFT_PROVIDER` | ★ | `alchemy` (default) or `opensea` |
 | `ALCHEMY_API_KEY` | ★ (if alchemy) | Alchemy dashboard → app → API key |
-| `OPENSEA_API_KEY` | (if opensea) | OpenSea dashboard |
+| `OPENSEA_API_KEY` | (if opensea / optional collection logo fallback) | OpenSea dashboard |
+| `RESERVOIR_API_KEY` | | Reservoir dashboard — collection logo/floor metadata; unauthenticated requests are attempted when unset |
 | `PRICE_PROVIDER` | | `opensea` — live floor price on NFT cards |
+| `RESERVOIR_API_BASE_URL` | | Optional Reservoir-compatible API base URL; defaults to `https://api.reservoir.tools` |
+| `RESERVOIR_API_BASE_<CHAIN_ID>` | | Optional per-chain Reservoir-compatible API base URL override, e.g. Monad-specific deployments |
 | `SIMPLEHASH_API_KEY` | | reserved for a future SimpleHash provider |
 | `MONAD_RPC_URL` | ★ | Server-side RPC (can match the public one) — used for receipt/nonce verification |
+
+
+Collection logos are resolved at runtime from collection contract metadata instead of bundled `/collections/*.png` assets. The lookup order is Reservoir, OpenSea when `OPENSEA_API_KEY` is configured, on-chain `contractURI()`, token metadata via `tokenURI(1)`, then the local `/Logomark.png` placeholder. Results are cached server-side and in React Query to avoid repeated requests on every render.
 
 **Deployment-only (local shell / CI secrets — never needed by the web app)**
 

@@ -1,7 +1,7 @@
 'use client';
 
-import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
+import { SafeCollectionImage } from '@/components/ui/safe-collection-image';
 import { FEATURED_COLLECTIONS } from '@/lib/featured-collections';
 
 export default function LiveDealPreviewCarousel() {
@@ -9,7 +9,6 @@ export default function LiveDealPreviewCarousel() {
 
   return (
     <div className="relative mx-auto w-full max-w-md">
-      {/* optional background blur */}
       <div className="absolute -inset-6 rounded-[2rem] bg-monad-purple/20 blur-3xl" />
       <Card className="relative overflow-hidden border-monad-purple/30 bg-gradient-to-br from-card/95 via-monad-purple/10 to-cyan-400/10 shadow-2xl shadow-monad-purple/10">
         <CardContent className="space-y-4 p-5">
@@ -28,20 +27,15 @@ export default function LiveDealPreviewCarousel() {
           <div className="overflow-x-auto whitespace-nowrap scrollbar-hidden">
             <div className="inline-flex space-x-4">
               {collections.map((collection) => (
-                <div key={collection.address} className="flex-shrink-0 flex items-center gap-3 rounded-xl border border-monad-purple/20 bg-background/60 p-3">
-                  {collection.logo ? (
-                    <Image
-                      src={collection.logo}
-                      alt={collection.name}
-                      width={48}
-                      height={48}
-                      className="rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-monad-purple/20 text-lg font-bold text-monad-purple">
-                      {collection.name.slice(0, 2)}
-                    </div>
-                  )}
+                <div
+                  key={collection.address}
+                  className="flex-shrink-0 flex items-center gap-3 rounded-xl border border-monad-purple/20 bg-background/60 p-3"
+                >
+                  <SafeCollectionImage
+                    collectionAddress={collection.address}
+                    alt={collection.name}
+                    className="h-12 w-12 rounded-full"
+                  />
                   <span className="font-medium text-foreground">{collection.name}</span>
                 </div>
               ))}

@@ -1,7 +1,7 @@
-/* eslint-disable @next/next/no-img-element */
 import { cn, shortAddress } from "@/lib/utils";
 import { isCollectionBid } from "@/lib/collection-bids";
 import type { NFTAsset } from "@/lib/types";
+import { SafeNftImage } from "@/components/ui/safe-nft-image";
 
 function formatPrice(n: number): string {
   if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -46,18 +46,15 @@ export function NFTCard({
           size === "sm" ? "max-h-28" : ""
         )}
       >
-        {nft.imageUrl ? (
-          <img
-            src={nft.imageUrl}
-            alt={nft.name ?? `Token #${nft.tokenId}`}
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-2xl text-muted-foreground">
-            {collectionBid ? "Any" : "?"}
-          </div>
-        )}
+        <SafeNftImage
+          contractAddress={nft.contractAddress}
+          tokenId={nft.tokenId}
+          imageUrl={nft.imageUrl}
+          alt={nft.name ?? `Token #${nft.tokenId}`}
+          collectionName={nft.collectionName}
+          collectionBid={collectionBid}
+          className="h-full w-full transition-transform group-hover:scale-105"
+        />
       </div>
       <div className={cn("p-2", size === "sm" && "p-1.5")}>
         <p className="truncate text-xs text-muted-foreground">
