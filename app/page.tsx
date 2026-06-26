@@ -620,9 +620,7 @@ function CustomDealSlide() {
   ];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-cyan-300/30 bg-gradient-to-br from-background/90 via-card/95 to-cyan-300/10 p-3 shadow-inner shadow-monad-purple/10">
-      <p className="-mt-1 mb-4 text-sm text-foreground/90">Trade NFTs and MON your way.</p>
-
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="rounded-2xl border border-monad-purple/40 bg-background/70 p-3 shadow-lg shadow-monad-purple/10">
         <CustomTradeVisual />
 
