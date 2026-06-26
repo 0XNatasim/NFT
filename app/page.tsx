@@ -13,6 +13,7 @@ import {
   Lock,
   Plus,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Upload,
   Zap,
@@ -566,6 +567,10 @@ function WantedOfferSlide() {
               <p className="mt-1 text-xs text-foreground/90">plus fees</p>
             </div>
           </div>
+          <span className="rounded-full border border-fuchsia-300/30 bg-fuchsia-300/10 px-3 py-1 text-xs text-fuchsia-200">
+            Open ask
+          </span>
+        </div>
 
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-monad-purple text-monad-black">
             <Handshake className="h-5 w-5" />
