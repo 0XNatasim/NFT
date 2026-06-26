@@ -555,7 +555,7 @@ function WantedOfferSlide() {
               Collector offers
             </p>
             <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3 text-center">
-              <p className="text-2xl font-bold text-cyan-200">6000 MON</p>
+              <p className="text-2xl font-bold text-cyan-200">6K MON</p>
               <Image
                 src="/monad-logo.svg"
                 alt="Monad logo"
