@@ -542,7 +542,7 @@ function WantedOfferSlide() {
             <p className="text-xs font-medium uppercase tracking-wide text-cyan-200">
               Wanted offer
             </p>
-            <h4 className="mt-1 text-lg font-semibold">Looking for 2 10KSquad NFT</h4>
+            <h4 className="mt-1 text-lg font-semibold">Looking for 2x 10KSquad NFT</h4>
           </div>
           <span className="rounded-full border border-fuchsia-300/30 bg-fuchsia-300/10 px-3 py-1 text-xs text-fuchsia-200">
             Open ask
