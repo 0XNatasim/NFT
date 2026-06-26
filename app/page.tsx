@@ -680,7 +680,7 @@ function CustomTradeVisual() {
                 height={54}
                 className="rounded-xl border border-monad-purple/30 object-cover"
               />
-              <p className="mt-1 text-sm font-bold text-foreground">NFT</p>
+              <p className="mt-1 text-sm font-bold text-foreground">1x</p>
             </div>
             <span className="text-xl font-bold text-monad-purple">+</span>
             <div className="flex h-16 w-14 flex-col items-center justify-center rounded-xl border border-monad-purple/35 bg-background/80 text-center">
@@ -692,7 +692,7 @@ function CustomTradeVisual() {
                 className="mb-1"
               />
               <span className="text-xs font-semibold text-monad-purple">MON</span>
-              <span className="text-base font-bold text-foreground">10,000</span>
+              <span className="text-base font-bold text-foreground">10K</span>
             </div>
           </div>
         </div>
@@ -712,7 +712,7 @@ function CustomTradeVisual() {
               height={54}
               className="mx-auto rounded-xl border border-monad-purple/30 object-cover"
             />
-            <p className="mt-1 text-sm font-bold text-foreground">NFT</p>
+            <p className="mt-1 text-sm font-bold text-foreground">1x</p>
           </div>
         </div>
       </div>
