@@ -557,7 +557,7 @@ function WantedOfferSlide() {
             <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3 text-center">
               <p className="text-2xl font-bold text-cyan-200">6K MON</p>
               <Image
-                src="/monad-logo.svg"
+                src="/Logomark.png"
                 alt="Monad logo"
                 width={28}
                 height={28}
@@ -685,7 +685,7 @@ function CustomTradeVisual() {
             <span className="text-xl font-bold text-monad-purple">+</span>
             <div className="flex h-16 w-14 flex-col items-center justify-center rounded-xl border border-monad-purple/35 bg-background/80 text-center">
               <Image
-                src="/monad-logo.svg"
+                src="/Logomark.png"
                 alt="Monad logo"
                 width={22}
                 height={22}
