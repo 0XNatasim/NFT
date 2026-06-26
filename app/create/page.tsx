@@ -193,10 +193,7 @@ function ProposeDealForm() {
   const isPrivate = visibility === "private";
   const needsTaker = visibility === "targeted" || visibility === "private";
 
-  const stepOrder: DealStep[] =
-    intent === "sell"
-      ? ["type", "visibility", "details", "review"]
-      : ["type", "details", "visibility", "review"];
+  const stepOrder: DealStep[] = ["type", "visibility", "details", "review"];
   const currentStep = stepOrder[step] ?? "type";
   const steps = stepOrder.map((stepId) => {
     if (stepId === "type") return "Deal Type";
