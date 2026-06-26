@@ -559,9 +559,9 @@ function WantedOfferSlide() {
               <Image
                 src="/monad-logo.svg"
                 alt="Monad logo"
-                width={28}
-                height={28}
-                className="mx-auto mt-2"
+                width={36}
+                height={36}
+                className="mx-auto mt-2 h-9 w-9"
               />
               <p className="mt-1 text-xs text-foreground/90">plus fees</p>
             </div>
