@@ -675,24 +675,25 @@ function CustomTradeVisual() {
             <div className="text-center">
               <Image
                 src="/collections/10Ksquad.png"
-                alt="10kSquad x1"
+                alt="10kSquad logo"
                 width={54}
                 height={54}
-                className="rounded-xl border border-monad-purple/30 object-cover"
+                className="h-[54px] w-[54px] rounded-xl border border-monad-purple/30 object-cover"
               />
               <p className="mt-1 text-sm font-bold text-foreground">1x</p>
             </div>
             <span className="text-xl font-bold text-monad-purple">+</span>
-            <div className="flex h-16 w-14 flex-col items-center justify-center rounded-xl border border-monad-purple/35 bg-background/80 text-center">
-              <Image
-                src="/monad-logo.svg"
-                alt="Monad logo"
-                width={22}
-                height={22}
-                className="mb-1"
-              />
-              <span className="text-xs font-semibold text-monad-purple">MON</span>
-              <span className="text-base font-bold text-foreground">10K</span>
+            <div className="text-center">
+              <div className="flex h-[54px] w-[54px] items-center justify-center rounded-xl border border-monad-purple/35 bg-background/80">
+                <Image
+                  src="/monad-logo.svg"
+                  alt="Monad logo"
+                  width={54}
+                  height={54}
+                  className="h-[54px] w-[54px]"
+                />
+              </div>
+              <p className="mt-1 text-sm font-bold text-foreground">10K</p>
             </div>
           </div>
         </div>
@@ -707,10 +708,10 @@ function CustomTradeVisual() {
           <div className="text-center">
             <Image
               src="/collections/r3tards.png"
-              alt="r3tard x1"
-              width={78}
+              alt="r3tard logo"
+              width={54}
               height={54}
-              className="mx-auto rounded-xl border border-monad-purple/30 object-cover"
+              className="mx-auto h-[54px] w-[54px] rounded-xl border border-monad-purple/30 object-cover"
             />
             <p className="mt-1 text-sm font-bold text-foreground">1x</p>
           </div>
