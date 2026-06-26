@@ -2,6 +2,7 @@
 import { cn, shortAddress } from "@/lib/utils";
 import { isCollectionBid } from "@/lib/collection-bids";
 import type { NFTAsset } from "@/lib/types";
+import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
 
 function formatPrice(n: number): string {
   if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -53,9 +54,15 @@ export function NFTCard({
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
             loading="lazy"
           />
+        ) : collectionBid ? (
+          <SafeCollectionImage
+            collectionAddress={nft.contractAddress}
+            alt={nft.collectionName ?? nft.name ?? "Collection logo"}
+            className="h-full w-full transition-transform group-hover:scale-105"
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-2xl text-muted-foreground">
-            {collectionBid ? "Any" : "?"}
+            ?
           </div>
         )}
       </div>

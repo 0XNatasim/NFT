@@ -20,6 +20,7 @@ import {
 import { useAccount } from "wagmi";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
 import { OfferCard } from "@/components/trade/offer-card";
 import { EmptyState } from "@/components/empty-state";
 import { WelcomeTutorial } from "@/components/tutorial/welcome-tutorial";
@@ -576,12 +577,10 @@ function WantedOfferSlide() {
               Wants
             </p>
             <div className="flex aspect-square flex-col items-center justify-center rounded-lg border border-monad-purple/30 bg-gradient-to-br from-fuchsia-400/30 to-cyan-300/20 text-monad-purple">
-              <Image
-                src="/collections/10Ksquad.png"
+              <SafeCollectionImage
+                collectionAddress="0x818030837e8350ba63e64d7dc01a547fa73c8279"
                 alt="10KSquad logo"
-                width={48}
-                height={48}
-                className="h-12 w-12 rounded-full object-cover"
+                className="h-12 w-12 rounded-full"
               />
               <span className="mt-2 text-xs font-semibold text-foreground">2x</span>
             </div>
@@ -673,12 +672,10 @@ function CustomTradeVisual() {
         <div className="rounded-xl border border-monad-purple/35 bg-secondary/60 p-2 shadow-lg shadow-monad-purple/10">
           <div className="flex items-center justify-center gap-3">
             <div className="text-center">
-              <Image
-                src="/collections/10Ksquad.png"
+              <SafeCollectionImage
+                collectionAddress="0x818030837e8350ba63e64d7dc01a547fa73c8279"
                 alt="10kSquad x1"
-                width={54}
-                height={54}
-                className="rounded-xl border border-monad-purple/30 object-cover"
+                className="h-[54px] w-[54px] rounded-xl border border-monad-purple/30"
               />
               <p className="mt-1 text-sm font-bold text-foreground">1x</p>
             </div>
@@ -705,12 +702,10 @@ function CustomTradeVisual() {
 
         <div className="rounded-xl border border-monad-purple/35 bg-secondary/60 p-2 shadow-lg shadow-monad-purple/10">
           <div className="text-center">
-            <Image
-              src="/collections/r3tards.png"
+            <SafeCollectionImage
+              collectionAddress="0x200723a706de0013316e5cd8eba2b3f53dd90c29"
               alt="r3tard x1"
-              width={78}
-              height={54}
-              className="mx-auto rounded-xl border border-monad-purple/30 object-cover"
+              className="mx-auto h-[54px] w-[78px] rounded-xl border border-monad-purple/30"
             />
             <p className="mt-1 text-sm font-bold text-foreground">1x</p>
           </div>
@@ -802,19 +797,11 @@ function PreviewSide({
             key={collection.address}
             className="overflow-hidden rounded-lg border border-monad-purple/20 bg-secondary shadow-md shadow-monad-purple/10"
           >
-            {collection.logo ? (
-              <Image
-                src={collection.logo}
-                alt={collection.name}
-                width={96}
-                height={96}
-                className="aspect-square w-full object-cover"
-              />
-            ) : (
-              <div className="flex aspect-square items-center justify-center text-monad-purple">
-                <Sparkles className="h-5 w-5" />
-              </div>
-            )}
+            <SafeCollectionImage
+              collectionAddress={collection.address}
+              alt={collection.name}
+              className="aspect-square w-full"
+            />
           </div>
         ))}
       </div>
@@ -842,19 +829,11 @@ function CollectionFilterButton({
       }`}
       aria-pressed={selected}
     >
-      {collection.logo ? (
-        <Image
-          src={collection.logo}
-          alt={`${collection.name} logo`}
-          width={48}
-          height={48}
-          className="h-12 w-12 rounded-full object-cover ring-1 ring-border"
-        />
-      ) : (
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-monad-purple/20 text-lg font-bold text-monad-purple">
-          {collection.name.slice(0, 2)}
-        </span>
-      )}
+      <SafeCollectionImage
+        collectionAddress={collection.address}
+        alt={`${collection.name} logo`}
+        className="h-12 w-12 rounded-full ring-1 ring-border"
+      />
       <span className="max-w-28 truncate font-medium">{collection.name}</span>
     </button>
   );

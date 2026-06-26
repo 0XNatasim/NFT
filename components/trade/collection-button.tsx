@@ -1,9 +1,8 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { FeaturedCollection } from "@/lib/featured-collections";
+import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
 
 export function CollectionButton({
   collection,
@@ -14,8 +13,6 @@ export function CollectionButton({
   active: boolean;
   onClick: () => void;
 }) {
-  const [logoFailed, setLogoFailed] = useState(false);
-
   return (
     <button
       type="button"
@@ -27,14 +24,11 @@ export function CollectionButton({
           : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
       )}
     >
-      {collection.logo && !logoFailed && (
-        <img
-          src={collection.logo}
-          alt=""
-          className="h-5 w-5 rounded-sm object-cover"
-          onError={() => setLogoFailed(true)}
-        />
-      )}
+      <SafeCollectionImage
+        collectionAddress={collection.address}
+        alt=""
+        className="h-5 w-5 rounded-sm"
+      />
       {collection.name}
     </button>
   );
