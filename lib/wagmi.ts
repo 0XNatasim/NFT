@@ -7,7 +7,7 @@ import { monad, MONAD_RPC_URL } from "@/lib/chains/monad";
 // Show the Monad logo as the chain icon in the wallet/connect button.
 const monadWithIcon = {
   ...monad,
-  iconUrl: "/monad-logo.svg",
+  iconUrl: "/Logomark.png",
   iconBackground: "#0E100F",
 };
 
