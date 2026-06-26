@@ -236,7 +236,7 @@ function ProposeDealForm() {
         ? `Any ${collection?.name ?? "collection"} NFT`
         : `#${requestTokenId}`,
       collectionName: collection?.name ?? null,
-      imageUrl: isCollectionWideBuy ? (collection?.logo ?? null) : null,
+      imageUrl: null,
       metadata: isCollectionWideBuy ? { collectionBid: true } : null,
     };
 
