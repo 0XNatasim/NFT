@@ -576,8 +576,14 @@ function WantedOfferSlide() {
               Wants
             </p>
             <div className="flex aspect-square flex-col items-center justify-center rounded-lg border border-monad-purple/30 bg-gradient-to-br from-fuchsia-400/30 to-cyan-300/20 text-monad-purple">
-              <Handshake className="h-8 w-8" />
-              <span className="mt-1 text-xs font-semibold text-foreground">NFT</span>
+              <Image
+                src="/collections/10Ksquad.png"
+                alt="10KSquad logo"
+                width={48}
+                height={48}
+                className="h-12 w-12 rounded-full object-cover"
+              />
+              <span className="mt-2 text-xs font-semibold text-foreground">2x</span>
             </div>
           </div>
         </div>
