@@ -668,7 +668,7 @@ function CustomTradeVisual() {
           <div className="flex items-center justify-center gap-3">
             <div className="text-center">
               <Image
-                src="/collections/10ksquad.png"
+                src="/collections/10Ksquad.png"
                 alt="10kSquad x1"
                 width={54}
                 height={54}

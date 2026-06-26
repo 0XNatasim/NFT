@@ -13,7 +13,7 @@ export const FEATURED_COLLECTIONS: FeaturedCollection[] = [
   {
     name: "10kSquad",
     address: "0x818030837e8350ba63e64d7dc01a547fa73c8279",
-    logo: "/collections/10ksquad.png",
+    logo: "/collections/10Ksquad.png",
   },
   {
     name: "Erebus",
