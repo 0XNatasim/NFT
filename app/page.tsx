@@ -72,9 +72,6 @@ export default function HomePage() {
         <div className="pointer-events-none absolute right-12 top-10 h-24 w-24 rounded-full bg-fuchsia-400/20 blur-2xl" />
         <div className="pointer-events-none absolute bottom-8 left-1/3 h-32 w-32 rounded-full bg-cyan-300/10 blur-2xl" />
         <div className="text-center md:text-left">
-          <p className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-cyan-200 md:mx-0">
-            <Sparkles className="h-3.5 w-3.5" /> Clear wallet-to-wallet deals
-          </p>
           <h1 className="text-balance mx-auto max-w-3xl text-4xl font-bold tracking-tight md:mx-0 md:text-6xl">
             Every trade is a{" "}
             <span className="text-monad-purple">handshake</span>. Human to
