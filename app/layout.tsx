@@ -31,11 +31,7 @@ export default function RootLayout({
             <NetworkGuard />
             <main className="flex-1">{children}</main>
             <footer className="border-t border-monad-purple/20 bg-gradient-to-r from-monad-purple/10 via-fuchsia-500/5 to-cyan-400/10 py-8">
-              <div className="container mx-auto flex flex-col items-center justify-between gap-3 px-4 text-center text-sm text-foreground sm:flex-row sm:text-left">
-                <span>
-                  Handshake — human-to-human NFT deals on Monad. No bots, no
-                  custody, completed handshakes.
-                </span>
+              <div className="container mx-auto flex justify-center px-4 text-sm text-foreground sm:justify-end">
                 <div className="flex items-center gap-4 text-monad-purple">
                   <Link href="/about" className="hover:underline">
                     About
