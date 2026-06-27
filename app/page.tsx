@@ -938,15 +938,6 @@ function SellNftSlide() {
     <div className="relative -mx-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.35rem] border border-monad-purple/50 bg-[#050b18] p-3.5 shadow-[0_0_45px_rgba(131,84,255,0.18)]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(147,88,255,0.18),transparent_34%),radial-gradient(circle_at_82%_82%,rgba(84,52,255,0.22),transparent_38%)]" />
 
-      <div className="relative z-10 flex items-start justify-between gap-3">
-        <div>
-          
-          <p className="mt-2 max-w-[15rem] text-xs leading-5 text-muted-foreground">
-            List your NFT in a few steps and reach real collectors.
-          </p>
-        </div>
-
-      </div>
 
       <div className="relative z-10 mt-4 grid flex-1 grid-cols-[1.08fr_0.92fr] gap-3">
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-monad-purple/75 bg-black/10 p-3 text-center">
