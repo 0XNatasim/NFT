@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { BadgeCheck, ChevronRight, Grid3X3, Search, Sparkles } from "lucide-react";
 import { useAccount } from "wagmi";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
+import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
@@ -14,10 +16,16 @@ function nftKey(n: { contractAddress: string; tokenId: string }) {
   return `${n.contractAddress.toLowerCase()}:${n.tokenId}`;
 }
 
+function formatPrice(n?: number | null): string {
+  if (n == null) return "—";
+  if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  if (n >= 1) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
 /**
- * NFT picker with an OpenSea-style collection filter on the left. Loads the
- * wallet's full collection (walking every indexer page) so the filter and
- * search cover everything, not just the first ~25 tokens.
+ * Premium wallet explorer for choosing owned NFTs. It starts at the wallet's
+ * collection level, then reveals the NFTs owned in the active collection.
  */
 export function OwnedNFTPicker({
   selected,
@@ -27,82 +35,65 @@ export function OwnedNFTPicker({
   onToggle: (nft: NFTAsset) => void;
 }) {
   const { address } = useAccount();
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useWalletNFTsInfinite(address);
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useWalletNFTsInfinite(address);
 
   const [query, setQuery] = useState("");
-  // Empty set = no filter (show all). Otherwise show only selected contracts.
-  const [selectedCollections, setSelectedCollections] = useState<Set<string>>(
-    new Set()
-  );
-
-  function toggleCollection(address: string) {
-    setSelectedCollections((prev) => {
-      const next = new Set(prev);
-      if (next.has(address)) next.delete(address);
-      else next.add(address);
-      return next;
-    });
-  }
+  const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
   const nfts = useMemo<NFTAsset[]>(
     () => data?.pages.flatMap((p) => p.nfts) ?? [],
     [data]
   );
 
-  // Eagerly pull the full collection so the filter covers everything.
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const collections = useMemo(() => {
-    const map = new Map<string, { label: string; count: number }>();
+    const map = new Map<string, { label: string; count: number; sample?: NFTAsset }>();
     for (const nft of nfts) {
       const key = nft.contractAddress.toLowerCase();
       const label =
-        prettyCollectionName(nft.collectionName) ??
-        shortAddress(nft.contractAddress);
+        prettyCollectionName(nft.collectionName) ?? shortAddress(nft.contractAddress);
       const prev = map.get(key);
-      map.set(key, { label, count: (prev?.count ?? 0) + 1 });
+      map.set(key, { label, count: (prev?.count ?? 0) + 1, sample: prev?.sample ?? nft });
     }
     return Array.from(map.entries())
       .map(([addr, v]) => ({ address: addr, ...v }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
   }, [nfts]);
 
-  const { data: prices } = useCollectionPrices(
-    collections.map((c) => c.address)
-  );
+  useEffect(() => {
+    if (!activeCollection && collections.length > 0) {
+      setActiveCollection(collections[0].address);
+    }
+  }, [activeCollection, collections]);
 
+  const { data: prices } = useCollectionPrices(collections.map((c) => c.address));
+
+  const active = collections.find((c) => c.address === activeCollection) ?? collections[0];
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return nfts.filter((nft) => {
-      if (
-        selectedCollections.size > 0 &&
-        !selectedCollections.has(nft.contractAddress.toLowerCase())
-      ) {
-        return false;
-      }
+      if (active && nft.contractAddress.toLowerCase() !== active.address) return false;
       if (!q) return true;
-      const haystack = [nft.name, nft.collectionName, nft.tokenId, nft.contractAddress]
+      return [nft.name, nft.collectionName, nft.tokenId, nft.contractAddress]
         .filter(Boolean)
         .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
+        .toLowerCase()
+        .includes(q);
     });
-  }, [nfts, query, selectedCollections]);
+  }, [active, nfts, query]);
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <Skeleton key={i} className="aspect-square rounded-lg" />
-        ))}
+      <div className="rounded-[1.75rem] border border-monad-purple/25 bg-black/30 p-5 shadow-2xl shadow-monad-purple/10">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-52 rounded-2xl" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -117,120 +108,104 @@ export function OwnedNFTPicker({
   }
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row">
-      {/* Left: collections filter */}
-      <aside className="md:w-56 md:shrink-0">
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search collections…"
-          className="mb-3"
-        />
-        <div className="flex items-center justify-between px-1 pb-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Collections
-          </span>
-          {selectedCollections.size > 0 && (
-            <button
-              type="button"
-              onClick={() => setSelectedCollections(new Set())}
-              className="text-xs text-monad-purple hover:underline"
-            >
-              Clear ({selectedCollections.size})
-            </button>
-          )}
-        </div>
-        <div className="flex max-h-80 flex-row gap-1.5 overflow-x-auto pb-1 md:flex-col md:overflow-y-auto md:overflow-x-visible">
-          {collections.map((c) => (
-            <CollectionRow
-              key={c.address}
-              checked={selectedCollections.has(c.address)}
-              onClick={() => toggleCollection(c.address)}
-              label={c.label}
-              count={c.count}
-            />
-          ))}
-        </div>
-      </aside>
-
-      {/* Right: NFT grid */}
-      <div className="min-w-0 flex-1">
-        <p className="mb-2 text-xs text-muted-foreground">
-          {filtered.length} of {nfts.length} NFTs
-          {isFetchingNextPage && " · loading more…"}
-        </p>
-        {filtered.length > 0 ? (
-          <div className="grid max-h-96 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 md:grid-cols-5">
-            {filtered.map((nft) => (
-              <NFTCard
-                key={nftKey(nft)}
-                nft={nft}
-                selected={selected.some((n) => nftKey(n) === nftKey(nft))}
-                onClick={() => onToggle(nft)}
-                price={prices?.[nft.contractAddress.toLowerCase()]}
-              />
-            ))}
+    <section className="relative overflow-hidden rounded-[1.75rem] border border-monad-purple/30 bg-slate-950/55 p-4 shadow-2xl shadow-monad-purple/15 backdrop-blur-xl sm:p-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(131,91,255,0.22),transparent_34%),radial-gradient(circle_at_80%_10%,rgba(34,211,238,0.12),transparent_28%)]" />
+      <div className="relative space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-monad-purple">
+              <Sparkles className="h-4 w-4" /> Browse your NFTs
+            </p>
+            <h3 className="mt-1 text-2xl font-semibold text-white">Choose from your wallet</h3>
+            <p className="text-sm text-white/65">
+              {collections.length} collections · {nfts.length} NFTs indexed
+              {isFetchingNextPage && " · syncing wallet…"}
+            </p>
           </div>
-        ) : (
-          <EmptyState title="No matches" body="No NFTs match your filter." />
+          <div className="relative sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search NFTs…"
+              className="border-white/10 bg-white/5 pl-9 text-white placeholder:text-white/35"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {collections.map((collection) => {
+            const checked = active?.address === collection.address;
+            const floor = prices?.[collection.address]?.floorPrice;
+            const currency = prices?.[collection.address]?.currency ?? "MON";
+            return (
+              <button
+                key={collection.address}
+                type="button"
+                onClick={() => setActiveCollection(collection.address)}
+                className={cn(
+                  "group relative overflow-hidden rounded-2xl border bg-white/[0.04] p-3 text-left transition-all duration-300 hover:-translate-y-1 hover:border-monad-purple/70 hover:shadow-xl hover:shadow-monad-purple/20",
+                  checked
+                    ? "border-monad-purple shadow-2xl shadow-monad-purple/25 ring-1 ring-monad-purple/70"
+                    : "border-white/10"
+                )}
+              >
+                <div className="relative aspect-[1.25] overflow-hidden rounded-xl bg-white/5">
+                  <SafeCollectionImage
+                    collectionAddress={collection.address}
+                    alt={collection.label}
+                    className="h-full w-full transition duration-500 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
+                  <div className="absolute right-2 top-2 rounded-full bg-monad-purple px-2 py-1 text-[11px] font-bold text-white shadow-lg shadow-monad-purple/40">
+                    <BadgeCheck className="mr-1 inline h-3.5 w-3.5" /> Verified
+                  </div>
+                </div>
+                <div className="mt-3 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-white">{collection.label}</p>
+                    <p className="text-xs text-white/55">{collection.count.toLocaleString()} owned items</p>
+                  </div>
+                  <ChevronRight className={cn("mt-1 h-5 w-5 text-monad-purple transition", checked && "translate-x-0.5")} />
+                </div>
+                <div className="mt-3 rounded-xl border border-white/10 bg-black/25 p-3">
+                  <p className="text-xs uppercase tracking-wide text-white/45">Floor price</p>
+                  <p className="mt-0.5 text-lg font-bold text-white">{formatPrice(floor)} {floor == null ? "" : currency}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {active && (
+          <div className="rounded-3xl border border-white/10 bg-black/25 p-4 backdrop-blur-md">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm uppercase tracking-[0.18em] text-monad-purple">Select your NFT</p>
+                <h4 className="text-2xl font-semibold text-white">{active.label}</h4>
+              </div>
+              <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 sm:flex">
+                <Grid3X3 className="h-4 w-4 text-monad-purple" /> {filtered.length} items
+              </div>
+            </div>
+            {filtered.length > 0 ? (
+              <div className="grid max-h-[28rem] grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-5">
+                {filtered.map((nft) => (
+                  <NFTCard
+                    key={nftKey(nft)}
+                    nft={nft}
+                    selected={selected.some((n) => nftKey(n) === nftKey(nft))}
+                    onClick={() => onToggle(nft)}
+                    price={prices?.[nft.contractAddress.toLowerCase()]}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No matches" body="No NFTs match your search." />
+            )}
+          </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function CollectionRow({
-  checked,
-  onClick,
-  label,
-  count,
-}: {
-  checked: boolean;
-  onClick: () => void;
-  label: string;
-  count: number;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={checked}
-      className={cn(
-        "flex shrink-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors md:shrink",
-        checked
-          ? "border-monad-purple bg-monad-purple/10 text-monad-purple"
-          : "border-transparent text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-      )}
-    >
-      <span
-        className={cn(
-          "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-          checked
-            ? "border-monad-purple bg-monad-purple text-monad-black"
-            : "border-muted-foreground/40"
-        )}
-      >
-        {checked && (
-          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none">
-            <path
-              d="M2.5 6.5l2.5 2.5 4.5-5"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
-      </span>
-      <span className="truncate">{label}</span>
-      <span
-        className={cn(
-          "ml-auto shrink-0 rounded-full px-1.5 text-xs",
-          checked ? "bg-monad-purple/20" : "bg-muted"
-        )}
-      >
-        {count}
-      </span>
-    </button>
+    </section>
   );
 }
