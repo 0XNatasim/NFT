@@ -120,9 +120,10 @@ export async function GET(req: Request) {
       missing.map(async (nft) => {
         try {
           const meta = await getOnChainTokenMeta(nft.contractAddress, nft.tokenId);
-          nft.imageUrl = meta.image ?? nft.imageUrl;
+          nft.imageUrl = meta.animationUrl ?? meta.image ?? nft.imageUrl;
           nft.name = nft.name ?? meta.name;
           nft.collectionName = nft.collectionName ?? meta.collectionName;
+          nft.metadata = meta.metadata ?? nft.metadata ?? null;
         } catch {
           // cosmetic only
         }

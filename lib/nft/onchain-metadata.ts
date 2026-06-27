@@ -13,7 +13,9 @@ const MAX_CACHE_ENTRIES = 5000;
 export interface OnChainTokenMeta {
   name: string | null;
   image: string | null;
+  animationUrl: string | null;
   collectionName: string | null;
+  metadata: Record<string, unknown> | null;
 }
 
 // Bounded LRU-ish cache: oldest insertion evicted when over capacity.
@@ -80,17 +82,22 @@ export async function getOnChainTokenMeta(
 
   let name: string | null = null;
   let image: string | null = null;
+  let animationUrl: string | null = null;
+  let metadata: Record<string, unknown> | null = null;
   if (uriResult.status === "fulfilled" && uriResult.value) {
     const meta = await loadMetadataJson(uriResult.value);
     if (meta) {
+      metadata = typeof meta === "object" && !Array.isArray(meta) ? meta : null;
       name = typeof meta.name === "string" ? meta.name : null;
       const rawImage =
         meta.image ?? meta.image_url ?? meta.imageUrl ?? meta.image_data ?? null;
+      const rawAnimation = meta.animation_url ?? meta.animationUrl ?? null;
       image = typeof rawImage === "string" ? resolveUri(rawImage) : null;
+      animationUrl = typeof rawAnimation === "string" ? resolveUri(rawAnimation) : null;
     }
   }
 
-  const result: OnChainTokenMeta = { name, image, collectionName };
+  const result: OnChainTokenMeta = { name, image, animationUrl, collectionName, metadata };
   cacheSet(key, result);
   return result;
 }

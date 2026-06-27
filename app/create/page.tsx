@@ -267,8 +267,9 @@ function ProposeDealForm() {
               ? {
                   ...n,
                   name: meta.name ?? n.name,
-                  imageUrl: meta.image ?? n.imageUrl,
+                  imageUrl: meta.animationUrl ?? meta.image ?? n.imageUrl,
                   collectionName: n.collectionName ?? meta.collectionName ?? null,
+                  metadata: meta.metadata ?? n.metadata ?? null,
                 }
               : n
           )
@@ -328,8 +329,9 @@ function ProposeDealForm() {
         if (res.ok) {
           const meta = await res.json();
           nft.name = meta.name ?? nft.name;
-          nft.imageUrl = meta.image ?? null;
+          nft.imageUrl = meta.animationUrl ?? meta.image ?? null;
           nft.collectionName = nft.collectionName ?? meta.collectionName ?? null;
+          nft.metadata = meta.metadata ?? nft.metadata ?? null;
         }
       } catch {
         // metadata is cosmetic; proceed without it
