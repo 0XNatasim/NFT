@@ -112,10 +112,14 @@ export async function GET(req: Request) {
       }
     }
 
-    // Indexers sometimes return tokens without artwork (e.g. uncached
-    // collections). Backfill from on-chain tokenURI metadata, bounded per
-    // request; the per-token cache makes subsequent loads cheap.
-    const missing = result.nfts.filter((n) => !n.imageUrl).slice(0, 20);
+    // Indexers sometimes return tokens without artwork or omit raw metadata
+    // for animated tokens (e.g. MP4s stored in image/animation_url). Backfill
+    // the current indexer page from on-chain tokenURI metadata; the per-token
+    // cache makes subsequent pages/loads cheap while keeping each request
+    // bounded to the provider page size.
+    const missing = result.nfts
+      .filter((n) => !n.imageUrl || !n.metadata?.["animation_url"])
+      .slice(0, 50);
     await Promise.all(
       missing.map(async (nft) => {
         try {
