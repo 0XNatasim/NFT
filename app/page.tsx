@@ -74,13 +74,14 @@ export default function HomePage() {
         <div className="text-center md:text-left">
           <h1 className="text-balance mx-auto max-w-3xl text-4xl font-bold tracking-tight md:mx-0 md:text-6xl">
             Every trade is a{" "}
-            <span className="text-monad-purple">handshake</span>. Human to
-            human.
+            <span className="text-monad-purple">handshake</span> Human to
+            human
           </h1>
           <div className="mx-auto mt-5 max-w-xl space-y-3 text-foreground md:mx-0">
             <p className="text-lg">
-              Create public or private NFT deals on Monad, a high-speed
-              EVM-compatible chain — no bots, no snipers, no custody.
+              Create public or private NFT deals on Monad 
+              A high-speed EVM-compatible chain 
+              No bots, no snipers, no custody
             </p>
             <BuiltOnMonadBadge />
           </div>
