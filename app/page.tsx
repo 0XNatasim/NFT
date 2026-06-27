@@ -85,9 +85,6 @@ export default function HomePage() {
               Create public or private NFT deals on Monad, a high-speed
               EVM-compatible chain — no bots, no snipers, no custody.
             </p>
-            <p className="text-base text-foreground/95">
-              Your NFTs stay in your wallet until the deal executes.
-            </p>
             <BuiltOnMonadBadge />
           </div>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row md:justify-start">
@@ -427,11 +424,6 @@ function HeroPreview() {
     <div className="relative mx-auto h-[39rem] w-full max-w-2xl overflow-visible [perspective:1200px] sm:h-[37rem]">
       <div className="absolute -inset-8 rounded-[2.5rem] bg-monad-purple/20 blur-3xl" />
 
-      <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        <span className="rounded-full border border-monad-purple/30 bg-background/70 px-3 py-1 backdrop-blur">
-          3D carousel slides
-        </span>
-      </div>
 
       <div className="absolute inset-x-0 top-9 h-[32rem] [transform-style:preserve-3d] sm:h-[31rem]">
         {carouselSlides.map((slide, index) => {
