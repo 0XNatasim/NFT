@@ -18,7 +18,21 @@ function baseUrl(): string {
   return `https://${ALCHEMY_NETWORK}.g.alchemy.com/nft/v3/${key}`;
 }
 
+function metadataMediaUrl(metadata: any): string | null {
+  const value =
+    metadata?.animation_url ??
+    metadata?.animationUrl ??
+    metadata?.animation ??
+    metadata?.image ??
+    metadata?.image_url ??
+    metadata?.imageUrl ??
+    null;
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
 function toAsset(raw: any): NFTAsset {
+  const metadata = raw.raw?.metadata ?? null;
+
   return {
     contractAddress: (raw.contract?.address ?? "").toLowerCase(),
     tokenId: String(raw.tokenId ?? ""),
@@ -26,8 +40,12 @@ function toAsset(raw: any): NFTAsset {
     name: raw.name ?? raw.raw?.metadata?.name ?? null,
     collectionName: raw.contract?.name ?? null,
     imageUrl:
-      raw.image?.cachedUrl ?? raw.image?.originalUrl ?? raw.image?.thumbnailUrl ?? null,
-    metadata: raw.raw?.metadata ?? null,
+      metadataMediaUrl(metadata) ??
+      raw.image?.cachedUrl ??
+      raw.image?.originalUrl ??
+      raw.image?.thumbnailUrl ??
+      null,
+    metadata,
   };
 }
 

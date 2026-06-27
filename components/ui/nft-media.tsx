@@ -54,6 +54,33 @@ function normalizeMediaUrls(uri: string | null): string[] {
   return IPFS_GATEWAYS.map((gateway) => `${gateway}${path}`);
 }
 
+function uniqueUrls(urls: string[]): string[] {
+  return Array.from(new Set(urls));
+}
+
+function mediaCandidates({
+  imageUrl,
+  animationUrl,
+  metadata,
+}: Pick<NFTMediaProps, "imageUrl" | "animationUrl" | "metadata">): string[] {
+  const ordered = [
+    animationUrl,
+    metadataString(metadata, "animation_url"),
+    metadataString(metadata, "animationUrl"),
+    metadataString(metadata, "animation"),
+    metadataString(metadata, "animation_url_original"),
+    metadataString(metadata, "animation_original_url"),
+    metadataString(metadata, "image"),
+    metadataString(metadata, "image_url"),
+    metadataString(metadata, "imageUrl"),
+    metadataString(metadata, "image_original_url"),
+    metadataString(metadata, "imageUrlOriginal"),
+    imageUrl,
+  ];
+
+  return uniqueUrls(ordered.flatMap((url) => normalizeMediaUrls(url ?? null)));
+}
+
 function extensionFromUrl(uri: string): string | null {
   const withoutQuery = uri.split(/[?#]/)[0] ?? uri;
   const extension = withoutQuery.split(".").pop()?.toLowerCase();
@@ -84,22 +111,16 @@ export function NFTMedia({
   className,
   fallbackClassName,
 }: NFTMediaProps) {
-  const preferredUrl =
-    animationUrl ??
-    metadataString(metadata, "animation_url") ??
-    metadataString(metadata, "animationUrl") ??
-    imageUrl ??
-    metadataString(metadata, "image") ??
-    metadataString(metadata, "image_url") ??
-    metadataString(metadata, "imageUrl");
-
-  const urls = useMemo(() => normalizeMediaUrls(preferredUrl), [preferredUrl]);
+  const urls = useMemo(
+    () => mediaCandidates({ imageUrl, animationUrl, metadata }),
+    [animationUrl, imageUrl, metadata]
+  );
   const [index, setIndex] = useState(0);
   const [contentTypeKind, setContentTypeKind] = useState<MediaKind>("unknown");
 
   useEffect(() => {
     setIndex(0);
-  }, [preferredUrl]);
+  }, [urls]);
 
   const src = urls[index] ?? null;
 
