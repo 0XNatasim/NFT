@@ -563,7 +563,7 @@ function WantedOfferSlide() {
                 height={28}
                 className="mx-auto"
               />
-              <p className="mt-2 text-2xl font-bold text-cyan-200">6K MON</p>
+              <p className="mt-2 text-[1.375rem] font-bold text-cyan-200">6K MON</p>
               <p className="mt-1 text-xs text-foreground/90">plus fees</p>
             </div>
           </div>
