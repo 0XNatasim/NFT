@@ -916,6 +916,23 @@ function SellNftSlide() {
     },
   ];
 
+    const benefits = [
+    {
+      icon: <ShieldCheck className="h-7 w-7" />,
+      title: "You stay in control",
+      body: "Choose visibility, expiration, and what you’ll accept.",
+    },
+    {
+      icon: <Handshake className="h-7 w-7" />,
+      title: "No bots. Just people.",
+      body: "Handshake matches real collectors with real offers.",
+    },
+    {
+      icon: <Zap className="h-7 w-7" />,
+      title: "Fast & secure",
+      body: "Built on Monad for speed, security, and low fees.",
+    },
+  ];
 
 
   return (
