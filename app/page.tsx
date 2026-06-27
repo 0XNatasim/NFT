@@ -940,20 +940,12 @@ function SellNftSlide() {
 
       <div className="relative z-10 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-monad-purple">
-            Sell NFT
-          </p>
-          <h4 className="mt-1 text-[1.65rem] font-bold leading-none tracking-tight">
-            Upload an asset
-          </h4>
+          
           <p className="mt-2 max-w-[15rem] text-xs leading-5 text-muted-foreground">
             List your NFT in a few steps and reach real collectors.
           </p>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-monad-purple bg-monad-purple/10 px-3 py-2 text-xs font-bold text-purple-200">
-          <Rocket className="h-4 w-4" />
-          List fast
-        </span>
+
       </div>
 
       <div className="relative z-10 mt-4 grid flex-1 grid-cols-[1.08fr_0.92fr] gap-3">
