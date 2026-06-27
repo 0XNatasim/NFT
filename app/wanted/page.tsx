@@ -116,7 +116,7 @@ export default function WantedPage() {
 
   return (
     <div className="container mx-auto px-4 py-10">
-      <h1 className="mb-2 text-3xl font-bold">Wanted board</h1>
+      <h1 className="mb-2 text-3xl font-bold">Wanted Board</h1>
       <p className="mb-8 text-foreground">
         Post what you&apos;re hunting for. Posts are anonymous — if you can fill a
         request, send the poster a private deal and they&apos;ll see it on their
