@@ -1,8 +1,8 @@
-/* eslint-disable @next/next/no-img-element */
 import { cn, shortAddress } from "@/lib/utils";
 import { isCollectionBid } from "@/lib/collection-bids";
 import type { NFTAsset } from "@/lib/types";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
+import { NFTMedia } from "@/components/ui/nft-media";
 
 function formatPrice(n: number): string {
   if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -47,12 +47,12 @@ export function NFTCard({
           size === "sm" ? "max-h-28" : ""
         )}
       >
-        {nft.imageUrl ? (
-          <img
-            src={nft.imageUrl}
+        {nft.imageUrl || nft.metadata?.["animation_url"] || nft.metadata?.["animationUrl"] || nft.metadata?.["image"] ? (
+          <NFTMedia
+            imageUrl={nft.imageUrl}
+            metadata={nft.metadata}
             alt={nft.name ?? `Token #${nft.tokenId}`}
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
-            loading="lazy"
           />
         ) : collectionBid ? (
           <SafeCollectionImage
