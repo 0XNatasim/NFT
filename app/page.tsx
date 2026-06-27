@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  ArrowLeftRight,
   ArrowRight,
   Copy,
   ImageIcon,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Handshake,
@@ -25,14 +27,19 @@ import { OfferCard } from "@/components/trade/offer-card";
 import { EmptyState } from "@/components/empty-state";
 import { WelcomeTutorial } from "@/components/tutorial/welcome-tutorial";
 import { useMarketStats, useOffers } from "@/hooks/use-market";
-import { FEATURED_COLLECTIONS, type FeaturedCollection } from "@/lib/featured-collections";
+import {
+  FEATURED_COLLECTIONS,
+  type FeaturedCollection,
+} from "@/lib/featured-collections";
 import { formatMon } from "@/lib/utils";
 
 export default function HomePage() {
   const { address } = useAccount();
-  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(
+    null,
+  );
   const activeCollection = FEATURED_COLLECTIONS.find(
-    (collection) => collection.address.toLowerCase() === selectedCollection
+    (collection) => collection.address.toLowerCase() === selectedCollection,
   );
   const { data: openOffers, isLoading: loadingOpen } = useOffers({
     status: "open",
@@ -54,7 +61,7 @@ export default function HomePage() {
       (offer) =>
         offer.isPrivate &&
         offer.takerAddress?.toLowerCase() === address?.toLowerCase() &&
-        offer.makerAddress.toLowerCase() !== address?.toLowerCase()
+        offer.makerAddress.toLowerCase() !== address?.toLowerCase(),
     ).length ?? null;
 
   return (
@@ -69,8 +76,9 @@ export default function HomePage() {
             <Sparkles className="h-3.5 w-3.5" /> Bright wallet-to-wallet deals
           </p>
           <h1 className="text-balance mx-auto max-w-3xl text-4xl font-bold tracking-tight md:mx-0 md:text-6xl">
-            Every trade is a <span className="text-monad-purple">handshake</span>.
-            Human to human.
+            Every trade is a{" "}
+            <span className="text-monad-purple">handshake</span>. Human to
+            human.
           </h1>
           <div className="mx-auto mt-5 max-w-xl space-y-3 text-foreground md:mx-0">
             <p className="text-lg">
@@ -98,7 +106,10 @@ export default function HomePage() {
           </div>
 
           <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4 md:mx-0">
-            <Stat label="Handshakes completed" value={String(stats?.totalTrades ?? "—")} />
+            <Stat
+              label="Handshakes completed"
+              value={String(stats?.totalTrades ?? "—")}
+            />
             <Stat label="Open Deals" value={String(stats?.openOffers ?? "—")} />
             <Stat
               label="Private Deals"
@@ -117,7 +128,9 @@ export default function HomePage() {
       <WhyMonadSection />
 
       <section className="border-t border-monad-purple/20 py-14">
-        <h2 className="mb-8 text-center text-2xl font-semibold">How it works</h2>
+        <h2 className="mb-8 text-center text-2xl font-semibold">
+          How it works
+        </h2>
         <div className="grid gap-4 md:grid-cols-3">
           <HowCard
             icon={<Handshake className="h-6 w-6 text-monad-purple" />}
@@ -156,7 +169,10 @@ export default function HomePage() {
               Filter by Monad collection so public deals stay easy to scan.
             </p>
           </div>
-          <Link href="/create" className="text-sm text-monad-purple hover:underline">
+          <Link
+            href="/create"
+            className="text-sm text-monad-purple hover:underline"
+          >
             Propose a Deal →
           </Link>
         </div>
@@ -207,7 +223,10 @@ export default function HomePage() {
         )}
       </section>
 
-      <section className="border-t border-monad-purple/20 py-14">
+      <section
+        id="recent-handshakes"
+        className="border-t border-monad-purple/20 py-14"
+      >
         <h2 className="mb-6 text-2xl font-semibold">Recent Handshakes</h2>
         {loadingRecent ? (
           <OfferGridSkeleton />
@@ -243,8 +262,8 @@ function BuiltOnMonadBadge() {
         </a>
       </div>
       <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-72 -translate-x-1/2 rounded-xl border border-monad-purple/25 bg-background/95 p-3 text-left text-xs text-foreground opacity-0 shadow-2xl shadow-monad-purple/20 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 md:left-0 md:translate-x-0">
-        Monad is a high-performance EVM-compatible blockchain designed for
-        fast, low-cost apps.
+        Monad is a high-performance EVM-compatible blockchain designed for fast,
+        low-cost apps.
       </div>
     </div>
   );
@@ -252,18 +271,16 @@ function BuiltOnMonadBadge() {
 
 function WhyMonadSection() {
   return (
-    <section
-      id="why-monad"
-      className="border-t border-monad-purple/20 py-14"
-    >
+    <section id="why-monad" className="border-t border-monad-purple/20 py-14">
       <div className="mx-auto max-w-3xl text-center">
         <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-monad-purple/30 bg-monad-purple/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-monad-purple">
           <Zap className="h-3.5 w-3.5" /> Why Monad?
         </p>
         <h2 className="text-3xl font-semibold">Why Handshake runs on Monad</h2>
         <p className="mt-3 text-base text-foreground/95">
-          Handshake needs fast settlement, low fees, and familiar wallet tooling.
-          Monad gives NFT traders that without changing the EVM experience.
+          Handshake needs fast settlement, low fees, and familiar wallet
+          tooling. Monad gives NFT traders that without changing the EVM
+          experience.
         </p>
       </div>
       <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -332,9 +349,7 @@ function CollectionFilterBanner({
           <CollectionFilterButton
             key={collection.address}
             collection={collection}
-            selected={
-              selectedCollection === collection.address.toLowerCase()
-            }
+            selected={selectedCollection === collection.address.toLowerCase()}
             onClick={() => onSelect(collection.address.toLowerCase())}
           />
         ))}
@@ -349,7 +364,7 @@ function HeroPreview() {
     {
       id: "preview",
       label: "Live deal preview",
-      title: "Human deal, wallet settled",
+      title: "Recent human deals",
       badge: "No custody",
       content: <LivePreviewSlide />,
     },
@@ -404,7 +419,7 @@ function HeroPreview() {
   const moveSlide = (direction: 1 | -1) => {
     setActiveSlide(
       (current) =>
-        (current + direction + carouselSlides.length) % carouselSlides.length
+        (current + direction + carouselSlides.length) % carouselSlides.length,
     );
   };
 
@@ -505,32 +520,150 @@ function HeroPreview() {
 }
 
 function LivePreviewSlide() {
-  const featured = FEATURED_COLLECTIONS.slice(0, 4);
+  const previewDeals = [
+    {
+      id: "lil-starrrs-lootgo",
+      give: {
+        collection: FEATURED_COLLECTIONS[4],
+        token: "Lil Starrrs #4821",
+        floor: "1.25 MON",
+      },
+      get: {
+        collection: FEATURED_COLLECTIONS[0],
+        token: "Lootgo #1987",
+        floor: "1.18 MON",
+      },
+      time: "12m ago",
+    },
+    {
+      id: "monshape-erebus",
+      give: {
+        collection: FEATURED_COLLECTIONS[2],
+        token: "Monshape #773",
+        floor: "0.95 MON",
+      },
+      get: {
+        collection: FEATURED_COLLECTIONS[1],
+        token: "Erebus #114",
+        floor: "1.02 MON",
+      },
+      time: "28m ago",
+    },
+    {
+      id: "daks-chewy",
+      give: {
+        collection: FEATURED_COLLECTIONS[6],
+        token: "The Daks #308",
+        floor: "0.88 MON",
+      },
+      get: {
+        collection: FEATURED_COLLECTIONS[8],
+        token: "Chewy #665",
+        floor: "0.90 MON",
+      },
+      time: "45m ago",
+    },
+  ];
 
   return (
-    <>
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <PreviewSide title="You give" collections={featured.slice(0, 2)} />
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-monad-purple text-monad-black">
-          <Handshake className="h-5 w-5" />
-        </div>
-        <PreviewSide title="You get" collections={featured.slice(2, 4)} />
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="space-y-3 overflow-hidden">
+        {previewDeals.map((deal) => (
+          <div
+            key={deal.id}
+            className="overflow-hidden rounded-xl border border-white/10 bg-background/60 shadow-lg shadow-monad-purple/5"
+          >
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 p-3">
+              <DealAsset side="You give" asset={deal.give} />
+              <div className="flex flex-col items-center gap-1 text-muted-foreground/60">
+                <div className="hidden h-px w-10 bg-gradient-to-r from-transparent to-muted-foreground/40 sm:block" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-monad-purple text-monad-black shadow-lg shadow-monad-purple/30">
+                  <Handshake className="h-4 w-4" />
+                </div>
+                <ArrowLeftRight className="h-4 w-4 sm:hidden" />
+              </div>
+              <DealAsset side="You get" asset={deal.get} align="right" />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-white/10 bg-secondary/35 px-3 py-2 text-[11px]">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="inline-flex items-center gap-1 font-medium text-green-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Deal settled
+                </span>
+                <span aria-hidden="true">•</span>
+                <span>{deal.time}</span>
+              </div>
+              <Link
+                href="#recent-handshakes"
+                className="rounded-full border border-monad-purple/40 bg-monad-purple/10 px-3 py-1 font-medium text-monad-purple transition hover:bg-monad-purple/20"
+              >
+                View deal
+              </Link>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-3">
-        <div className="mb-2 flex items-center justify-between text-sm">
-          <span className="font-medium">Settlement</span>
-          <span className="text-monad-purple">1 transaction</span>
-        </div>
-        <div className="h-2 overflow-hidden rounded-full bg-secondary">
-          <div className="h-full w-4/5 rounded-full bg-gradient-to-r from-monad-purple to-fuchsia-400" />
-        </div>
-        <p className="mt-2 text-xs text-foreground">
-          Both wallets sign. The contract verifies ownership, approvals, and
-          terms before anything moves.
-        </p>
-      </div>
-    </>
+      <p className="mt-auto flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground">
+        Deals are peer-to-peer and settled on-chain.
+        <ShieldCheck className="h-3.5 w-3.5" />
+      </p>
+    </div>
+  );
+}
+
+function DealAsset({
+  side,
+  asset,
+  align = "left",
+}: {
+  side: string;
+  asset: { collection: FeaturedCollection; token: string; floor: string };
+  align?: "left" | "right";
+}) {
+  const image = (
+    <SafeCollectionImage
+      collectionAddress={asset.collection.address}
+      alt={`${asset.token} preview`}
+      className="h-14 w-14 shrink-0 rounded-xl ring-1 ring-white/10 sm:h-16 sm:w-16"
+    />
+  );
+
+  const details = (
+    <div
+      className={`min-w-0 ${align === "right" ? "text-right" : "text-left"}`}
+    >
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {side}
+      </p>
+      <h4 className="truncate text-sm font-semibold text-foreground sm:text-base">
+        {asset.token}
+      </h4>
+      <p className="text-xs text-muted-foreground">Floor: {asset.floor}</p>
+      <span className="mt-1 inline-flex rounded border border-monad-purple/40 bg-monad-purple/10 px-1.5 py-0.5 text-[10px] font-medium text-monad-purple">
+        ERC-721
+      </span>
+    </div>
+  );
+
+  return (
+    <div
+      className={`flex min-w-0 items-center gap-3 ${
+        align === "right" ? "justify-end" : "justify-start"
+      }`}
+    >
+      {align === "right" ? (
+        <>
+          {details}
+          {image}
+        </>
+      ) : (
+        <>
+          {image}
+          {details}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -543,7 +676,9 @@ function WantedOfferSlide() {
             <p className="text-xs font-medium uppercase tracking-wide text-cyan-200">
               Wanted offer
             </p>
-            <h4 className="mt-1 text-lg font-semibold">Looking for 2x 10KSquad NFT</h4>
+            <h4 className="mt-1 text-lg font-semibold">
+              Looking for 2x 10KSquad NFT
+            </h4>
           </div>
           <span className="rounded-full border border-fuchsia-300/30 bg-fuchsia-300/10 px-3 py-1 text-xs text-fuchsia-200">
             Open ask
@@ -563,7 +698,9 @@ function WantedOfferSlide() {
                 height={28}
                 className="mx-auto"
               />
-              <p className="mt-2 text-[1.005rem] font-bold text-cyan-200">6K MON</p>
+              <p className="mt-2 text-[1.005rem] font-bold text-cyan-200">
+                6K MON
+              </p>
               <p className="mt-1 text-xs text-foreground/90">plus fees</p>
             </div>
           </div>
@@ -582,7 +719,9 @@ function WantedOfferSlide() {
                 alt="10KSquad logo"
                 className="h-12 w-12 rounded-full"
               />
-              <span className="mt-2 text-xs font-semibold text-foreground">2x</span>
+              <span className="mt-2 text-xs font-semibold text-foreground">
+                2x
+              </span>
             </div>
           </div>
         </div>
@@ -644,8 +783,12 @@ function CustomDealSlide() {
                 {step.icon}
               </div>
               <div>
-                <p className="text-xs font-semibold text-foreground">{step.title}</p>
-                <p className="text-[11px] leading-4 text-foreground/90">{step.body}</p>
+                <p className="text-xs font-semibold text-foreground">
+                  {step.title}
+                </p>
+                <p className="text-[11px] leading-4 text-foreground/90">
+                  {step.body}
+                </p>
               </div>
             </div>
           ))}
@@ -688,7 +831,9 @@ function CustomTradeVisual() {
                 height={22}
                 className="mb-1"
               />
-              <span className="text-xs font-semibold text-monad-purple">MON</span>
+              <span className="text-xs font-semibold text-monad-purple">
+                MON
+              </span>
               <span className="text-base font-bold text-foreground">10K</span>
             </div>
           </div>
@@ -750,8 +895,12 @@ function PrivateOptionSlide() {
             key={option.title}
             className="rounded-xl border border-monad-purple/25 bg-card/80 p-3"
           >
-            <p className="text-sm font-semibold text-monad-purple">{option.title}</p>
-            <p className="mt-1 text-xs leading-5 text-foreground/95">{option.body}</p>
+            <p className="text-sm font-semibold text-monad-purple">
+              {option.title}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-foreground/95">
+              {option.body}
+            </p>
           </div>
         ))}
       </div>
@@ -775,36 +924,6 @@ function IconDealSlide({
       </div>
       <h4 className="text-2xl font-semibold">{title}</h4>
       <p className="mx-auto mt-3 max-w-xs text-sm text-foreground/95">{body}</p>
-    </div>
-  );
-}
-
-function PreviewSide({
-  title,
-  collections,
-}: {
-  title: string;
-  collections: FeaturedCollection[];
-}) {
-  return (
-    <div className="rounded-xl border border-monad-purple/20 bg-background/60 p-3">
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-foreground">
-        {title}
-      </p>
-      <div className="grid grid-cols-2 gap-2">
-        {collections.map((collection) => (
-          <div
-            key={collection.address}
-            className="overflow-hidden rounded-lg border border-monad-purple/20 bg-secondary shadow-md shadow-monad-purple/10"
-          >
-            <SafeCollectionImage
-              collectionAddress={collection.address}
-              alt={collection.name}
-              className="aspect-square w-full"
-            />
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
