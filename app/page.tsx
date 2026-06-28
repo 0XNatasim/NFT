@@ -986,110 +986,98 @@ function SellNftSlide() {
   const steps = [
     {
       number: "1",
-      icon: <ImageIcon className="h-7 w-7" />,
+      icon: <ImageIcon className="h-6 w-6" />,
       title: "Choose your NFT",
       body: "Upload or select the NFT you want to sell.",
     },
     {
       number: "2",
-      icon: <SlidersHorizontal className="h-7 w-7" />,
+      icon: <SlidersHorizontal className="h-6 w-6" />,
       title: "Set your preferences",
       body: "Choose what you want in return and other deal options.",
     },
     {
       number: "3",
-      icon: <Handshake className="h-7 w-7" />,
+      icon: <Handshake className="h-6 w-6" />,
       title: "Publish your offer",
       body: "Your offer goes live and collectors can respond.",
     },
   ];
 
-    const benefits = [
-    {
-      icon: <ShieldCheck className="h-7 w-7" />,
-      title: "You stay in control",
-      body: "Choose visibility, expiration, and what you’ll accept.",
-    },
-    {
-      icon: <Handshake className="h-7 w-7" />,
-      title: "No bots. Just people.",
-      body: "Handshake matches real collectors with real offers.",
-    },
-    {
-      icon: <Zap className="h-7 w-7" />,
-      title: "Fast & secure",
-      body: "Built on Monad for speed, security, and low fees.",
-    },
-  ];
-
-
   return (
-    <div className="relative -mx-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.35rem] border border-monad-purple/50 bg-[#050b18] p-3.5 shadow-[0_0_45px_rgba(131,84,255,0.18)]">
+    <div className="relative -mx-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.35rem] border border-monad-purple/50 bg-[#050b18] p-3 shadow-[0_0_45px_rgba(131,84,255,0.18)]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(147,88,255,0.18),transparent_34%),radial-gradient(circle_at_82%_82%,rgba(84,52,255,0.22),transparent_38%)]" />
 
-
-      <div className="relative z-10 mt-4 grid flex-1 grid-cols-[1.08fr_0.92fr] gap-3">
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-monad-purple/75 bg-black/10 p-3 text-center">
-          <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-monad-purple bg-monad-purple/10 text-monad-purple shadow-[0_0_28px_rgba(139,92,246,0.8)]">
-            <Upload className="h-12 w-12" />
+      <div className="relative z-10 grid flex-1 grid-cols-[1.08fr_0.92fr] gap-3">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-monad-purple/75 bg-black/10 p-2.5 text-center">
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-2 border-monad-purple bg-monad-purple/10 text-monad-purple shadow-[0_0_28px_rgba(139,92,246,0.8)]">
+            <Upload className="h-10 w-10" />
           </div>
-          <p className="mt-5 text-lg font-bold leading-tight">Upload or pick an NFT</p>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          <p className="mt-3 text-base font-bold leading-tight">
+            Upload or pick an NFT
+          </p>
+          <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
             Drag & drop your NFT file or click to{" "}
             <span className="text-monad-purple">browse</span>
           </p>
-          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
             Images, GIFs, MP4s and more
             <CheckCircle2 className="h-4 w-4 text-monad-purple" />
           </p>
         </div>
 
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {steps.map((step) => (
-            <div key={step.number} className="grid grid-cols-[2.2rem_3.2rem_1fr] items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-monad-purple to-violet-600 text-sm font-bold">
+            <div
+              key={step.number}
+              className="grid grid-cols-[1.9rem_2.7rem_1fr] items-center gap-2"
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-monad-purple to-violet-600 text-sm font-bold">
                 {step.number}
               </span>
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-monad-purple">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-monad-purple">
                 {step.icon}
               </span>
               <span>
-                <span className="block text-sm font-bold leading-tight">{step.title}</span>
-                <span className="block text-[11px] leading-4 text-muted-foreground">{step.body}</span>
+                <span className="block text-[13px] font-bold leading-tight">
+                  {step.title}
+                </span>
+                <span className="block text-[10px] leading-3 text-muted-foreground">
+                  {step.body}
+                </span>
               </span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="relative z-10 mt-3 grid grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
-        {benefits.map((benefit) => (
-          <div key={benefit.title} className="px-2">
-            <div className="mb-1 text-monad-purple">{benefit.icon}</div>
-            <p className="text-xs font-bold leading-tight">{benefit.title}</p>
-            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{benefit.body}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="relative z-10 mt-3 flex items-center justify-between rounded-2xl border border-monad-purple/50 bg-gradient-to-r from-monad-purple/30 via-[#121038] to-monad-purple/30 p-3">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full border border-monad-purple/60 bg-monad-purple/20 p-2">
-            <Image src="/Logomark.png" alt="Monad logo" width={28} height={28} />
+      <div className="relative z-10 mt-2.5 flex items-center justify-between rounded-2xl border border-monad-purple/50 bg-gradient-to-r from-monad-purple/30 via-[#121038] to-monad-purple/30 p-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-monad-purple/60 bg-monad-purple/20 p-2">
+            <Image
+              src="/Logomark.png"
+              alt="Monad logo"
+              width={24}
+              height={24}
+            />
           </span>
           <span>
-            <span className="block text-sm font-bold text-purple-300">Built for Monad</span>
-            <span className="text-xs text-muted-foreground">Low fees. High speed. Human-first.</span>
+            <span className="block text-[13px] font-bold text-purple-300">
+              Built for Monad
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              Low fees. High speed. Human-first.
+            </span>
           </span>
         </div>
-        <span className="hidden items-center gap-2 rounded-lg bg-black/50 px-3 py-2 text-xs text-muted-foreground sm:inline-flex">
+        <span className="hidden items-center gap-2 rounded-lg bg-black/50 px-2.5 py-1.5 text-[11px] text-muted-foreground sm:inline-flex">
           Powered by
           <Image src="/Logomark.png" alt="" width={18} height={18} />
           <strong className="text-white">MONAD</strong>
         </span>
       </div>
 
-      <p className="relative z-10 mt-2 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
+      <p className="relative z-10 mt-1.5 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
         <Lock className="h-3.5 w-3.5" />
         You keep your NFT until a deal is accepted.
       </p>
