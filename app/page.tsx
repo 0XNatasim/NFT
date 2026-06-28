@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Handshake,
   Lock,
-  Rocket,
   Plus,
   SlidersHorizontal,
   ShieldCheck,
@@ -920,25 +919,7 @@ function SellNftSlide() {
     <div className="relative -mx-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.35rem] border border-monad-purple/50 bg-[#050b18] p-3 shadow-[0_0_45px_rgba(131,84,255,0.18)]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(147,88,255,0.18),transparent_34%),radial-gradient(circle_at_82%_82%,rgba(84,52,255,0.22),transparent_38%)]" />
 
-      <div className="relative z-10 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-monad-purple">
-            Sell NFT
-          </p>
-          <h4 className="mt-1 text-[1.65rem] font-bold leading-none tracking-tight">
-            Upload an asset
-          </h4>
-          <p className="mt-1.5 max-w-[15rem] text-[11px] leading-4 text-muted-foreground">
-            List your NFT in a few steps and reach real collectors.
-          </p>
-        </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-monad-purple bg-monad-purple/10 px-2.5 py-1.5 text-[11px] font-bold text-purple-200">
-          <Rocket className="h-4 w-4" />
-          List fast
-        </span>
-      </div>
-
-      <div className="relative z-10 mt-3 grid flex-1 grid-cols-[1.08fr_0.92fr] gap-3">
+      <div className="relative z-10 grid flex-1 grid-cols-[1.08fr_0.92fr] gap-3">
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-monad-purple/75 bg-black/10 p-2.5 text-center">
           <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-2 border-monad-purple bg-monad-purple/10 text-monad-purple shadow-[0_0_28px_rgba(139,92,246,0.8)]">
             <Upload className="h-10 w-10" />
