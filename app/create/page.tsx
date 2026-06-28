@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   useAccount,
@@ -18,6 +18,7 @@ import {
   Globe,
   Loader2,
   Lock,
+  ShieldCheck,
   ShoppingCart,
   Sparkles,
   Tag,
@@ -30,7 +31,10 @@ import { NFTCard } from "@/components/trade/nft-card";
 import { OwnedNFTPicker } from "@/components/trade/owned-nft-picker";
 import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
-import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
+import {
+  MONAD_CHAIN_ID,
+  SETTLEMENT_CONTRACT_ADDRESS,
+} from "@/lib/chains/monad";
 import { bufferedGas } from "@/lib/chains/gas";
 import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
@@ -144,7 +148,11 @@ function ProposeDealForm() {
   const [step, setStep] = useState(0);
   const [intent, setIntent] = useState<Intent | null>(null);
   const [visibility, setVisibility] = useState<Visibility>(
-    prefilledPrivate ? "private" : isAddress(prefilledTaker) ? "targeted" : "public"
+    prefilledPrivate
+      ? "private"
+      : isAddress(prefilledTaker)
+        ? "targeted"
+        : "public",
   );
 
   const [offeredNfts, setOfferedNfts] = useState<NFTAsset[]>([]);
@@ -152,12 +160,12 @@ function ProposeDealForm() {
   const [offeredMon, setOfferedMon] = useState("");
   const [requestedMon, setRequestedMon] = useState("");
   const [takerAddress, setTakerAddress] = useState(
-    isAddress(prefilledTaker) ? prefilledTaker : ""
+    isAddress(prefilledTaker) ? prefilledTaker : "",
   );
   const [expirySeconds, setExpirySeconds] = useState(86400);
   const [customExpiryValue, setCustomExpiryValue] = useState("");
   const [customExpiryUnit, setCustomExpiryUnit] = useState<"hours" | "days">(
-    "hours"
+    "hours",
   );
   const [showCustomExpiry, setShowCustomExpiry] = useState(false);
   const [requestContract, setRequestContract] = useState("");
@@ -166,6 +174,10 @@ function ProposeDealForm() {
   const [offerTokenId, setOfferTokenId] = useState("");
   const [addingOffered, setAddingOffered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [approvingCollections, setApprovingCollections] = useState(false);
+  const [approvalStatus, setApprovalStatus] = useState<Record<string, boolean>>(
+    {},
+  );
 
   const makerMonWei = useMemo(() => {
     try {
@@ -183,13 +195,26 @@ function ProposeDealForm() {
     }
   }, [requestedMon]);
 
-  const offersNft = intent === "sell" || intent === "swap" || intent === "custom";
+  const offersNft =
+    intent === "sell" || intent === "swap" || intent === "custom";
   const offersMon = intent === "buy" || intent === "custom";
-  const requestsNft = intent === "buy" || intent === "swap" || intent === "custom";
+  const requestsNft =
+    intent === "buy" || intent === "swap" || intent === "custom";
   const requestsMon = intent === "sell" || intent === "custom";
 
   const hasOfferedSomething = offeredNfts.length > 0 || makerMonWei > 0n;
   const hasRequestedSomething = requestedNfts.length > 0 || takerMonWei > 0n;
+  const offeredContracts = useMemo(
+    () =>
+      Array.from(
+        new Set(offeredNfts.map((n) => n.contractAddress.toLowerCase())),
+      ),
+    [offeredNfts],
+  );
+  const collectionsNeedApproval = offeredContracts.length > 0;
+  const allCollectionsApproved =
+    !collectionsNeedApproval ||
+    offeredContracts.every((contract) => approvalStatus[contract]);
   const isPrivate = visibility === "private";
   const needsTaker = visibility === "targeted" || visibility === "private";
 
@@ -208,7 +233,7 @@ function ProposeDealForm() {
         ? prev.filter((n) => nftKey(n) !== nftKey(nft))
         : prev.length < 20
           ? [...prev, nft]
-          : prev
+          : prev,
     );
   }
 
@@ -219,9 +244,10 @@ function ProposeDealForm() {
     }
 
     const collection = FEATURED_COLLECTIONS.find(
-      (c) => c.address.toLowerCase() === requestContract.toLowerCase()
+      (c) => c.address.toLowerCase() === requestContract.toLowerCase(),
     );
-    const isCollectionWideBuy = intent === "buy" && requestTokenId.trim() === "";
+    const isCollectionWideBuy =
+      intent === "buy" && requestTokenId.trim() === "";
 
     if (!isCollectionWideBuy && !/^\d+$/.test(requestTokenId)) {
       toast.error("Enter a numeric token ID");
@@ -250,13 +276,13 @@ function ProposeDealForm() {
       toast.success(
         `Added a collection-wide buy request for ${
           nft.collectionName ?? "this collection"
-        }`
+        }`,
       );
       return;
     }
 
     fetch(
-      `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`
+      `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`,
     )
       .then((res) => (res.ok ? res.json() : null))
       .then((meta) => {
@@ -268,11 +294,12 @@ function ProposeDealForm() {
                   ...n,
                   name: meta.name ?? n.name,
                   imageUrl: meta.animationUrl ?? meta.image ?? n.imageUrl,
-                  collectionName: n.collectionName ?? meta.collectionName ?? null,
+                  collectionName:
+                    n.collectionName ?? meta.collectionName ?? null,
                   metadata: meta.metadata ?? n.metadata ?? null,
                 }
-              : n
-          )
+              : n,
+          ),
         );
       })
       .catch(() => {});
@@ -298,7 +325,7 @@ function ProposeDealForm() {
       name: `#${offerTokenId}`,
       collectionName:
         FEATURED_COLLECTIONS.find(
-          (c) => c.address.toLowerCase() === offerContract.toLowerCase()
+          (c) => c.address.toLowerCase() === offerContract.toLowerCase(),
         )?.name ?? null,
       imageUrl: null,
     };
@@ -324,13 +351,14 @@ function ProposeDealForm() {
 
       try {
         const res = await fetch(
-          `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`
+          `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`,
         );
         if (res.ok) {
           const meta = await res.json();
           nft.name = meta.name ?? nft.name;
           nft.imageUrl = meta.animationUrl ?? meta.image ?? null;
-          nft.collectionName = nft.collectionName ?? meta.collectionName ?? null;
+          nft.collectionName =
+            nft.collectionName ?? meta.collectionName ?? null;
           nft.metadata = meta.metadata ?? nft.metadata ?? null;
         }
       } catch {
@@ -342,10 +370,102 @@ function ProposeDealForm() {
       toast.success(`Added ${nft.collectionName ?? "NFT"} #${nft.tokenId}`);
     } catch {
       toast.error(
-        "Couldn't verify this token on-chain — check the contract address and token ID"
+        "Couldn't verify this token on-chain — check the contract address and token ID",
       );
     } finally {
       setAddingOffered(false);
+    }
+  }
+
+  const refreshApprovalStatus = useCallback(async () => {
+    if (!address || !publicClient || offeredContracts.length === 0) {
+      setApprovalStatus({});
+      return;
+    }
+
+    const entries = await Promise.all(
+      offeredContracts.map(async (contract) => {
+        try {
+          const approved = await publicClient.readContract({
+            address: contract as Address,
+            abi: erc721Abi,
+            functionName: "isApprovedForAll",
+            args: [address, SETTLEMENT_CONTRACT_ADDRESS],
+          });
+          return [contract, Boolean(approved)] as const;
+        } catch {
+          return [contract, false] as const;
+        }
+      }),
+    );
+
+    setApprovalStatus(Object.fromEntries(entries));
+  }, [address, publicClient, offeredContracts]);
+
+  useEffect(() => {
+    void refreshApprovalStatus();
+  }, [refreshApprovalStatus]);
+
+  async function handleApproveCollections() {
+    if (!address || !publicClient) return;
+
+    if (chainId !== MONAD_CHAIN_ID) {
+      toast.error("Switch to the Monad network first");
+      return;
+    }
+
+    if (!collectionsNeedApproval) {
+      toast.info("Add an NFT to approve its collection first");
+      return;
+    }
+
+    if (
+      SETTLEMENT_CONTRACT_ADDRESS ===
+      "0x0000000000000000000000000000000000000000"
+    ) {
+      toast.error("Settlement contract is not configured");
+      return;
+    }
+
+    setApprovingCollections(true);
+    try {
+      for (const contract of offeredContracts) {
+        const alreadyApproved = await publicClient.readContract({
+          address: contract as Address,
+          abi: erc721Abi,
+          functionName: "isApprovedForAll",
+          args: [address, SETTLEMENT_CONTRACT_ADDRESS],
+        });
+
+        if (alreadyApproved) continue;
+
+        toast.info(
+          "Approve this collection so the settlement contract can transfer its NFTs only when an accepted deal settles.",
+        );
+
+        const approveParams = {
+          address: contract as Address,
+          abi: erc721Abi,
+          functionName: "setApprovalForAll" as const,
+          args: [SETTLEMENT_CONTRACT_ADDRESS, true] as const,
+        };
+
+        const gas = await bufferedGas(publicClient, {
+          ...approveParams,
+          account: address,
+        });
+        const hash = await writeContractAsync({ ...approveParams, gas });
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
+
+      await refreshApprovalStatus();
+      toast.success("Collections approved");
+    } catch (err: any) {
+      toast.error(
+        err?.shortMessage ?? err?.message ?? "Failed to approve collections",
+      );
+    } finally {
+      setApprovingCollections(false);
     }
   }
 
@@ -407,7 +527,8 @@ function ProposeDealForm() {
     }
 
     if (
-      SETTLEMENT_CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000"
+      SETTLEMENT_CONTRACT_ADDRESS ===
+      "0x0000000000000000000000000000000000000000"
     ) {
       toast.error("Settlement contract is not configured");
       return;
@@ -415,47 +536,10 @@ function ProposeDealForm() {
 
     setSubmitting(true);
     try {
-      if (publicClient && offeredNfts.length > 0) {
-        const contracts = Array.from(
-          new Set(offeredNfts.map((n) => n.contractAddress.toLowerCase()))
+      if (collectionsNeedApproval && !allCollectionsApproved) {
+        throw new Error(
+          "Approve your selected NFT collections before proposing this deal.",
         );
-
-        for (const contract of contracts) {
-          let approved: boolean;
-          try {
-            approved = await publicClient.readContract({
-              address: contract as Address,
-              abi: erc721Abi,
-              functionName: "isApprovedForAll",
-              args: [address, SETTLEMENT_CONTRACT_ADDRESS],
-            });
-          } catch {
-            throw new Error(
-              `Collection ${contract.slice(0, 10)}… doesn't exist on chain ${MONAD_CHAIN_ID}. ` +
-                "Your NFT provider network and NEXT_PUBLIC_CHAIN_ID/RPC are probably pointing at different networks."
-            );
-          }
-
-          if (!approved) {
-            toast.info(
-              "Approving this collection lets the settlement contract transfer its NFTs when an accepted deal executes (revocable anytime)."
-            );
-
-            const approveParams = {
-              address: contract as Address,
-              abi: erc721Abi,
-              functionName: "setApprovalForAll" as const,
-              args: [SETTLEMENT_CONTRACT_ADDRESS, true] as const,
-            };
-
-            const gas = await bufferedGas(publicClient, {
-              ...approveParams,
-              account: address,
-            });
-            const hash = await writeContractAsync({ ...approveParams, gas });
-            await publicClient.waitForTransactionReceipt({ hash });
-          }
-        }
       }
 
       let feeBps = 100n;
@@ -560,7 +644,11 @@ function ProposeDealForm() {
         </p>
       </div>
 
-      <Stepper steps={steps} current={step} onJump={(i) => i < step && setStep(i)} />
+      <Stepper
+        steps={steps}
+        current={step}
+        onJump={(i) => i < step && setStep(i)}
+      />
 
       <div className="mt-8">
         {currentStep === "type" && (
@@ -642,16 +730,48 @@ function ProposeDealForm() {
             Next <ArrowRight className="h-4 w-4" />
           </Button>
         ) : (
-          <Button size="lg" disabled={submitting} onClick={handleSign}>
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Waiting for
-                signature…
-              </>
-            ) : (
-              "Propose Deal (free, no gas to list)"
+          <div className="flex flex-col items-end gap-2 sm:flex-row">
+            {collectionsNeedApproval && (
+              <Button
+                size="lg"
+                variant={allCollectionsApproved ? "secondary" : "default"}
+                disabled={
+                  submitting || approvingCollections || allCollectionsApproved
+                }
+                onClick={handleApproveCollections}
+              >
+                {approvingCollections ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Approving…
+                  </>
+                ) : allCollectionsApproved ? (
+                  <>
+                    <ShieldCheck className="h-4 w-4" /> Collections approved
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="h-4 w-4" /> Approve collections
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
+            <Button
+              size="lg"
+              disabled={
+                submitting || approvingCollections || !allCollectionsApproved
+              }
+              onClick={handleSign}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Waiting for
+                  signature…
+                </>
+              ) : (
+                "Propose Deal (free, no gas to list)"
+              )}
+            </Button>
+          </div>
         )}
       </div>
     </div>
@@ -756,7 +876,9 @@ function StepIntent({
                   {opt.blurb}
                 </span>
               </span>
-              {selected && <Check className="ml-auto h-5 w-5 text-monad-purple" />}
+              {selected && (
+                <Check className="ml-auto h-5 w-5 text-monad-purple" />
+              )}
             </button>
           );
         })}
@@ -850,7 +972,9 @@ function StepDetails(props: {
                     <CollectionButton
                       key={c.address}
                       collection={c}
-                      active={offerContract.toLowerCase() === c.address.toLowerCase()}
+                      active={
+                        offerContract.toLowerCase() === c.address.toLowerCase()
+                      }
                       onClick={() => setOfferContract(c.address)}
                     />
                   ))}
@@ -958,7 +1082,9 @@ function StepDetails(props: {
                   <CollectionButton
                     key={c.address}
                     collection={c}
-                    active={requestContract.toLowerCase() === c.address.toLowerCase()}
+                    active={
+                      requestContract.toLowerCase() === c.address.toLowerCase()
+                    }
                     onClick={() => setRequestContract(c.address)}
                   />
                 ))}
@@ -995,7 +1121,7 @@ function StepDetails(props: {
                       selected
                       onClick={() =>
                         setRequestedNfts((prev) =>
-                          prev.filter((n) => nftKey(n) !== nftKey(nft))
+                          prev.filter((n) => nftKey(n) !== nftKey(nft)),
                         )
                       }
                     />
@@ -1062,7 +1188,7 @@ function StepVisibility({
     const numeric = Number(value);
     if (Number.isFinite(numeric) && numeric > 0) {
       setExpirySeconds(
-        Math.round(numeric * (unit === "hours" ? 60 * 60 : 24 * 60 * 60))
+        Math.round(numeric * (unit === "hours" ? 60 * 60 : 24 * 60 * 60)),
       );
     }
   }
@@ -1070,7 +1196,9 @@ function StepVisibility({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="mb-1 text-xl font-semibold">Who can see and accept it?</h2>
+        <h2 className="mb-1 text-xl font-semibold">
+          Who can see and accept it?
+        </h2>
         <p className="mb-4 text-sm text-muted-foreground">
           Control whether the deal is public, reserved, or hidden.
         </p>
@@ -1091,7 +1219,9 @@ function StepVisibility({
               >
                 <span
                   className={`mt-0.5 rounded-lg p-2 ${
-                    selected ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"
+                    selected
+                      ? "bg-primary/15 text-primary"
+                      : "bg-secondary text-muted-foreground"
                   }`}
                 >
                   <Icon className="h-5 w-5" />
@@ -1162,7 +1292,9 @@ function StepVisibility({
               placeholder="Custom time"
               inputMode="decimal"
               value={customExpiryValue}
-              onChange={(e) => applyCustomExpiry(e.target.value, customExpiryUnit)}
+              onChange={(e) =>
+                applyCustomExpiry(e.target.value, customExpiryUnit)
+              }
             />
             <select
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -1260,14 +1392,24 @@ function StepReview({
             <ReviewRow label="Expires in" value={expiryLabel} />
           </CardContent>
         </Card>
+        {offeredNfts.length > 0 && (
+          <p className="text-xs text-amber-400">
+            Before signing, approve each selected collection so the settlement
+            contract can transfer your NFT only if this deal is accepted and
+            settled on-chain.
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           Signing proposes an off-chain deal — free, no gas. Nothing moves until
-          a counterparty accepts and settles on-chain. You can cancel anytime with
-          an on-chain cancellation.
+          a counterparty accepts and settles on-chain. You can cancel anytime
+          with an on-chain cancellation.
         </p>
       </div>
       <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-        <FeeBreakdown makerMonAmount={makerMonWei} takerMonAmount={takerMonWei} />
+        <FeeBreakdown
+          makerMonAmount={makerMonWei}
+          takerMonAmount={takerMonWei}
+        />
       </div>
     </div>
   );
