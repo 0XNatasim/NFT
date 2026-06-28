@@ -13,7 +13,9 @@ import {
   ChevronRight,
   Handshake,
   Lock,
+  Rocket,
   Plus,
+  SlidersHorizontal,
   ShieldCheck,
   Sparkles,
   Upload,
@@ -375,13 +377,7 @@ function HeroPreview() {
       label: "Sell NFT",
       title: "Upload an asset",
       badge: "List fast",
-      content: (
-        <IconDealSlide
-          icon={<Upload className="h-9 w-9" />}
-          title="Sell NFT"
-          body="Upload or pick an NFT, set what you want back, then publish a wallet-to-wallet offer."
-        />
-      ),
+      content: <SellNftSlide />,
     },
     {
       id: "custom",
@@ -898,22 +894,123 @@ function PrivateOptionSlide() {
   );
 }
 
-function IconDealSlide({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
+function SellNftSlide() {
+  const steps = [
+    {
+      number: "1",
+      icon: <ImageIcon className="h-6 w-6" />,
+      title: "Choose your NFT",
+      body: "Upload or select the NFT you want to sell.",
+    },
+    {
+      number: "2",
+      icon: <SlidersHorizontal className="h-6 w-6" />,
+      title: "Set your preferences",
+      body: "Choose what you want in return and other deal options.",
+    },
+    {
+      number: "3",
+      icon: <Handshake className="h-6 w-6" />,
+      title: "Publish your offer",
+      body: "Your offer goes live and collectors can respond.",
+    },
+  ];
+
   return (
-    <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-5 text-center">
-      <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl border border-monad-purple/30 bg-monad-purple/15 text-monad-purple shadow-lg shadow-monad-purple/20">
-        {icon}
+    <div className="relative -mx-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.35rem] border border-monad-purple/50 bg-[#050b18] p-3 shadow-[0_0_45px_rgba(131,84,255,0.18)]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(147,88,255,0.18),transparent_34%),radial-gradient(circle_at_82%_82%,rgba(84,52,255,0.22),transparent_38%)]" />
+
+      <div className="relative z-10 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-monad-purple">
+            Sell NFT
+          </p>
+          <h4 className="mt-1 text-[1.65rem] font-bold leading-none tracking-tight">
+            Upload an asset
+          </h4>
+          <p className="mt-1.5 max-w-[15rem] text-[11px] leading-4 text-muted-foreground">
+            List your NFT in a few steps and reach real collectors.
+          </p>
+        </div>
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-monad-purple bg-monad-purple/10 px-2.5 py-1.5 text-[11px] font-bold text-purple-200">
+          <Rocket className="h-4 w-4" />
+          List fast
+        </span>
       </div>
-      <h4 className="text-2xl font-semibold">{title}</h4>
-      <p className="mx-auto mt-3 max-w-xs text-sm text-foreground/95">{body}</p>
+
+      <div className="relative z-10 mt-3 grid flex-1 grid-cols-[1.08fr_0.92fr] gap-3">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-monad-purple/75 bg-black/10 p-2.5 text-center">
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-2 border-monad-purple bg-monad-purple/10 text-monad-purple shadow-[0_0_28px_rgba(139,92,246,0.8)]">
+            <Upload className="h-10 w-10" />
+          </div>
+          <p className="mt-3 text-base font-bold leading-tight">
+            Upload or pick an NFT
+          </p>
+          <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
+            Drag & drop your NFT file or click to{" "}
+            <span className="text-monad-purple">browse</span>
+          </p>
+          <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            Images, GIFs, MP4s and more
+            <CheckCircle2 className="h-4 w-4 text-monad-purple" />
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          {steps.map((step) => (
+            <div
+              key={step.number}
+              className="grid grid-cols-[1.9rem_2.7rem_1fr] items-center gap-2"
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-monad-purple to-violet-600 text-sm font-bold">
+                {step.number}
+              </span>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-monad-purple">
+                {step.icon}
+              </span>
+              <span>
+                <span className="block text-[13px] font-bold leading-tight">
+                  {step.title}
+                </span>
+                <span className="block text-[10px] leading-3 text-muted-foreground">
+                  {step.body}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative z-10 mt-2.5 flex items-center justify-between rounded-2xl border border-monad-purple/50 bg-gradient-to-r from-monad-purple/30 via-[#121038] to-monad-purple/30 p-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-monad-purple/60 bg-monad-purple/20 p-2">
+            <Image
+              src="/Logomark.png"
+              alt="Monad logo"
+              width={24}
+              height={24}
+            />
+          </span>
+          <span>
+            <span className="block text-[13px] font-bold text-purple-300">
+              Built for Monad
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              Low fees. High speed. Human-first.
+            </span>
+          </span>
+        </div>
+        <span className="hidden items-center gap-2 rounded-lg bg-black/50 px-2.5 py-1.5 text-[11px] text-muted-foreground sm:inline-flex">
+          Powered by
+          <Image src="/Logomark.png" alt="" width={18} height={18} />
+          <strong className="text-white">MONAD</strong>
+        </span>
+      </div>
+
+      <p className="relative z-10 mt-1.5 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
+        <Lock className="h-3.5 w-3.5" />
+        You keep your NFT until a deal is accepted.
+      </p>
     </div>
   );
 }
