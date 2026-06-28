@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Handshake,
   Lock,
+  Rocket,
   Plus,
   SlidersHorizontal,
   ShieldCheck,
