@@ -34,7 +34,7 @@ import {
   type FeaturedCollection,
 } from "@/lib/featured-collections";
 import type { TradeOffer, TradeOfferNFT } from "@/lib/types";
-import { formatMon, shortAddress } from "@/lib/utils";
+import { cn, formatMon, rarityRankBadgeClass, shortAddress } from "@/lib/utils";
 
 export default function HomePage() {
   const { address } = useAccount();
@@ -681,7 +681,12 @@ function DealAsset({
           {extraCount > 0 ? ` +${extraCount}` : ""}
         </span>
         {primaryNft?.rarityRank != null && (
-          <span className="inline-flex rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          <span
+            className={cn(
+              "inline-flex rounded border px-1.5 py-0.5 text-[10px] font-medium",
+              rarityRankBadgeClass(primaryNft.rarityRank),
+            )}
+          >
             #{primaryNft.rarityRank.toLocaleString()}
           </span>
         )}

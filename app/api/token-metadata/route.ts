@@ -4,6 +4,7 @@ import { addressSchema, uint256Schema } from "@/lib/validation/offers";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { getOnChainTokenMeta } from "@/lib/nft/onchain-metadata";
 import { getNFTProvider } from "@/lib/nft";
+import { openseaProvider } from "@/lib/nft/providers/opensea";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Invalid query" }, { status: 400 });
   }
 
-  const [meta, indexed] = await Promise.all([
+  const [meta, indexed, openSeaToken] = await Promise.all([
     getOnChainTokenMeta(parsed.data.contract, parsed.data.tokenId),
     getNFTProvider()
+      .getToken(parsed.data.contract, parsed.data.tokenId)
+      .catch(() => null),
+    openseaProvider
       .getToken(parsed.data.contract, parsed.data.tokenId)
       .catch(() => null),
   ]);
@@ -39,6 +43,6 @@ export async function GET(req: Request) {
     name: indexed?.name ?? meta.name,
     image: indexed?.imageUrl ?? meta.image,
     collectionName: indexed?.collectionName ?? meta.collectionName,
-    rarityRank: indexed?.rarityRank ?? null,
+    rarityRank: openSeaToken?.rarityRank ?? indexed?.rarityRank ?? null,
   });
 }

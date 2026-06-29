@@ -6,6 +6,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function rarityRankBadgeClass(rank: number): string {
+  if (rank <= 100) {
+    return "border-orange-300/60 bg-orange-500/25 text-orange-100 shadow-orange-500/20";
+  }
+  if (rank <= 500) {
+    return "border-purple-300/60 bg-purple-500/25 text-purple-100 shadow-purple-500/20";
+  }
+  if (rank <= 1000) {
+    return "border-blue-300/60 bg-blue-500/25 text-blue-100 shadow-blue-500/20";
+  }
+  return "border-white/20 bg-white/15 text-white/90 shadow-black/20";
+}
+
 export function shortAddress(address?: string | null): string {
   if (!address) return "—";
   return `${address.slice(0, 6)}…${address.slice(-4)}`;

@@ -1,4 +1,4 @@
-import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
+import { cn, rarityRankBadgeClass, shortAddress } from "@/lib/utils";
 import { isCollectionBid } from "@/lib/collection-bids";
 import type { NFTAsset } from "@/lib/types";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
@@ -66,7 +66,12 @@ export function NFTCard({
       )}
     >
       {nft.rarityRank != null && (
-        <div className="absolute right-2 top-2 z-10 rounded-md bg-black/65 px-2 py-1 text-xs font-semibold text-white shadow-lg backdrop-blur-sm">
+        <div
+          className={cn(
+            "absolute right-2 top-2 z-10 rounded-md border px-2 py-1 text-xs font-semibold shadow-lg backdrop-blur-sm",
+            rarityRankBadgeClass(nft.rarityRank),
+          )}
+        >
           #{nft.rarityRank.toLocaleString()}
         </div>
       )}

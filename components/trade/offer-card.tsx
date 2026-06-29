@@ -5,7 +5,7 @@ import { ArrowLeftRight, Lock } from "lucide-react";
 import type { TradeOffer } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { NFTCard } from "@/components/trade/nft-card";
-import { formatMon, shortAddress, timeUntil } from "@/lib/utils";
+import { rarityRankBadgeClass, shortAddress, timeUntil, formatMon } from "@/lib/utils";
 
 const statusVariant = {
   open: "default",
@@ -39,7 +39,10 @@ export function OfferCard({ offer }: { offer: TradeOffer }) {
         </div>
         <div className="flex items-center gap-2">
           {offer.requiredMaxRarityRank != null && (
-            <Badge variant="secondary">
+            <Badge
+              variant="outline"
+              className={rarityRankBadgeClass(offer.requiredMaxRarityRank)}
+            >
               Top {offer.requiredMaxRarityRank.toLocaleString()}
             </Badge>
           )}

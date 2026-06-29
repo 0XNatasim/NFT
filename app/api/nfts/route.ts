@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getNFTProvider } from "@/lib/nft";
+import { openseaProvider } from "@/lib/nft/providers/opensea";
 import { addressSchema } from "@/lib/validation/offers";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { publicClient } from "@/lib/chains/client";
@@ -18,6 +19,26 @@ const contractExistsCache = new Map<string, boolean>();
 // name (e.g. Algebra LP positions -> "Algebra-DUST/WMON") show a real label
 // instead of their address. null = no name / not a readable name().
 const contractNameCache = new Map<string, string | null>();
+const rarityRankCache = new Map<string, number | null>();
+
+async function getOpenSeaRarityRank(
+  contractAddress: string,
+  tokenId: string,
+): Promise<number | null> {
+  const key = `${contractAddress.toLowerCase()}:${tokenId}`;
+  const cached = rarityRankCache.get(key);
+  if (cached !== undefined) return cached;
+
+  try {
+    const token = await openseaProvider.getToken(contractAddress, tokenId);
+    const rank = token?.rarityRank ?? null;
+    rarityRankCache.set(key, rank);
+    return rank;
+  } catch {
+    rarityRankCache.set(key, null);
+    return null;
+  }
+}
 
 async function getContractName(address: string): Promise<string | null> {
   const key = address.toLowerCase();
@@ -132,6 +153,22 @@ export async function GET(req: Request) {
           // cosmetic only
         }
       })
+    );
+
+    // Some wallet/list endpoints do not include OpenSea rarity even though the
+    // token detail endpoint does. Hydrate the current provider page directly
+    // from OpenSea so rarity badges appear automatically for supported
+    // collections, while keeping unsupported/no-rarity tokens unchanged.
+    const missingRarity = result.nfts
+      .filter((n) => n.rarityRank == null)
+      .slice(0, 50);
+    await Promise.all(
+      missingRarity.map(async (nft) => {
+        nft.rarityRank = await getOpenSeaRarityRank(
+          nft.contractAddress,
+          nft.tokenId,
+        );
+      }),
     );
 
     return NextResponse.json(result);
