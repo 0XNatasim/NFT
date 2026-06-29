@@ -39,6 +39,7 @@ import { bufferedGas } from "@/lib/chains/gas";
 import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
+import { CollectionSearch } from "@/components/trade/collection-search";
 import {
   generateNonce,
   getOrderDomain,
@@ -47,7 +48,7 @@ import {
 } from "@/lib/orders/eip712";
 import { COLLECTION_BID_TOKEN_ID } from "@/lib/collection-bids";
 import { formatMon } from "@/lib/utils";
-import type { NFTAsset } from "@/lib/types";
+import type { CollectionSearchResult, NFTAsset } from "@/lib/types";
 
 const EXPIRY_OPTIONS = [
   { label: "1 hour", seconds: 3600 },
@@ -170,8 +171,12 @@ function ProposeDealForm() {
   );
   const [showCustomExpiry, setShowCustomExpiry] = useState(false);
   const [requestContract, setRequestContract] = useState("");
+  const [selectedRequestCollection, setSelectedRequestCollection] =
+    useState<CollectionSearchResult | null>(null);
   const [requestTokenId, setRequestTokenId] = useState("");
   const [offerContract, setOfferContract] = useState("");
+  const [selectedOfferCollection, setSelectedOfferCollection] =
+    useState<CollectionSearchResult | null>(null);
   const [offerTokenId, setOfferTokenId] = useState("");
   const [addingOffered, setAddingOffered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -260,9 +265,10 @@ function ProposeDealForm() {
       tokenId: isCollectionWideBuy ? COLLECTION_BID_TOKEN_ID : requestTokenId,
       tokenStandard: "ERC721",
       name: isCollectionWideBuy
-        ? `Any ${collection?.name ?? "collection"} NFT`
+        ? `Any ${selectedRequestCollection?.name ?? collection?.name ?? "collection"} NFT`
         : `#${requestTokenId}`,
-      collectionName: collection?.name ?? null,
+      collectionName:
+        selectedRequestCollection?.name ?? collection?.name ?? null,
       imageUrl: null,
       metadata: isCollectionWideBuy ? { collectionBid: true } : null,
     };
@@ -271,6 +277,7 @@ function ProposeDealForm() {
 
     setRequestedNfts((prev) => [...prev, nft]);
     setRequestContract("");
+    setSelectedRequestCollection(null);
     setRequestTokenId("");
 
     if (isCollectionWideBuy) {
@@ -326,9 +333,11 @@ function ProposeDealForm() {
       tokenStandard: "ERC721",
       name: `#${offerTokenId}`,
       collectionName:
+        selectedOfferCollection?.name ??
         FEATURED_COLLECTIONS.find(
           (c) => c.address.toLowerCase() === offerContract.toLowerCase(),
-        )?.name ?? null,
+        )?.name ??
+        null,
       imageUrl: null,
     };
 
@@ -370,6 +379,7 @@ function ProposeDealForm() {
 
       setOfferedNfts((prev) => (prev.length < 20 ? [...prev, nft] : prev));
       setOfferTokenId("");
+      setSelectedOfferCollection(null);
       toast.success(`Added ${nft.collectionName ?? "NFT"} #${nft.tokenId}`);
     } catch {
       toast.error(
@@ -686,12 +696,16 @@ function ProposeDealForm() {
             makerMonWei={makerMonWei}
             requestContract={requestContract}
             setRequestContract={setRequestContract}
+            selectedRequestCollection={selectedRequestCollection}
+            setSelectedRequestCollection={setSelectedRequestCollection}
             requestTokenId={requestTokenId}
             setRequestTokenId={setRequestTokenId}
             addRequestedNft={addRequestedNft}
             setRequestedNfts={setRequestedNfts}
             offerContract={offerContract}
             setOfferContract={setOfferContract}
+            selectedOfferCollection={selectedOfferCollection}
+            setSelectedOfferCollection={setSelectedOfferCollection}
             offerTokenId={offerTokenId}
             setOfferTokenId={setOfferTokenId}
             addingOffered={addingOffered}
@@ -920,12 +934,16 @@ function StepDetails(props: {
   makerMonWei: bigint;
   requestContract: string;
   setRequestContract: (v: string) => void;
+  selectedRequestCollection: CollectionSearchResult | null;
+  setSelectedRequestCollection: (v: CollectionSearchResult | null) => void;
   requestTokenId: string;
   setRequestTokenId: (v: string) => void;
   addRequestedNft: () => void;
   setRequestedNfts: React.Dispatch<React.SetStateAction<NFTAsset[]>>;
   offerContract: string;
   setOfferContract: (v: string) => void;
+  selectedOfferCollection: CollectionSearchResult | null;
+  setSelectedOfferCollection: (v: CollectionSearchResult | null) => void;
   offerTokenId: string;
   setOfferTokenId: (v: string) => void;
   addingOffered: boolean;
@@ -948,12 +966,16 @@ function StepDetails(props: {
     makerMonWei,
     requestContract,
     setRequestContract,
+    selectedRequestCollection,
+    setSelectedRequestCollection,
     requestTokenId,
     setRequestTokenId,
     addRequestedNft,
     setRequestedNfts,
     offerContract,
     setOfferContract,
+    selectedOfferCollection,
+    setSelectedOfferCollection,
     offerTokenId,
     setOfferTokenId,
     addingOffered,
@@ -1002,15 +1024,35 @@ function StepDetails(props: {
                       active={
                         offerContract.toLowerCase() === c.address.toLowerCase()
                       }
-                      onClick={() => setOfferContract(c.address)}
+                      onClick={() => {
+                        setOfferContract(c.address);
+                        setSelectedOfferCollection(null);
+                      }}
                     />
                   ))}
                 </div>
+                <CollectionSearch
+                  selected={selectedOfferCollection}
+                  onSelect={(collection) => {
+                    setSelectedOfferCollection(collection);
+                    if (collection.contractAddress) {
+                      setOfferContract(collection.contractAddress);
+                    } else {
+                      setOfferContract("");
+                      toast.info(
+                        "Collection selected, but contract resolution is pending/unavailable.",
+                      );
+                    }
+                  }}
+                />
                 <div className="flex gap-2">
                   <Input
                     placeholder="NFT contract address (0x…)"
                     value={offerContract}
-                    onChange={(e) => setOfferContract(e.target.value)}
+                    onChange={(e) => {
+                      setOfferContract(e.target.value);
+                      setSelectedOfferCollection(null);
+                    }}
                   />
                   <Input
                     placeholder="Token ID"
@@ -1112,15 +1154,35 @@ function StepDetails(props: {
                     active={
                       requestContract.toLowerCase() === c.address.toLowerCase()
                     }
-                    onClick={() => setRequestContract(c.address)}
+                    onClick={() => {
+                      setRequestContract(c.address);
+                      setSelectedRequestCollection(null);
+                    }}
                   />
                 ))}
               </div>
+              <CollectionSearch
+                selected={selectedRequestCollection}
+                onSelect={(collection) => {
+                  setSelectedRequestCollection(collection);
+                  if (collection.contractAddress) {
+                    setRequestContract(collection.contractAddress);
+                  } else {
+                    setRequestContract("");
+                    toast.info(
+                      "Collection selected, but contract resolution is pending/unavailable.",
+                    );
+                  }
+                }}
+              />
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
                 <Input
                   placeholder="NFT contract address (0x…)"
                   value={requestContract}
-                  onChange={(e) => setRequestContract(e.target.value)}
+                  onChange={(e) => {
+                    setRequestContract(e.target.value);
+                    setSelectedRequestCollection(null);
+                  }}
                 />
                 <Input
                   placeholder={
