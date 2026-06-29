@@ -9,6 +9,7 @@ export interface NFTAsset {
   collectionName: string | null;
   imageUrl: string | null;
   metadata?: Record<string, unknown> | null;
+  rarityRank?: number | null;
 }
 
 export interface TradeOfferNFT extends NFTAsset {
@@ -33,6 +34,7 @@ export interface TradeOffer {
   signature: string;
   orderHash: string;
   isPrivate: boolean;
+  requiredMaxRarityRank?: number | null;
   completedTxHash: string | null;
   cancelledTxHash: string | null;
   createdAt: string;

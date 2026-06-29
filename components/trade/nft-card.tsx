@@ -65,6 +65,11 @@ export function NFTCard({
         !onClick && "cursor-default"
       )}
     >
+      {nft.rarityRank != null && (
+        <div className="absolute right-2 top-2 z-10 rounded-md bg-black/65 px-2 py-1 text-xs font-semibold text-white shadow-lg backdrop-blur-sm">
+          #{nft.rarityRank.toLocaleString()}
+        </div>
+      )}
       <div
         className={cn(
           "aspect-square w-full overflow-hidden bg-muted",
@@ -114,7 +119,7 @@ export function NFTCard({
         )}
       </div>
       {selected && (
-        <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-monad-purple text-xs font-bold text-monad-black">
+        <div className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-monad-purple text-xs font-bold text-monad-black">
           ✓
         </div>
       )}

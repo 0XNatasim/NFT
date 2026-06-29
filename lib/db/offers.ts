@@ -15,6 +15,7 @@ function mapNft(row: any): TradeOfferNFT {
     imageUrl: row.image_url,
     name: row.name,
     metadata: row.metadata,
+    rarityRank: row.rarity_rank ?? null,
   };
 }
 
@@ -34,6 +35,7 @@ export function mapOffer(row: any): TradeOffer {
     signature: row.signature,
     orderHash: row.order_hash,
     isPrivate: row.is_private,
+    requiredMaxRarityRank: row.required_max_rarity_rank ?? null,
     completedTxHash: row.completed_tx_hash,
     cancelledTxHash: row.cancelled_tx_hash,
     createdAt: row.created_at,

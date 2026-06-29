@@ -675,10 +675,17 @@ function DealAsset({
         {title}
       </h4>
       <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
-      <span className="mt-1 inline-flex rounded border border-monad-purple/40 bg-monad-purple/10 px-1.5 py-0.5 text-[10px] font-medium text-monad-purple">
-        {primaryNft ? "ERC-721" : "MON"}
-        {extraCount > 0 ? ` +${extraCount}` : ""}
-      </span>
+      <div className={`${align === "right" ? "justify-end" : "justify-start"} mt-1 flex flex-wrap gap-1`}>
+        <span className="inline-flex rounded border border-monad-purple/40 bg-monad-purple/10 px-1.5 py-0.5 text-[10px] font-medium text-monad-purple">
+          {primaryNft ? "ERC-721" : "MON"}
+          {extraCount > 0 ? ` +${extraCount}` : ""}
+        </span>
+        {primaryNft?.rarityRank != null && (
+          <span className="inline-flex rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            #{primaryNft.rarityRank.toLocaleString()}
+          </span>
+        )}
+      </div>
     </div>
   );
 

@@ -33,6 +33,7 @@ export const nftItemSchema = z.object({
   collectionName: z.string().max(256).nullable().optional(),
   imageUrl: z.string().url().max(2048).nullable().optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
+  rarityRank: z.number().int().positive().nullable().optional(),
 });
 
 export const createOfferSchema = z
@@ -50,6 +51,7 @@ export const createOfferSchema = z
     expiry: z.number().int().positive(),
     signature: hexSchema.min(132).max(132),
     isPrivate: z.boolean().default(false),
+    requiredMaxRarityRank: z.number().int().positive().nullable().optional(),
   })
   .refine(
     (o) => o.makerNFTs.length > 0 || safeBigInt(o.makerMonAmount) > 0n,
