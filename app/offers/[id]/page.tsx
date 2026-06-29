@@ -29,7 +29,7 @@ import {
 import { ZERO_ADDRESS } from "@/lib/orders/eip712";
 import { isCollectionBid } from "@/lib/collection-bids";
 import { quoteFees } from "@/lib/fees";
-import { formatMon, shortAddress, timeUntil } from "@/lib/utils";
+import { formatMon, rarityRankBadgeClass, shortAddress, timeUntil } from "@/lib/utils";
 import type { TradeOffer } from "@/lib/types";
 
 const statusVariant = {
@@ -369,7 +369,10 @@ export default function OfferDetailPage({
           {statusLabel[offer.status]}
         </Badge>
         {offer.requiredMaxRarityRank != null && (
-          <Badge variant="secondary">
+          <Badge
+            variant="outline"
+            className={rarityRankBadgeClass(offer.requiredMaxRarityRank)}
+          >
             Top {offer.requiredMaxRarityRank.toLocaleString()}
           </Badge>
         )}
