@@ -8,15 +8,15 @@ export function cn(...inputs: ClassValue[]) {
 
 export function rarityRankBadgeClass(rank: number): string {
   if (rank <= 100) {
-    return "border-orange-300/60 bg-orange-500/25 text-orange-100 shadow-orange-500/20";
+    return "border-[#9c5416]/35 bg-[#9c5416]/10 text-[#b86a1e]";
   }
   if (rank <= 500) {
-    return "border-purple-300/60 bg-purple-500/25 text-purple-100 shadow-purple-500/20";
+    return "border-[#7b3fc7]/35 bg-[#7b3fc7]/10 text-[#8d49de]";
   }
   if (rank <= 1000) {
-    return "border-blue-300/60 bg-blue-500/25 text-blue-100 shadow-blue-500/20";
+    return "border-[#2d78d6]/35 bg-[#2d78d6]/10 text-[#3b8cff]";
   }
-  return "border-white/20 bg-white/15 text-white/90 shadow-black/20";
+  return "border-white/10 bg-white/[0.03] text-[#6e7178]";
 }
 
 export function shortAddress(address?: string | null): string {
