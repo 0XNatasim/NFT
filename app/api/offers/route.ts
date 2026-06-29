@@ -111,6 +111,7 @@ export async function POST(req: Request) {
         signature: input.signature,
         order_hash: orderHash,
         is_private: input.isPrivate,
+        required_max_rarity_rank: input.requiredMaxRarityRank ?? null,
       })
       .select()
       .single();
@@ -138,6 +139,7 @@ export async function POST(req: Request) {
       image_url: n.imageUrl ?? null,
       name: n.name ?? null,
       metadata: n.metadata ?? null,
+      rarity_rank: n.rarityRank ?? null,
     }));
     if (nftRows.length > 0) {
       const { error: nftError } = await db.from("trade_offer_nfts").insert(nftRows);

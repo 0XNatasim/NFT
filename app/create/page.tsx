@@ -159,6 +159,7 @@ function ProposeDealForm() {
   const [requestedNfts, setRequestedNfts] = useState<NFTAsset[]>([]);
   const [offeredMon, setOfferedMon] = useState("");
   const [requestedMon, setRequestedMon] = useState("");
+  const [requiredMaxRarityRank, setRequiredMaxRarityRank] = useState("");
   const [takerAddress, setTakerAddress] = useState(
     isAddress(prefilledTaker) ? prefilledTaker : "",
   );
@@ -297,6 +298,7 @@ function ProposeDealForm() {
                   collectionName:
                     n.collectionName ?? meta.collectionName ?? null,
                   metadata: meta.metadata ?? n.metadata ?? null,
+                  rarityRank: meta.rarityRank ?? n.rarityRank ?? null,
                 }
               : n,
           ),
@@ -360,6 +362,7 @@ function ProposeDealForm() {
           nft.collectionName =
             nft.collectionName ?? meta.collectionName ?? null;
           nft.metadata = meta.metadata ?? nft.metadata ?? null;
+          nft.rarityRank = meta.rarityRank ?? nft.rarityRank ?? null;
         }
       } catch {
         // metadata is cosmetic; proceed without it
@@ -478,6 +481,14 @@ function ProposeDealForm() {
     }
 
     if (stepId === "details") {
+      if (
+        requiredMaxRarityRank &&
+        (!/^\d+$/.test(requiredMaxRarityRank) ||
+          Number(requiredMaxRarityRank) <= 0)
+      ) {
+        toast.error("Enter a positive maximum rarity rank");
+        return false;
+      }
       if (!hasOfferedSomething) {
         toast.error("Add something to your side of the deal");
         return false;
@@ -608,6 +619,9 @@ function ProposeDealForm() {
           expiry: Number(expiry),
           signature,
           isPrivate,
+          requiredMaxRarityRank: requiredMaxRarityRank
+            ? Number(requiredMaxRarityRank)
+            : null,
         }),
       });
 
@@ -682,6 +696,8 @@ function ProposeDealForm() {
             setOfferTokenId={setOfferTokenId}
             addingOffered={addingOffered}
             addOfferedNftManually={addOfferedNftManually}
+            requiredMaxRarityRank={requiredMaxRarityRank}
+            setRequiredMaxRarityRank={setRequiredMaxRarityRank}
           />
         )}
 
@@ -713,6 +729,7 @@ function ProposeDealForm() {
             visibility={visibility}
             takerAddress={takerAddress}
             expirySeconds={expirySeconds}
+            requiredMaxRarityRank={requiredMaxRarityRank}
           />
         )}
       </div>
@@ -913,6 +930,8 @@ function StepDetails(props: {
   setOfferTokenId: (v: string) => void;
   addingOffered: boolean;
   addOfferedNftManually: () => void;
+  requiredMaxRarityRank: string;
+  setRequiredMaxRarityRank: (v: string) => void;
 }) {
   const {
     offersNft,
@@ -939,7 +958,15 @@ function StepDetails(props: {
     setOfferTokenId,
     addingOffered,
     addOfferedNftManually,
+    requiredMaxRarityRank,
+    setRequiredMaxRarityRank,
   } = props;
+
+  const selectedRarityNft = requestedNfts.find((n) => n.rarityRank != null);
+
+  useEffect(() => {
+    if (!selectedRarityNft) setRequiredMaxRarityRank("");
+  }, [selectedRarityNft, setRequiredMaxRarityRank]);
 
   const canAddOfferedNft =
     isAddress(offerContract) && /^\d+$/.test(offerTokenId) && !addingOffered;
@@ -1112,6 +1139,32 @@ function StepDetails(props: {
                   Add
                 </Button>
               </div>
+              {selectedRarityNft && (
+                <div className="space-y-2 rounded-lg border border-monad-purple/25 bg-monad-purple/10 p-3">
+                  <div>
+                    <p className="text-sm font-medium">Rarity</p>
+                    <p className="text-xs text-muted-foreground">
+                      Optional: require the accepting NFT to rank at or above a
+                      numeric OpenSea rarity rank. For example, 100 means Top
+                      100.
+                    </p>
+                  </div>
+                  <label className="block text-xs font-medium text-muted-foreground">
+                    Maximum rarity rank
+                  </label>
+                  <Input
+                    placeholder={`Current token: #${selectedRarityNft.rarityRank}`}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={requiredMaxRarityRank}
+                    onChange={(e) =>
+                      setRequiredMaxRarityRank(
+                        e.target.value.replace(/\D/g, ""),
+                      )
+                    }
+                  />
+                </div>
+              )}
               {requestedNfts.length > 0 && (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
                   {requestedNfts.map((nft) => (
@@ -1345,6 +1398,7 @@ function StepReview({
   visibility,
   takerAddress,
   expirySeconds,
+  requiredMaxRarityRank,
 }: {
   intent: Intent;
   offeredNfts: NFTAsset[];
@@ -1354,6 +1408,7 @@ function StepReview({
   visibility: Visibility;
   takerAddress: string;
   expirySeconds: number;
+  requiredMaxRarityRank: string;
 }) {
   const intentLabel = INTENTS.find((i) => i.id === intent)?.title ?? "Deal";
   const visLabel = VISIBILITIES.find((v) => v.id === visibility)?.title ?? "";
@@ -1387,6 +1442,12 @@ function StepReview({
                     ? `${takerAddress.slice(0, 8)}…${takerAddress.slice(-4)}`
                     : "—"
                 }
+              />
+            )}
+            {requiredMaxRarityRank && (
+              <ReviewRow
+                label="Rarity requirement"
+                value={`Top ${Number(requiredMaxRarityRank).toLocaleString()}`}
               />
             )}
             <ReviewRow label="Expires in" value={expiryLabel} />

@@ -37,6 +37,7 @@ function toAsset(raw: any): NFTAsset {
     collectionName: raw.collection ?? null,
     imageUrl: raw.display_image_url ?? raw.image_url ?? null,
     metadata: null,
+    rarityRank: typeof raw.rarity?.rank === "number" ? raw.rarity.rank : null,
   };
 }
 
