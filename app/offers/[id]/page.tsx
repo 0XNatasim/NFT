@@ -368,6 +368,11 @@ export default function OfferDetailPage({
         <Badge variant={statusVariant[offer.status]}>
           {statusLabel[offer.status]}
         </Badge>
+        {offer.requiredMaxRarityRank != null && (
+          <Badge variant="secondary">
+            Top {offer.requiredMaxRarityRank.toLocaleString()}
+          </Badge>
+        )}
         {offer.isPrivate && (
           <Badge variant="secondary">
             <Lock className="mr-1 h-3 w-3" /> private
