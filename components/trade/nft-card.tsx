@@ -10,6 +10,29 @@ function formatPrice(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
+function displayLabels(nft: NFTAsset, collectionBid: boolean) {
+  const fallbackCollection =
+    prettyCollectionName(nft.collectionName) ?? shortAddress(nft.contractAddress);
+
+  if (collectionBid) {
+    return {
+      primary: nft.name ?? "Any NFT",
+      secondary: fallbackCollection,
+    };
+  }
+
+  const tokenLabel = `#${nft.tokenId}`;
+  const name = nft.name?.trim();
+  const escapedTokenId = nft.tokenId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const trailingTokenPattern = new RegExp(`\\s*#?${escapedTokenId}\\s*$`);
+  const collectionFromName = name?.replace(trailingTokenPattern, "").trim();
+
+  return {
+    primary: tokenLabel,
+    secondary: collectionFromName || fallbackCollection,
+  };
+}
+
 export function NFTCard({
   nft,
   selected,
@@ -28,6 +51,7 @@ export function NFTCard({
   } | null;
 }) {
   const collectionBid = isCollectionBid(nft);
+  const labels = displayLabels(nft, collectionBid);
 
   return (
     <button
@@ -77,13 +101,11 @@ export function NFTCard({
         )}
       </div>
       <div className={cn("p-2", size === "sm" && "p-1.5")}>
-        <p className="truncate text-xs text-muted-foreground">
-          {nft.collectionName ?? shortAddress(nft.contractAddress)}
-        </p>
         <p className="truncate text-sm font-medium">
-          {collectionBid
-            ? (nft.name ?? "Any NFT")
-            : (nft.name ?? `#${nft.tokenId}`)}
+          {labels.primary}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">
+          {labels.secondary}
         </p>
         {price && (price.floorPrice != null || price.topOffer != null) && (
           <div className="mt-1 flex items-center justify-between gap-1 text-[11px]">
