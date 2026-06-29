@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { NFTCard } from "@/components/trade/nft-card";
+import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
@@ -40,6 +40,7 @@ export function OwnedNFTPicker({
   const [selectedCollections, setSelectedCollections] = useState<Set<string>>(
     new Set()
   );
+  const [layout, setLayout] = useState<"cards" | "list">("cards");
 
   function toggleCollection(address: string) {
     setSelectedCollections((prev) => {
@@ -155,22 +156,39 @@ export function OwnedNFTPicker({
 
       {/* Right: NFT grid */}
       <div className="min-w-0 flex-1">
-        <p className="mb-2 text-xs text-muted-foreground">
-          {filtered.length} of {nfts.length} NFTs
-          {isFetchingNextPage && " · loading more…"}
-        </p>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {filtered.length} of {nfts.length} NFTs
+            {isFetchingNextPage && " · loading more…"}
+          </p>
+          <LayoutToggle layout={layout} onChange={setLayout} />
+        </div>
         {filtered.length > 0 ? (
-          <div className="grid max-h-96 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 md:grid-cols-5">
-            {filtered.map((nft) => (
-              <NFTCard
-                key={nftKey(nft)}
-                nft={nft}
-                selected={selected.some((n) => nftKey(n) === nftKey(nft))}
-                onClick={() => onToggle(nft)}
-                price={prices?.[nft.contractAddress.toLowerCase()]}
-              />
-            ))}
-          </div>
+          layout === "cards" ? (
+            <div className="grid max-h-96 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 md:grid-cols-5">
+              {filtered.map((nft) => (
+                <NFTCard
+                  key={nftKey(nft)}
+                  nft={nft}
+                  selected={selected.some((n) => nftKey(n) === nftKey(nft))}
+                  onClick={() => onToggle(nft)}
+                  price={prices?.[nft.contractAddress.toLowerCase()]}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+              {filtered.map((nft) => (
+                <NFTListItem
+                  key={nftKey(nft)}
+                  nft={nft}
+                  selected={selected.some((n) => nftKey(n) === nftKey(nft))}
+                  onClick={() => onToggle(nft)}
+                  price={prices?.[nft.contractAddress.toLowerCase()]}
+                />
+              ))}
+            </div>
+          )
         ) : (
           <EmptyState title="No matches" body="No NFTs match your filter." />
         )}
@@ -232,5 +250,35 @@ function CollectionRow({
         {count}
       </span>
     </button>
+  );
+}
+
+
+function LayoutToggle({
+  layout,
+  onChange,
+}: {
+  layout: "cards" | "list";
+  onChange: (layout: "cards" | "list") => void;
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-border bg-background p-1">
+      {(["cards", "list"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          className={cn(
+            "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+            layout === option
+              ? "bg-monad-purple text-monad-black"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          aria-pressed={layout === option}
+        >
+          {option === "cards" ? "Cards" : "List"}
+        </button>
+      ))}
+    </div>
   );
 }
