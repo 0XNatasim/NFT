@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { NFTCard } from "@/components/trade/nft-card";
+import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
@@ -22,6 +22,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
   const [query, setQuery] = useState("");
   const [collection, setCollection] = useState<string | null>(null);
   const [selectedNft, setSelectedNft] = useState<NFTAsset | null>(null);
+  const [layout, setLayout] = useState<"cards" | "list">("cards");
 
   const nfts = useMemo<NFTAsset[]>(
     () => data?.pages.flatMap((p) => p.nfts) ?? [],
@@ -99,10 +100,13 @@ export function WalletNFTs({ owner }: { owner: string }) {
           placeholder="Search by name, token ID or collection…"
           className="sm:max-w-xs"
         />
-        <p className="text-sm text-muted-foreground">
-          {filtered.length} of {nfts.length} NFTs
-          {isFetchingNextPage && " · loading more…"}
-        </p>
+        <div className="flex items-center gap-3">
+          <LayoutToggle layout={layout} onChange={setLayout} />
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} of {nfts.length} NFTs
+            {isFetchingNextPage && " · loading more…"}
+          </p>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -126,16 +130,29 @@ export function WalletNFTs({ owner }: { owner: string }) {
       </div>
 
       {filtered.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
-          {filtered.map((nft) => (
-            <NFTCard
-              key={`${nft.contractAddress}:${nft.tokenId}`}
-              nft={nft}
-              price={prices?.[nft.contractAddress.toLowerCase()]}
-              onClick={() => setSelectedNft(nft)}
-            />
-          ))}
-        </div>
+        layout === "cards" ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
+            {filtered.map((nft) => (
+              <NFTCard
+                key={`${nft.contractAddress}:${nft.tokenId}`}
+                nft={nft}
+                price={prices?.[nft.contractAddress.toLowerCase()]}
+                onClick={() => setSelectedNft(nft)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((nft) => (
+              <NFTListItem
+                key={`${nft.contractAddress}:${nft.tokenId}`}
+                nft={nft}
+                price={prices?.[nft.contractAddress.toLowerCase()]}
+                onClick={() => setSelectedNft(nft)}
+              />
+            ))}
+          </div>
+        )
       ) : (
         <EmptyState
           title="No matches"
@@ -266,5 +283,34 @@ function FilterChip({
         {count}
       </span>
     </button>
+  );
+}
+
+function LayoutToggle({
+  layout,
+  onChange,
+}: {
+  layout: "cards" | "list";
+  onChange: (layout: "cards" | "list") => void;
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-border bg-background p-1">
+      {(["cards", "list"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          className={cn(
+            "rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors",
+            layout === option
+              ? "bg-monad-purple text-monad-black"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          aria-pressed={layout === option}
+        >
+          {option === "cards" ? "Cards" : "List"}
+        </button>
+      ))}
+    </div>
   );
 }
