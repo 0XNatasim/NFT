@@ -1,6 +1,14 @@
 export type OfferStatus = "open" | "completed" | "cancelled" | "expired";
 export type OfferSide = "maker" | "taker";
 
+export type CollectionSearchResult = {
+  name: string;
+  slug: string;
+  contractAddress?: string | null;
+  imageUrl?: string | null;
+  chain?: string | null;
+};
+
 export interface NFTAsset {
   contractAddress: string;
   tokenId: string;
