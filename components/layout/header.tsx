@@ -8,7 +8,7 @@ import { OfferAlerts } from "@/components/layout/offer-alerts";
 import { cn } from "@/lib/utils";
 
 const links = [
-  { href: "/", label: "Market" },
+  { href: "/market", label: "Market" },
   { href: "/create", label: "Deal" },
   { href: "/wanted", label: "Wanted" },
   { href: "/account", label: "Dashboard" },
