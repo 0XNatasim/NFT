@@ -1,4 +1,4 @@
-import { cn, rarityRankBadgeClass, shortAddress } from "@/lib/utils";
+import { cn, prettyCollectionName, rarityRankBadgeClass, shortAddress } from "@/lib/utils";
 import { isCollectionBid } from "@/lib/collection-bids";
 import type { NFTAsset } from "@/lib/types";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
