@@ -1,11 +1,19 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeftRight, Lock } from "lucide-react";
 import type { TradeOffer } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { NFTCard } from "@/components/trade/nft-card";
-import { rarityRankBadgeClass, shortAddress, timeUntil, formatMon } from "@/lib/utils";
+import { isCollectionBid } from "@/lib/collection-bids";
+import {
+  rarityRankBadgeClass,
+  shortAddress,
+  timeUntil,
+  formatMon,
+  prettyCollectionName,
+} from "@/lib/utils";
 
 const statusVariant = {
   open: "default",
@@ -24,6 +32,7 @@ const statusLabel = {
 export function OfferCard({ offer }: { offer: TradeOffer }) {
   const makerNfts = offer.nfts.filter((n) => n.side === "maker");
   const takerNfts = offer.nfts.filter((n) => n.side === "taker");
+  const showExpiry = offer.status === "open" && offer.expiry > Date.now() / 1000;
 
   return (
     <Link
@@ -32,10 +41,8 @@ export function OfferCard({ offer }: { offer: TradeOffer }) {
     >
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{offer.isPrivate ? "Private Deal" : "Public Deal"}</span>
-          <span>·</span>
+          {offer.isPrivate && <PrivateBadge />}
           <span>{shortAddress(offer.makerAddress)}</span>
-          {offer.isPrivate && <Lock className="h-3.5 w-3.5" />}
         </div>
         <div className="flex items-center gap-2">
           {offer.requiredMaxRarityRank != null && (
@@ -49,7 +56,7 @@ export function OfferCard({ offer }: { offer: TradeOffer }) {
           <Badge variant={statusVariant[offer.status]}>
             {statusLabel[offer.status]}
           </Badge>
-          {offer.status === "open" && (
+          {showExpiry && (
             <span className="text-xs text-muted-foreground">
               expires in {timeUntil(offer.expiry)}
             </span>
@@ -63,6 +70,60 @@ export function OfferCard({ offer }: { offer: TradeOffer }) {
         <TradeSide nfts={takerNfts} mon={offer.takerMonAmount} label="Taker gives" />
       </div>
     </Link>
+  );
+}
+
+export function OfferListItem({ offer }: { offer: TradeOffer }) {
+  const makerNfts = offer.nfts.filter((n) => n.side === "maker");
+  const takerNfts = offer.nfts.filter((n) => n.side === "taker");
+  const showExpiry = offer.status === "open" && offer.expiry > Date.now() / 1000;
+
+  return (
+    <Link
+      href={`/offers/${offer.id}`}
+      className="block overflow-x-auto rounded-xl border bg-card px-4 py-3 transition-colors hover:border-monad-purple/50"
+    >
+      <div className="flex min-w-max items-center gap-3 whitespace-nowrap text-sm">
+        <Badge variant={statusVariant[offer.status]}>
+          {statusLabel[offer.status]}
+        </Badge>
+        {offer.requiredMaxRarityRank != null && (
+          <Badge
+            variant="outline"
+            className={rarityRankBadgeClass(offer.requiredMaxRarityRank)}
+          >
+            Top {offer.requiredMaxRarityRank.toLocaleString()}
+          </Badge>
+        )}
+        {offer.isPrivate && <PrivateBadge />}
+        <span className="text-muted-foreground">
+          Maker {shortAddress(offer.makerAddress)}
+        </span>
+        <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+          Maker gives:
+          <TradeSideInline nfts={makerNfts} mon={offer.makerMonAmount} />
+        </span>
+        <ArrowLeftRight className="h-4 w-4 shrink-0 text-monad-purple" />
+        <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+          Taker gives:
+          <TradeSideInline nfts={takerNfts} mon={offer.takerMonAmount} />
+        </span>
+        {showExpiry && (
+          <span className="text-xs text-muted-foreground">
+            expires in {timeUntil(offer.expiry)}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function PrivateBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-orange-400/40 bg-orange-400/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-orange-300">
+      <Lock className="h-3 w-3" />
+      Private
+    </span>
   );
 }
 
@@ -100,4 +161,67 @@ function TradeSide({
       )}
     </div>
   );
+}
+
+function TradeSideInline({
+  nfts,
+  mon,
+}: {
+  nfts: TradeOffer["nfts"];
+  mon: string;
+}) {
+  const monAmount = BigInt(mon);
+
+  if (nfts.length === 0 && monAmount === 0n) {
+    return <span className="text-muted-foreground">Nothing</span>;
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {monAmount > 0n && (
+        <AssetPill kind="mon">{formatMon(monAmount)} MON</AssetPill>
+      )}
+      {nfts.slice(0, 2).map((nft) => (
+        <AssetPill key={nft.id} kind="nft">
+          {formatNftSummary(nft)}
+        </AssetPill>
+      ))}
+      {nfts.length > 2 && (
+        <AssetPill kind="nft">+{nfts.length - 2} NFTs</AssetPill>
+      )}
+    </span>
+  );
+}
+
+function AssetPill({
+  kind,
+  children,
+}: {
+  kind: "mon" | "nft";
+  children: ReactNode;
+}) {
+  const className =
+    kind === "mon"
+      ? "border-monad-purple/40 bg-monad-purple/10 text-monad-purple"
+      : "border-cyan-400/40 bg-cyan-400/10 text-cyan-200";
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${className}`}
+    >
+      <span className="mr-1 opacity-70">{kind.toUpperCase()}</span>
+      {children}
+    </span>
+  );
+}
+
+function formatNftSummary(nft: TradeOffer["nfts"][number]) {
+  const collection =
+    prettyCollectionName(nft.collectionName) ?? shortAddress(nft.contractAddress);
+
+  if (isCollectionBid(nft)) {
+    return `Any ${collection}`;
+  }
+
+  return `${collection} #${nft.tokenId}`;
 }

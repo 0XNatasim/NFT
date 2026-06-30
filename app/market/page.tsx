@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
-import { OfferCard } from "@/components/trade/offer-card";
+import { OfferCard, OfferListItem } from "@/components/trade/offer-card";
 import { EmptyState } from "@/components/empty-state";
 import { useOffers } from "@/hooks/use-market";
 import {
@@ -17,6 +17,7 @@ export default function MarketPage() {
   const [selectedCollection, setSelectedCollection] = useState<string | null>(
     null,
   );
+  const [layout, setLayout] = useState<"cards" | "list">("cards");
   const activeCollection = FEATURED_COLLECTIONS.find(
     (collection) => collection.address.toLowerCase() === selectedCollection,
   );
@@ -29,6 +30,9 @@ export default function MarketPage() {
     status: "completed",
     limit: 6,
   });
+  const visibleOpenOffers = (openOffers ?? []).filter(
+    (offer) => offer.expiry > Date.now() / 1000,
+  );
 
   return (
     <div className="container mx-auto px-4">
@@ -62,25 +66,36 @@ export default function MarketPage() {
               ? `Showing ${activeCollection.name} deals`
               : "Showing all featured collection deals"}
           </span>
-          {selectedCollection && (
-            <button
-              type="button"
-              className="text-monad-purple hover:underline"
-              onClick={() => setSelectedCollection(null)}
-            >
-              Clear filter
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            <LayoutToggle layout={layout} onChange={setLayout} />
+            {selectedCollection && (
+              <button
+                type="button"
+                className="text-monad-purple hover:underline"
+                onClick={() => setSelectedCollection(null)}
+              >
+                Clear filter
+              </button>
+            )}
+          </div>
         </div>
 
         {loadingOpen ? (
-          <OfferGridSkeleton />
-        ) : openOffers && openOffers.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {openOffers.map((offer) => (
-              <OfferCard key={offer.id} offer={offer} />
-            ))}
-          </div>
+          <OfferSkeleton layout={layout} />
+        ) : visibleOpenOffers.length > 0 ? (
+          layout === "cards" ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {visibleOpenOffers.map((offer) => (
+                <OfferCard key={offer.id} offer={offer} />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {visibleOpenOffers.map((offer) => (
+                <OfferListItem key={offer.id} offer={offer} />
+              ))}
+            </div>
+          )
         ) : (
           <EmptyState
             title={
@@ -103,13 +118,21 @@ export default function MarketPage() {
       >
         <h2 className="mb-6 text-2xl font-semibold">Recent Handshakes</h2>
         {loadingRecent ? (
-          <OfferGridSkeleton />
+          <OfferSkeleton layout={layout} />
         ) : recentTrades && recentTrades.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {recentTrades.map((offer) => (
-              <OfferCard key={offer.id} offer={offer} />
-            ))}
-          </div>
+          layout === "cards" ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {recentTrades.map((offer) => (
+                <OfferCard key={offer.id} offer={offer} />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentTrades.map((offer) => (
+                <OfferListItem key={offer.id} offer={offer} />
+              ))}
+            </div>
+          )
         ) : (
           <EmptyState
             title="No completed handshakes yet"
@@ -188,11 +211,49 @@ function CollectionFilterButton({
   );
 }
 
-function OfferGridSkeleton() {
+function OfferSkeleton({ layout }: { layout: "cards" | "list" }) {
+  if (layout === "list") {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-12 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
         <Skeleton key={i} className="h-48 rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+function LayoutToggle({
+  layout,
+  onChange,
+}: {
+  layout: "cards" | "list";
+  onChange: (layout: "cards" | "list") => void;
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-border bg-background p-1">
+      {(["cards", "list"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors ${
+            layout === option
+              ? "bg-monad-purple text-monad-black"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          aria-pressed={layout === option}
+        >
+          {option === "cards" ? "Cards" : "List"}
+        </button>
       ))}
     </div>
   );
