@@ -115,15 +115,26 @@ export default function OfferDetailPage({
   const isDesignatedTaker =
     !offer.takerAddress || address?.toLowerCase() === offer.takerAddress.toLowerCase();
   const isExpired = offer.expiry * 1000 < Date.now();
-  const isWrongChain = offer.chainId !== MONAD_CHAIN_ID;
-  const canAccept =
+  const offerChainId = Number(offer.chainId);
+  const isWrongOfferChain = offerChainId !== MONAD_CHAIN_ID;
+  const isWrongWalletChain = !!address && chainId !== MONAD_CHAIN_ID;
+  const takerFeeQuote = quoteFees(
+    makerMon,
+    takerMon,
+    BigInt(offer.feeBps),
+    BigInt(offer.flatFee)
+  );
+  const showAcceptAction =
     offer.status === "open" &&
+    !!address &&
     !isMaker &&
     isDesignatedTaker &&
-    !hasCollectionBid &&
+    !hasCollectionBid;
+  const canAccept =
+    showAcceptAction &&
     !isExpired &&
-    !isWrongChain &&
-    !!address;
+    !isWrongOfferChain &&
+    !isWrongWalletChain;
 
   function buildOrder(o: TradeOffer) {
     return {
@@ -266,12 +277,7 @@ export default function OfferDetailPage({
     try {
       await ensureApprovals(offer, "taker");
 
-      const quote = quoteFees(
-        makerMon,
-        takerMon,
-        BigInt(offer.feeBps),
-        BigInt(offer.flatFee)
-      );
+      const quote = takerFeeQuote;
 
       try {
         await publicClient.simulateContract({
@@ -417,7 +423,7 @@ export default function OfferDetailPage({
             flatSwapFee={BigInt(offer.flatFee)}
           />
 
-          {canAccept && (
+          {showAcceptAction && (
             <>
               {takerNfts.length > 0 && (
                 <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
@@ -431,7 +437,7 @@ export default function OfferDetailPage({
               <Button
                 className="w-full"
                 size="lg"
-                disabled={working !== null}
+                disabled={!canAccept || working !== null}
                 onClick={handleAccept}
               >
                 {working === "accept" ? (
@@ -439,11 +445,34 @@ export default function OfferDetailPage({
                     <Loader2 className="h-4 w-4 animate-spin" /> Settling…
                   </>
                 ) : (
-                  "Accept Deal"
+                  takerFeeQuote.takerPays > 0n
+                    ? `Accept & pay ${formatMon(takerFeeQuote.takerPays)} MON`
+                    : "Accept Deal"
                 )}
               </Button>
+              {!canAccept && (
+                <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
+                  {isExpired
+                    ? "This deal has expired and can no longer be accepted."
+                    : isWrongOfferChain
+                      ? `This deal was signed for chain ${offerChainId} and can't be settled on chain ${MONAD_CHAIN_ID}.`
+                      : isWrongWalletChain
+                        ? `Switch your wallet to Monad (chain ${MONAD_CHAIN_ID}) to accept and pay for this deal.`
+                        : "This deal can't be accepted right now."}
+                </p>
+              )}
             </>
           )}
+
+          {address &&
+            offer.status === "open" &&
+            !isMaker &&
+            !isDesignatedTaker && (
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
+                This private deal is reserved for {shortAddress(offer.takerAddress ?? "")}.
+                Connect that wallet to accept and pay for it.
+              </p>
+            )}
 
           {hasCollectionBid && offer.status === "open" && !isMaker && (
             <div className="space-y-3 rounded-lg border border-monad-purple/30 bg-monad-purple/10 p-3 text-sm text-foreground">
@@ -531,7 +560,7 @@ export default function OfferDetailPage({
             </Button>
           )}
 
-          {isWrongChain && (
+          {isWrongOfferChain && (
             <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
               This deal was signed for chain {offer.chainId} and can&apos;t be
               settled on chain {MONAD_CHAIN_ID}.
