@@ -5,7 +5,14 @@ import { ArrowLeftRight, Lock } from "lucide-react";
 import type { TradeOffer } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { NFTCard } from "@/components/trade/nft-card";
-import { rarityRankBadgeClass, shortAddress, timeUntil, formatMon } from "@/lib/utils";
+import { isCollectionBid } from "@/lib/collection-bids";
+import {
+  rarityRankBadgeClass,
+  shortAddress,
+  timeUntil,
+  formatMon,
+  prettyCollectionName,
+} from "@/lib/utils";
 
 const statusVariant = {
   open: "default",
@@ -154,7 +161,12 @@ function formatTradeSideSummary(nfts: TradeOffer["nfts"], mon: string) {
   const pieces: string[] = [];
 
   if (nfts.length > 0) {
-    pieces.push(`${nfts.length} NFT${nfts.length === 1 ? "" : "s"}`);
+    const preview = nfts.slice(0, 2).map(formatNftSummary).join(", ");
+    const extraCount = nfts.length > 2 ? `, +${nfts.length - 2} more` : "";
+
+    pieces.push(
+      `${nfts.length} NFT${nfts.length === 1 ? "" : "s"} (${preview}${extraCount})`
+    );
   }
 
   if (monAmount > 0n) {
@@ -162,4 +174,15 @@ function formatTradeSideSummary(nfts: TradeOffer["nfts"], mon: string) {
   }
 
   return pieces.length > 0 ? pieces.join(" + ") : "Nothing";
+}
+
+function formatNftSummary(nft: TradeOffer["nfts"][number]) {
+  const collection =
+    prettyCollectionName(nft.collectionName) ?? shortAddress(nft.contractAddress);
+
+  if (isCollectionBid(nft)) {
+    return `Any ${collection}`;
+  }
+
+  return `${collection} #${nft.tokenId}`;
 }
