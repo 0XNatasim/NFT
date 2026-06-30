@@ -131,12 +131,18 @@ export default function HomePage() {
             body="One transaction executes the trade. That’s atomic settlement: everything swaps or nothing does, then the handshake is completed."
           />
         </div>
-        <div className="mt-8 flex justify-center">
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link
             href="/create"
             className="inline-flex h-11 items-center gap-2 rounded-md bg-gradient-to-r from-monad-purple to-fuchsia-400 px-6 font-medium text-primary-foreground shadow-lg shadow-monad-purple/20 transition-colors hover:from-monad-purple/90 hover:to-fuchsia-400/90"
           >
             Propose your first deal <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/market"
+            className="inline-flex h-11 items-center justify-center rounded-md border border-monad-purple/50 bg-transparent px-6 font-medium text-foreground transition-colors hover:bg-monad-purple/10"
+          >
+            Browse Market
           </Link>
         </div>
       </section>
