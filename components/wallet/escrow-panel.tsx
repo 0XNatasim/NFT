@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
 import { settlementAbi } from "@/lib/contracts/settlement";
+import { runWrite } from "@/lib/chains/tx";
 import { formatMon } from "@/lib/utils";
 
 /**
@@ -46,11 +47,7 @@ export function EscrowPanel() {
   }
 
   async function run(action: "deposit" | "withdraw") {
-    if (!publicClient) return;
-    if (chainId !== MONAD_CHAIN_ID) {
-      toast.error(`Switch your wallet to Monad (chain ${MONAD_CHAIN_ID}) first`);
-      return;
-    }
+    if (!publicClient || !address) return;
     const wei = parsedAmount();
     if (!wei) {
       toast.error("Enter a valid MON amount");
@@ -62,24 +59,22 @@ export function EscrowPanel() {
     }
     setWorking(action);
     try {
-      const hash = await writeContractAsync(
-        action === "deposit"
-          ? {
-              address: SETTLEMENT_CONTRACT_ADDRESS,
-              abi: settlementAbi,
-              functionName: "deposit",
-              value: wei,
-            }
-          : {
-              address: SETTLEMENT_CONTRACT_ADDRESS,
-              abi: settlementAbi,
-              functionName: "withdraw",
-              args: [wei],
-            }
-      );
-      toast.info(action === "deposit" ? "Depositing…" : "Withdrawing…");
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") throw new Error("Transaction reverted");
+      await runWrite({
+        publicClient,
+        writeContractAsync,
+        account: address,
+        walletChainId: chainId,
+        expectedChainId: MONAD_CHAIN_ID,
+        label: action === "deposit" ? "Deposit escrow" : "Withdraw escrow",
+        address: SETTLEMENT_CONTRACT_ADDRESS,
+        abi: settlementAbi,
+        functionName: action,
+        ...(action === "deposit"
+          ? { value: wei }
+          : { args: [wei] as const }),
+        onSubmitted: () =>
+          toast.info(action === "deposit" ? "Depositing…" : "Withdrawing…"),
+      });
       toast.success(
         action === "deposit"
           ? `Deposited ${formatMon(wei)} MON to escrow`
@@ -88,7 +83,7 @@ export function EscrowPanel() {
       setAmount("");
       balanceQuery.refetch();
     } catch (err: any) {
-      toast.error(err?.shortMessage ?? err?.message ?? `${action} failed`);
+      toast.error(err?.message ?? `${action} failed`);
     } finally {
       setWorking(null);
     }

@@ -1,9 +1,9 @@
 "use client";
 
 import { use, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
-import { BaseError, ContractFunctionRevertedError, type Address } from "viem";
+import { type Address } from "viem";
 import { toast } from "sonner";
 import { ArrowLeftRight, ExternalLink, Loader2, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -20,12 +20,8 @@ import {
   MONAD_CHAIN_ID,
   SETTLEMENT_CONTRACT_ADDRESS,
 } from "@/lib/chains/monad";
-import { bufferedGas } from "@/lib/chains/gas";
-import {
-  erc721Abi,
-  settlementAbi,
-  settlementErrorMessages,
-} from "@/lib/contracts/settlement";
+import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
+import { runWrite } from "@/lib/chains/tx";
 import { ZERO_ADDRESS } from "@/lib/orders/eip712";
 import { isCollectionBid } from "@/lib/collection-bids";
 import { quoteFees } from "@/lib/fees";
@@ -56,9 +52,26 @@ export default function OfferDetailPage({
   const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
+  const queryClient = useQueryClient();
   const [working, setWorking] = useState<
     "accept" | "cancel" | "approve" | "deposit" | null
   >(null);
+
+  /**
+   * Refresh everything a settled/cancelled deal invalidates: this offer, the
+   * public/dashboard feeds, the wallet's NFT ownership, escrow balances, and
+   * notifications. Keeps the UI from showing stale ownership/approval data.
+   */
+  function refreshAfterTx() {
+    refetch();
+    queryClient.invalidateQueries({ queryKey: ["offers"] });
+    queryClient.invalidateQueries({ queryKey: ["incoming-offers"] });
+    queryClient.invalidateQueries({ queryKey: ["wallet-nfts"] });
+    queryClient.invalidateQueries({ queryKey: ["wallet-nfts-infinite"] });
+    queryClient.invalidateQueries({ queryKey: ["escrow-balance"] });
+    queryClient.invalidateQueries({ queryKey: ["escrow-status"] });
+    queryClient.invalidateQueries({ queryKey: ["stats"] });
+  }
 
   const escrowQuery = useQuery({
     queryKey: ["escrow-status", offer?.id, address],
@@ -168,6 +181,8 @@ export default function OfferDetailPage({
       new Set(
         o.nfts
           .filter((n) => n.side === side)
+          // collection-wide bids have no concrete token to approve
+          .filter((n) => !isCollectionBid(n))
           .map((n) => n.contractAddress.toLowerCase())
       )
     );
@@ -185,62 +200,46 @@ export default function OfferDetailPage({
           `Approving ${shortAddress(contract)}: this grants the settlement contract permission to transfer NFTs in this collection when a deal you signed or accepted executes. Revocable anytime.`
         );
 
-        const approveParams = {
+        await runWrite({
+          publicClient,
+          writeContractAsync,
+          account: address,
+          walletChainId: chainId,
+          expectedChainId: MONAD_CHAIN_ID,
+          label: `Approve ${shortAddress(contract)}`,
           address: contract as Address,
           abi: erc721Abi,
-          functionName: "setApprovalForAll" as const,
+          functionName: "setApprovalForAll",
           args: [SETTLEMENT_CONTRACT_ADDRESS, true] as const,
-        };
-
-        const gas = await bufferedGas(publicClient, {
-          ...approveParams,
-          account: address,
         });
-        const hash = await writeContractAsync({ ...approveParams, gas });
-        await publicClient.waitForTransactionReceipt({ hash });
       }
     }
-  }
-
-  function describeRevert(err: unknown): string | null {
-    if (err instanceof BaseError) {
-      const revert = err.walk((e) => e instanceof ContractFunctionRevertedError);
-      if (revert instanceof ContractFunctionRevertedError) {
-        const name = revert.data?.errorName;
-        if (name && settlementErrorMessages[name]) {
-          return settlementErrorMessages[name];
-        }
-        if (name) return `Settlement would revert: ${name}`;
-      }
-    }
-    return null;
   }
 
   async function handleDeposit() {
-    if (!offer || !publicClient || !escrowQuery.data) return;
-
-    if (chainId !== MONAD_CHAIN_ID) {
-      toast.error(`Switch your wallet to Monad (chain ${MONAD_CHAIN_ID}) first`);
-      return;
-    }
+    if (!offer || !publicClient || !address || !escrowQuery.data) return;
 
     setWorking("deposit");
     try {
-      const hash = await writeContractAsync({
+      await runWrite({
+        publicClient,
+        writeContractAsync,
+        account: address,
+        walletChainId: chainId,
+        expectedChainId: MONAD_CHAIN_ID,
+        label: "Deposit escrow",
         address: SETTLEMENT_CONTRACT_ADDRESS,
         abi: settlementAbi,
         functionName: "deposit",
         value: escrowQuery.data.shortfall,
+        onSubmitted: () => toast.info("Depositing escrow…"),
       });
-
-      toast.info("Depositing escrow…");
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") throw new Error("Deposit reverted");
 
       toast.success("Escrow funded — your deal is now fillable");
       escrowQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ["escrow-balance"] });
     } catch (err: any) {
-      toast.error(err?.shortMessage ?? err?.message ?? "Deposit failed");
+      toast.error(err?.message ?? "Deposit failed");
     } finally {
       setWorking(null);
     }
@@ -249,17 +248,12 @@ export default function OfferDetailPage({
   async function handleMakerApprove() {
     if (!offer) return;
 
-    if (chainId !== MONAD_CHAIN_ID) {
-      toast.error(`Switch your wallet to Monad (chain ${MONAD_CHAIN_ID}) first`);
-      return;
-    }
-
     setWorking("approve");
     try {
       await ensureApprovals(offer, "maker");
       toast.success("Your NFTs are approved for settlement");
     } catch (err: any) {
-      toast.error(err?.shortMessage ?? err?.message ?? "Approval failed");
+      toast.error(err?.message ?? "Approval failed");
     } finally {
       setWorking(null);
     }
@@ -268,43 +262,25 @@ export default function OfferDetailPage({
   async function handleAccept() {
     if (!offer || !publicClient || !address) return;
 
-    if (chainId !== MONAD_CHAIN_ID) {
-      toast.error("Switch to the Monad network first");
-      return;
-    }
-
     setWorking("accept");
     try {
+      // Taker must approve their requested NFTs before settlement can simulate.
       await ensureApprovals(offer, "taker");
 
-      const quote = takerFeeQuote;
-
-      try {
-        await publicClient.simulateContract({
-          account: address,
-          address: SETTLEMENT_CONTRACT_ADDRESS,
-          abi: settlementAbi,
-          functionName: "fulfillTrade",
-          args: [buildOrder(offer), offer.signature as `0x${string}`],
-          value: quote.takerPays,
-        });
-      } catch (simErr) {
-        const reason = describeRevert(simErr);
-        if (reason) throw new Error(reason);
-        throw simErr;
-      }
-
-      const hash = await writeContractAsync({
+      const { hash } = await runWrite({
+        publicClient,
+        writeContractAsync,
+        account: address,
+        walletChainId: chainId,
+        expectedChainId: MONAD_CHAIN_ID,
+        label: "Accept deal",
         address: SETTLEMENT_CONTRACT_ADDRESS,
         abi: settlementAbi,
         functionName: "fulfillTrade",
         args: [buildOrder(offer), offer.signature as `0x${string}`],
-        value: quote.takerPays,
+        value: takerFeeQuote.takerPays,
+        onSubmitted: () => toast.info("Executing trade on-chain…"),
       });
-
-      toast.info("Executing trade on-chain…");
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") throw new Error("Settlement reverted");
 
       const res = await fetch(`/api/offers/${offer.id}/complete`, {
         method: "POST",
@@ -318,9 +294,9 @@ export default function OfferDetailPage({
       }
 
       toast.success("Handshake completed 🎉");
-      refetch();
+      refreshAfterTx();
     } catch (err: any) {
-      toast.error(err?.shortMessage ?? err?.message ?? "Failed to execute trade");
+      toast.error(err?.message ?? "Failed to execute trade");
     } finally {
       setWorking(null);
     }
@@ -329,23 +305,21 @@ export default function OfferDetailPage({
   async function handleCancel() {
     if (!offer || !publicClient || !address) return;
 
-    if (chainId !== MONAD_CHAIN_ID) {
-      toast.error("Switch to the Monad network first");
-      return;
-    }
-
     setWorking("cancel");
     try {
-      const hash = await writeContractAsync({
+      const { hash } = await runWrite({
+        publicClient,
+        writeContractAsync,
+        account: address,
+        walletChainId: chainId,
+        expectedChainId: MONAD_CHAIN_ID,
+        label: "Cancel deal",
         address: SETTLEMENT_CONTRACT_ADDRESS,
         abi: settlementAbi,
         functionName: "cancelNonce",
         args: [BigInt(offer.nonce)],
+        onSubmitted: () => toast.info("Cancelling on-chain…"),
       });
-
-      toast.info("Cancelling on-chain…");
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") throw new Error("Cancellation reverted");
 
       const res = await fetch(`/api/offers/${offer.id}/cancel`, {
         method: "POST",
@@ -359,9 +333,9 @@ export default function OfferDetailPage({
       }
 
       toast.success("Deal cancelled");
-      refetch();
+      refreshAfterTx();
     } catch (err: any) {
-      toast.error(err?.shortMessage ?? err?.message ?? "Failed to cancel");
+      toast.error(err?.message ?? "Failed to cancel");
     } finally {
       setWorking(null);
     }
