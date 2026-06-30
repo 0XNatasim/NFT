@@ -35,7 +35,8 @@ import {
   MONAD_CHAIN_ID,
   SETTLEMENT_CONTRACT_ADDRESS,
 } from "@/lib/chains/monad";
-import { bufferedGas } from "@/lib/chains/gas";
+import { runWrite } from "@/lib/chains/tx";
+import { classifyTxError } from "@/lib/chains/tx-errors";
 import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
@@ -456,27 +457,24 @@ function ProposeDealForm() {
           "Approve this collection so the settlement contract can transfer its NFTs only when an accepted deal settles.",
         );
 
-        const approveParams = {
+        await runWrite({
+          publicClient,
+          writeContractAsync,
+          account: address,
+          walletChainId: chainId,
+          expectedChainId: MONAD_CHAIN_ID,
+          label: "Approve collection",
           address: contract as Address,
           abi: erc721Abi,
-          functionName: "setApprovalForAll" as const,
+          functionName: "setApprovalForAll",
           args: [SETTLEMENT_CONTRACT_ADDRESS, true] as const,
-        };
-
-        const gas = await bufferedGas(publicClient, {
-          ...approveParams,
-          account: address,
         });
-        const hash = await writeContractAsync({ ...approveParams, gas });
-        await publicClient.waitForTransactionReceipt({ hash });
       }
 
       await refreshApprovalStatus();
       toast.success("Collections approved");
     } catch (err: any) {
-      toast.error(
-        err?.shortMessage ?? err?.message ?? "Failed to approve collections",
-      );
+      toast.error(err?.message ?? "Failed to approve collections");
     } finally {
       setApprovingCollections(false);
     }
@@ -641,7 +639,9 @@ function ProposeDealForm() {
       toast.success("Deal proposed");
       router.push(`/offers/${body.offer.id}`);
     } catch (err: any) {
-      toast.error(err?.shortMessage ?? err?.message ?? "Failed to sign order");
+      // Classify wallet-signature / RPC errors (e.g. user rejection) into a
+      // friendly message; clean API errors fall through unchanged.
+      toast.error(classifyTxError(err).userMessage);
     } finally {
       setSubmitting(false);
     }

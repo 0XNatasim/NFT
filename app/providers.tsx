@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import { Toaster } from "sonner";
 import { wagmiConfig } from "@/lib/wagmi";
+import { TxDebugPanel } from "@/components/dev/tx-debug-panel";
 import "@rainbow-me/rainbowkit/styles.css";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -28,6 +29,7 @@ export function Providers({ children }: { children: ReactNode }) {
         >
           {children}
           <Toaster theme="dark" position="bottom-right" richColors />
+          <TxDebugPanel />
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
