@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { NFTCard } from "@/components/trade/nft-card";
 import { isCollectionBid } from "@/lib/collection-bids";
 import {
+  cn,
   rarityRankBadgeClass,
   shortAddress,
   timeUntil,
@@ -29,20 +30,33 @@ const statusLabel = {
   expired: "Deal Expired",
 } as const;
 
-export function OfferCard({ offer }: { offer: TradeOffer }) {
+export function OfferCard({
+  offer,
+  ownership,
+}: {
+  offer: TradeOffer;
+  ownership?: "incoming" | "created";
+}) {
   const makerNfts = offer.nfts.filter((n) => n.side === "maker");
   const takerNfts = offer.nfts.filter((n) => n.side === "taker");
   const showExpiry = offer.status === "open" && offer.expiry > Date.now() / 1000;
+  const isIncoming = ownership === "incoming";
+  const isCreated = ownership === "created";
 
   return (
     <Link
       href={`/offers/${offer.id}`}
-      className="block rounded-xl border bg-card p-4 transition-colors hover:border-monad-purple/50"
+      className={cn(
+        "block rounded-xl border bg-card p-4 transition-colors hover:border-monad-purple/50",
+        isIncoming && "border-cyan-300/25 hover:border-cyan-300/50",
+        isCreated && "border-monad-purple/30"
+      )}
     >
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {isIncoming && <OwnershipBadge kind="incoming" />}
+          {isCreated && <OwnershipBadge kind="created" />}
           {offer.isPrivate && <PrivateBadge />}
-          <span>{shortAddress(offer.makerAddress)}</span>
         </div>
         <div className="flex items-center gap-2">
           {offer.requiredMaxRarityRank != null && (
@@ -64,12 +78,43 @@ export function OfferCard({ offer }: { offer: TradeOffer }) {
         </div>
       </div>
 
+      {ownership && (
+        <div className="mb-3 grid gap-2 rounded-lg border border-border/70 bg-background/50 p-3 text-xs sm:grid-cols-2">
+          <p className="font-semibold uppercase tracking-wide text-foreground">
+            {isIncoming ? "Incoming" : "Created by you"}
+          </p>
+          <p className="text-muted-foreground sm:text-right">
+            {isIncoming ? "Maker: " : "Recipient: "}
+            <span className="font-mono text-foreground">
+              {shortAddress(isIncoming ? offer.makerAddress : offer.takerAddress)}
+            </span>
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <TradeSide nfts={makerNfts} mon={offer.makerMonAmount} label="Maker gives" />
         <ArrowLeftRight className="h-5 w-5 text-monad-purple" />
         <TradeSide nfts={takerNfts} mon={offer.takerMonAmount} label="Taker gives" />
       </div>
     </Link>
+  );
+}
+
+function OwnershipBadge({ kind }: { kind: "incoming" | "created" }) {
+  const isIncoming = kind === "incoming";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide",
+        isIncoming
+          ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-200"
+          : "border-monad-purple/40 bg-monad-purple/10 text-monad-purple"
+      )}
+    >
+      {isIncoming ? "Needs Action" : "Created by You"}
+    </span>
   );
 }
 
