@@ -30,6 +30,9 @@ export default function MarketPage() {
     status: "completed",
     limit: 6,
   });
+  const visibleOpenOffers = (openOffers ?? []).filter(
+    (offer) => offer.expiry > Date.now() / 1000,
+  );
 
   return (
     <div className="container mx-auto px-4">
@@ -79,16 +82,16 @@ export default function MarketPage() {
 
         {loadingOpen ? (
           <OfferSkeleton layout={layout} />
-        ) : openOffers && openOffers.length > 0 ? (
+        ) : visibleOpenOffers.length > 0 ? (
           layout === "cards" ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {openOffers.map((offer) => (
+              {visibleOpenOffers.map((offer) => (
                 <OfferCard key={offer.id} offer={offer} />
               ))}
             </div>
           ) : (
             <div className="space-y-3">
-              {openOffers.map((offer) => (
+              {visibleOpenOffers.map((offer) => (
                 <OfferListItem key={offer.id} offer={offer} />
               ))}
             </div>
