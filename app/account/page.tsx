@@ -2,6 +2,7 @@
 
 import { useAccount } from "wagmi";
 import { format } from "date-fns";
+import { Inbox, Send } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfferCard } from "@/components/trade/offer-card";
@@ -9,7 +10,7 @@ import { WalletNFTs } from "@/components/trade/wallet-nfts";
 import { EmptyState } from "@/components/empty-state";
 import { EscrowPanel } from "@/components/wallet/escrow-panel";
 import { useOffers, useReputation } from "@/hooks/use-market";
-import { shortAddress } from "@/lib/utils";
+import { cn, shortAddress } from "@/lib/utils";
 
 export default function AccountPage() {
   const { address, isConnected } = useAccount();
@@ -69,29 +70,45 @@ export default function AccountPage() {
         </div>
       </div>
 
-      {incoming.length > 0 && (
-        <Section
-          title={`Private Deals (${incoming.length})`}
-          loading={loadingOffers}
-        >
-          <p className="-mt-2 mb-4 text-sm text-muted-foreground">
-            These deals are reserved for your wallet. Open one to review and
-            accept.
+      <section className="space-y-4">
+        <div>
+          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Dashboard Deals
           </p>
-          <OfferGrid offers={incoming} />
-        </Section>
-      )}
+          <h2 className="text-2xl font-semibold">Ownership at a glance</h2>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <DealColumn
+            title="Incoming Deals"
+            subtitle="Deals addressed to your wallet. Review and accept them."
+            countLabel={`${incoming.length} waiting`}
+            badge="Needs Action"
+            accent="blue"
+            icon={<Inbox className="h-5 w-5" />}
+            loading={loadingOffers}
+            emptyTitle="No incoming deals."
+            emptyBody="Deals addressed to your wallet will appear here."
+            isEmpty={incoming.length === 0}
+          >
+            <OfferGrid offers={incoming} ownership="incoming" />
+          </DealColumn>
 
-      <Section title={`My Open Deals (${open.length})`} loading={loadingOffers}>
-        {open.length > 0 ? (
-          <OfferGrid offers={open} />
-        ) : (
-          <EmptyState
-            title="No open deals"
-            body="Propose a Deal to get started."
-          />
-        )}
-      </Section>
+          <DealColumn
+            title="My Active Deals"
+            subtitle="Deals you've created that are waiting for another collector."
+            countLabel={`${open.length} active`}
+            badge="Created by You"
+            accent="purple"
+            icon={<Send className="h-5 w-5" />}
+            loading={loadingOffers}
+            emptyTitle="You haven't created any deals yet."
+            emptyBody="Propose a Deal to get started."
+            isEmpty={open.length === 0}
+          >
+            <OfferGrid offers={open} ownership="created" />
+          </DealColumn>
+        </div>
+      </section>
 
       <Section
         title={`Completed Handshakes (${completed.length})`}
@@ -171,11 +188,123 @@ function Section({
   );
 }
 
-function OfferGrid({ offers }: { offers: any[] }) {
+function DealColumn({
+  title,
+  subtitle,
+  countLabel,
+  badge,
+  accent,
+  icon,
+  loading,
+  emptyTitle,
+  emptyBody,
+  children,
+  isEmpty,
+}: {
+  title: string;
+  subtitle: string;
+  countLabel: string;
+  badge: string;
+  accent: "blue" | "purple";
+  icon: React.ReactNode;
+  loading?: boolean;
+  emptyTitle: string;
+  emptyBody: string;
+  children: React.ReactNode;
+  isEmpty?: boolean;
+}) {
+  const isBlue = accent === "blue";
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div
+      className={cn(
+        "flex min-h-[28rem] flex-col overflow-hidden rounded-2xl border bg-card/80 shadow-lg",
+        isBlue
+          ? "border-cyan-300/25 shadow-cyan-400/5"
+          : "border-monad-purple/30 shadow-monad-purple/10"
+      )}
+    >
+      <div
+        className={cn(
+          "border-b p-5",
+          isBlue
+            ? "border-cyan-300/20 bg-gradient-to-br from-cyan-400/15 via-card to-blue-500/10"
+            : "border-monad-purple/20 bg-gradient-to-br from-monad-purple/20 via-card to-fuchsia-500/10"
+        )}
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span
+              className={cn(
+                "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+                isBlue
+                  ? "bg-cyan-400/15 text-cyan-200"
+                  : "bg-monad-purple/20 text-monad-purple"
+              )}
+            >
+              {icon}
+            </span>
+            <div>
+              <h3 className="text-xl font-semibold">{title}</h3>
+              <p
+                className={cn(
+                  "mt-1 text-sm font-semibold",
+                  isBlue ? "text-cyan-200" : "text-monad-purple"
+                )}
+              >
+                {countLabel}
+              </p>
+            </div>
+          </div>
+          <span
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide",
+              isBlue
+                ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-200"
+                : "border-monad-purple/40 bg-monad-purple/10 text-monad-purple"
+            )}
+          >
+            {badge}
+          </span>
+        </div>
+        <p className="text-sm leading-6 text-muted-foreground">{subtitle}</p>
+      </div>
+
+      <div className="min-h-0 flex-1 p-4 lg:max-h-[42rem] lg:overflow-y-auto">
+        {loading ? (
+          <div className="grid gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-44 rounded-xl" />
+            ))}
+          </div>
+        ) : isEmpty ? (
+          <EmptyState title={emptyTitle} body={emptyBody} />
+        ) : (
+          children
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OfferGrid({
+  offers,
+  ownership,
+}: {
+  offers: any[];
+  ownership?: "incoming" | "created";
+}) {
+  if (offers.length === 0) return null;
+
+  return (
+    <div
+      className={cn(
+        "grid gap-4",
+        !ownership && "md:grid-cols-2 lg:grid-cols-3"
+      )}
+    >
       {offers.map((offer) => (
-        <OfferCard key={offer.id} offer={offer} />
+        <OfferCard key={offer.id} offer={offer} ownership={ownership} />
       ))}
     </div>
   );
