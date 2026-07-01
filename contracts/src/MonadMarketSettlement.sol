@@ -142,22 +142,51 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
     }
 
     function withdraw(uint256 amount) external nonReentrant {
-        if (amount == 0) revert ZeroAmount();
-        uint256 balance = escrowBalance[msg.sender];
-        if (balance < amount) revert InsufficientEscrow();
-        escrowBalance[msg.sender] = balance - amount;
-        emit EscrowWithdrawn(msg.sender, amount);
-        _sendNative(msg.sender, amount);
+        _withdraw(msg.sender, amount);
+    }
+
+    /// @notice Withdraw your own escrow to an alternate payable address. Lets a
+    ///         depositor whose own address cannot receive native MON (e.g. a
+    ///         contract with no payable fallback) still recover its funds. The
+    ///         ledger stays keyed to msg.sender, so only you can move your MON.
+    function withdrawTo(address to, uint256 amount) external nonReentrant {
+        if (to == address(0)) revert ZeroAddress();
+        _withdraw(to, amount);
     }
 
     /// @notice Claim protocol fees accrued to the caller (the fee recipient).
     ///         Always available, even when the contract is paused.
     function withdrawFees() external nonReentrant {
+        _withdrawFees(msg.sender);
+    }
+
+    /// @notice Claim your accrued fees to an alternate payable address, in case
+    ///         the fee-recipient address itself cannot receive native MON. Still
+    ///         keyed to msg.sender's pending balance — nobody else's fees move.
+    function withdrawFeesTo(address to) external nonReentrant {
+        if (to == address(0)) revert ZeroAddress();
+        _withdrawFees(to);
+    }
+
+    /// @dev Debits the caller's escrow and pays `to`. Reachable only through the
+    ///      nonReentrant external wrappers above.
+    function _withdraw(address to, uint256 amount) private {
+        if (amount == 0) revert ZeroAmount();
+        uint256 balance = escrowBalance[msg.sender];
+        if (balance < amount) revert InsufficientEscrow();
+        escrowBalance[msg.sender] = balance - amount; // effect before interaction
+        emit EscrowWithdrawn(msg.sender, amount); // `account` = whose escrow moved
+        _sendNative(to, amount);
+    }
+
+    /// @dev Debits the caller's pending fees and pays `to`. Reachable only
+    ///      through the nonReentrant external wrappers above.
+    function _withdrawFees(address to) private {
         uint256 amount = pendingFees[msg.sender];
         if (amount == 0) revert ZeroAmount();
-        pendingFees[msg.sender] = 0;
-        emit FeesWithdrawn(msg.sender, amount);
-        _sendNative(msg.sender, amount);
+        pendingFees[msg.sender] = 0; // effect before interaction
+        emit FeesWithdrawn(to, amount); // `recipient` = payout destination
+        _sendNative(to, amount);
     }
 
     // ---------------------------------------------------------------------

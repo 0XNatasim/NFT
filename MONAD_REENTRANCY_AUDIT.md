@@ -185,15 +185,22 @@ assets.
 maker's MON (a `lockedEscrow[maker][nonce]` sub-ledger consumed at settlement),
 at the cost of an on-chain maker action.
 
-### L-2 (Low) — Native funds can strand for a non-receiving recipient/depositor
-**Where:** `_sendNative` (L366) reverts if the destination rejects MON.
+### L-2 (Low) — Native funds can strand for a non-receiving recipient/depositor — **RESOLVED**
+**Where:** `_sendNative` reverts if the destination rejects MON.
 For `withdrawFees`, if `feeRecipient` is a contract with no payable
 `receive`/`fallback`, its `pendingFees` become unclaimable (trades still succeed —
 this is by design and covered by `test_RevertingFeeRecipientDoesNotBrickTrade`).
-Likewise a contract that deposited escrow but cannot receive MON cannot withdraw
-it. *Fix:* operationally, only ever set an EOA or known-payable `feeRecipient`;
-optionally add an owner-settable "fee sweep to address X" that lets the recipient
-redirect its own `pendingFees` to a fresh address.
+Likewise a contract that deposited escrow but cannot receive MON could not
+withdraw it.
+**Resolution (implemented):** added `withdrawTo(address to, uint256 amount)` and
+`withdrawFeesTo(address to)`. Both keep the ledger keyed to `msg.sender` (nobody
+can move a balance that isn't theirs) but let the fund owner redirect the payout
+to a payable address. They reuse the same `nonReentrant` + Checks-Effects-
+Interactions path as `withdraw`/`withdrawFees` via shared internal helpers
+`_withdraw`/`_withdrawFees`, so the solvency invariant is unchanged (the same
+ledger is debited by the same amount; only the `.call` destination differs).
+Regression tests: `test/MonadMarketSettlementWithdrawTo.t.sol`. Operationally,
+still set `feeRecipient` to a payable address; the redirect is the safety net.
 
 ### Info-1 — Reentrancy guard blocks composable smart-wallet callbacks
 A smart-contract maker/taker whose `onERC721Received`/`receive` legitimately wants
@@ -225,24 +232,12 @@ belt-and-suspenders) worth considering:
 **(Optional) O-1 — `whenNotPaused` clarity on cancel while paused.** Cancellation
 is intentionally allowed while paused (exit path); no change recommended.
 
-**(Optional) O-2 — Explicit fee-redirect for stranded pull payments (addresses
-L-2):**
-
-```solidity
-/// @notice Let a fee recipient redirect its own accrued pull-payment balance to
-///         a payable address, in case its original address cannot receive MON.
-function redirectFees(address to) external nonReentrant {
-    if (to == address(0)) revert ZeroAddress();
-    uint256 amount = pendingFees[msg.sender];
-    if (amount == 0) revert ZeroAmount();
-    pendingFees[msg.sender] = 0;        // effect before interaction
-    emit FeesWithdrawn(to, amount);
-    _sendNative(to, amount);            // guarded + CEI, identical safety profile
-}
-```
-
-This keeps the same CEI + `nonReentrant` invariants as `withdrawFees` and does not
-change any settlement path. It is **not required** for reentrancy safety.
+**O-2 — Redirectable pull payments (addresses L-2) — SHIPPED.** Implemented as
+`withdrawTo` / `withdrawFeesTo` (see L-2 above). Each is a thin `nonReentrant`
+external wrapper over a private helper that debits the caller's own ledger
+(`escrowBalance[msg.sender]` / `pendingFees[msg.sender]`) before sending to the
+chosen destination — identical CEI + guard profile to the originals, no change to
+any settlement path, and the solvency invariant is preserved.
 
 No changes are proposed to `fulfillTrade`, `withdraw`, `withdrawFees`,
 `_sendNative`, `_verifyNFTs`, or `_transferNFTs`: they are already correct.
@@ -251,8 +246,24 @@ No changes are proposed to `fulfillTrade`, `withdraw`, `withdrawFees`,
 
 ## 7. Foundry regression tests
 
-Added: **`contracts/test/MonadMarketSettlementReentrancy.t.sol`** — an adversarial
-suite with four malicious contracts and nine tests. Run:
+The branch adds several suites on top of the existing 37-test
+`MonadMarketSettlement.t.sol`:
+
+* **`test/MonadMarketSettlementReentrancy.t.sol`** — four malicious contracts +
+  nine reentrancy / state-machine tests (below).
+* **`test/MonadMarketSettlementWithdrawTo.t.sol`** — L-2 fix coverage:
+  `withdrawTo` / `withdrawFeesTo` rescue a non-receiving depositor/recipient,
+  reject the zero address, and cannot drain a balance that isn't the caller's.
+* **`test/attacks/Attacks.t.sol` + `test/attacks/ReentrantActor.sol`** — active
+  cross-function reentrancy attacks through both the ERC721 callback and the
+  native-refund leg, a duplicate-NFT double-spend attempt, and cross-maker escrow
+  isolation.
+* **`test/invariant/SettlementSolvency.t.sol`** — stateful invariants:
+  `balance == Σ escrow + pendingFees` and `pendingFees ≤ balance`, fuzzed over
+  random deposit/withdraw/withdrawFees/cancel/fulfill sequences (validated at
+  128k calls, 0 reverts).
+
+Run:
 
 ```bash
 forge test --root contracts -vvv --match-path 'test/MonadMarketSettlementReentrancy.t.sol'
@@ -312,8 +323,8 @@ Conditions on the GO:
    suite) and confirm green in CI before deployment.
 2. Accept and document **L-1** (escrow-withdraw griefing of open maker-MON
    orders) as intended behavior, or adopt the optional locked-order design.
-3. Set `feeRecipient` to a payable address (**L-2**); optionally add `redirectFees`
-   (O-2) for operational resilience.
+3. **L-2 fixed** via `withdrawTo` / `withdrawFeesTo`. Still set `feeRecipient` to a
+   payable address; the redirect functions are the operational safety net.
 
 None of the conditions are reentrancy blockers; they are operational/economic
 hardening. The reentrancy surface itself is production-ready.
