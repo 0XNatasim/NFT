@@ -483,6 +483,54 @@ contract MonadMarketSettlementTest is Test {
         assertTrue(settlement.nonceUsed(maker, 8));
     }
 
+    // ----- L-01: batch cancel is idempotent, not all-or-nothing -----
+
+    /// @dev An already-used nonce in the batch is skipped, and every other nonce
+    ///      is still cancelled — the batch is not rolled back.
+    function test_CancelNonces_SkipsUsedNonceAndCancelsRest() public {
+        // Pre-consume nonce 8 (as if an order on it was already cancelled/filled).
+        vm.prank(maker);
+        settlement.cancelNonce(8);
+
+        uint256[] memory nonces = new uint256[](3);
+        nonces[0] = 7;
+        nonces[1] = 8; // already used -> must be skipped, not revert
+        nonces[2] = 9;
+
+        vm.prank(maker);
+        settlement.cancelNonces(nonces); // does not revert
+
+        assertTrue(settlement.nonceUsed(maker, 7));
+        assertTrue(settlement.nonceUsed(maker, 8));
+        assertTrue(settlement.nonceUsed(maker, 9));
+    }
+
+    /// @dev The reported attack: a taker front-runs a bulk cancel by filling one
+    ///      order in the batch. The maker's cancellation must still invalidate
+    ///      every other order, not revert and leave them fillable.
+    function test_CancelNonces_FrontRunFillDoesNotVoidBatch() public {
+        // maker signs three orders (nonces 1, 2, 3); only nonce 1 is the base swap.
+        MonadMarketSettlement.TradeOrder memory filled = _baseOrder(); // nonce 1
+        bytes memory sig = _sign(filled, makerKey);
+
+        // Taker front-runs the pending batch cancel by filling order #1.
+        vm.prank(taker);
+        settlement.fulfillTrade(filled, sig);
+        assertTrue(settlement.nonceUsed(maker, 1));
+
+        // Maker's batch cancel includes the now-consumed nonce 1 plus 2 and 3.
+        uint256[] memory nonces = new uint256[](3);
+        nonces[0] = 1; // consumed by the front-run fill
+        nonces[1] = 2;
+        nonces[2] = 3;
+        vm.prank(maker);
+        settlement.cancelNonces(nonces); // must NOT revert
+
+        // The remaining orders are now firmly cancelled.
+        assertTrue(settlement.nonceUsed(maker, 2));
+        assertTrue(settlement.nonceUsed(maker, 3));
+    }
+
     // ----- ownership / approval failures -----
 
     function test_RevertMakerNoLongerOwnsNFT() public {

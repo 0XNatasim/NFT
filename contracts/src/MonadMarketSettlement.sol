@@ -275,10 +275,13 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
         emit TradeCancelled(msg.sender, nonce);
     }
 
-    /// @notice Cancel multiple nonces at once.
+    /// @notice Cancel multiple nonces at once. Idempotent: already-used nonces
+    ///         (filled or previously cancelled) are skipped rather than reverting,
+    ///         so a taker who front-runs the batch by filling one order cannot
+    ///         void the cancellation of every other nonce in the array.
     function cancelNonces(uint256[] calldata nonces) external {
         for (uint256 i = 0; i < nonces.length; i++) {
-            if (nonceUsed[msg.sender][nonces[i]]) revert NonceAlreadyUsed();
+            if (nonceUsed[msg.sender][nonces[i]]) continue; // skip; don't void the batch
             nonceUsed[msg.sender][nonces[i]] = true;
             emit TradeCancelled(msg.sender, nonces[i]);
         }
