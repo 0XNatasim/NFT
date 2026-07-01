@@ -54,7 +54,7 @@ All of these live in `.env.example`. ★ = required for the app to function.
 | `NEXT_PUBLIC_MONAD_RPC_URL` | ★ | `https://rpc.monad.xyz` or your own RPC |
 | `NEXT_PUBLIC_MONAD_EXPLORER_URL` | ★ | `https://monadscan.com` |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | ★ | Project ID from cloud.reown.com |
-| `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | ★ | `0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277` (see [Deployed contracts](#deployed-contracts)) |
+| `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | ★ | `0x72F3E21c12E85F2043e316737179734b30c87533` (see [Deployed contracts](#deployed-contracts)) |
 | `NEXT_PUBLIC_SUPABASE_URL` | ★ | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ★ | Supabase → Project Settings → API |
 
@@ -211,7 +211,11 @@ npm run contracts:deploy  # deploy to $MONAD_RPC_URL
 
 | Network | MonadMarketSettlement | Status |
 | --- | --- | --- |
-| Monad Mainnet (143) | [`0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277`](https://monadscan.com/address/0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277#code) | ✅ Verified on MonadScan |
+| Monad Mainnet (143) | [`0x72F3E21c12E85F2043e316737179734b30c87533`](https://monadscan.com/address/0x72F3E21c12E85F2043e316737179734b30c87533#code) | ✅ Verified on MonadScan (EIP-1271 smart-wallet support) |
+
+Previous deployment `0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277` (EOA-only) is
+superseded by the address above, which additionally accepts EIP-1271
+signatures from smart-contract wallets.
 
 Source is verified (Solidity `0.8.28`, optimizer 1000 runs, EVM `cancun`, MIT)
 — anyone can read and verify the settlement logic on MonadScan. This is the
