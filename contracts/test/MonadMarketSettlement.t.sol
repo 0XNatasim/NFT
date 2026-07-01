@@ -565,6 +565,43 @@ contract MonadMarketSettlementTest is Test {
         settlement.fulfillTrade(order, sig);
     }
 
+    // ----- L-03: at least one NFT leg required -----
+
+    /// @dev A MON-only (native-for-native) order must be rejected — this is an
+    ///      NFT marketplace, so at least one side has to move an NFT.
+    function test_RevertMonOnlyOrderHasNoNFT() public {
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.makerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.makerMonAmount = 1 ether;
+        order.takerMonAmount = 2 ether;
+        bytes memory sig = _sign(order, makerKey);
+
+        // Fund the maker's escrow so we get past the escrow check and prove the
+        // rejection is specifically the missing-NFT rule, not insufficient funds.
+        uint256 makerFee = (1 ether * 100) / 10_000;
+        vm.prank(maker);
+        settlement.deposit{value: 1 ether + makerFee}();
+
+        uint256 takerFee = (2 ether * 100) / 10_000;
+        vm.prank(taker);
+        vm.expectRevert(MonadMarketSettlement.NoNFTInTrade.selector);
+        settlement.fulfillTrade{value: 2 ether + takerFee}(order, sig);
+    }
+
+    /// @dev An order with an NFT on only one side still settles (NFT↔MON).
+    function test_SingleSidedNFTLegStillAllowed() public {
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerMonAmount = 3 ether;
+        bytes memory sig = _sign(order, makerKey);
+
+        uint256 fee = (3 ether * 100) / 10_000;
+        vm.prank(taker);
+        settlement.fulfillTrade{value: 3 ether + fee}(order, sig);
+        assertEq(nftA.ownerOf(1), taker);
+    }
+
     // ----- payment validation -----
 
     function test_RevertIncorrectPayment() public {
