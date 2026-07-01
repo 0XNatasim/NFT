@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {MonadMarketSettlement} from "../src/MonadMarketSettlement.sol";
 import {MockERC721} from "./mocks/MockERC721.sol";
+import {MockSmartWallet} from "./mocks/MockSmartWallet.sol";
 
 contract RejectEther {
     // no receive/fallback => native transfers to this contract revert
@@ -367,6 +368,66 @@ contract MonadMarketSettlementTest is Test {
         bytes memory sig = _sign(order, makerKey);
         vm.prank(maker);
         vm.expectRevert(MonadMarketSettlement.SelfTrade.selector);
+        settlement.fulfillTrade(order, sig);
+    }
+
+    // ----- EIP-1271 smart-contract wallet makers -----
+
+    function test_SmartWalletMakerCanTrade() public {
+        // A smart-contract wallet (Safe / AA) owned by makerKey acts as maker.
+        MockSmartWallet wallet = new MockSmartWallet(maker);
+        nftA.mint(address(wallet), 10);
+
+        // The wallet approves the settlement, as a real smart wallet would.
+        wallet.execute(
+            address(nftA),
+            0,
+            abi.encodeWithSignature("setApprovalForAll(address,bool)", address(settlement), true)
+        );
+
+        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
+        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 10);
+        MonadMarketSettlement.NFTItem[] memory takerItems = new MonadMarketSettlement.NFTItem[](1);
+        takerItems[0] = MonadMarketSettlement.NFTItem(address(nftB), 2);
+
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.maker = address(wallet);
+        order.makerNFTs = makerItems;
+        order.takerNFTs = takerItems;
+
+        // The wallet's owner key produces the ECDSA signature the wallet's
+        // isValidSignature() will accept via EIP-1271.
+        bytes memory sig = _sign(order, makerKey);
+
+        vm.prank(taker);
+        settlement.fulfillTrade(order, sig);
+
+        assertEq(nftA.ownerOf(10), taker);
+        assertEq(nftB.ownerOf(2), address(wallet));
+        assertTrue(settlement.nonceUsed(address(wallet), order.nonce));
+    }
+
+    function test_RevertSmartWalletBadSignature() public {
+        MockSmartWallet wallet = new MockSmartWallet(maker);
+        nftA.mint(address(wallet), 11);
+        wallet.execute(
+            address(nftA),
+            0,
+            abi.encodeWithSignature("setApprovalForAll(address,bool)", address(settlement), true)
+        );
+
+        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
+        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 11);
+
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.maker = address(wallet);
+        order.makerNFTs = makerItems;
+
+        // Signed by the wrong key -> wallet's isValidSignature rejects it.
+        bytes memory sig = _sign(order, takerKey);
+
+        vm.prank(taker);
+        vm.expectRevert(MonadMarketSettlement.InvalidSignature.selector);
         settlement.fulfillTrade(order, sig);
     }
 
