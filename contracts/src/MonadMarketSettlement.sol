@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -190,9 +190,14 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
         if (order.feeBps > MAX_FEE_BPS) revert FeeTooHigh();
         if (order.flatFee > MAX_FLAT_SWAP_FEE) revert FlatFeeTooHigh();
 
+        // Verify the maker's signature. SignatureChecker accepts both plain
+        // EOA (ECDSA) signatures and EIP-1271 signatures from smart-contract
+        // wallets (Safe, account abstraction), so those makers are no longer
+        // silently excluded. Invalid signatures still fail closed.
         bytes32 orderHash = hashOrder(order);
-        address signer = ECDSA.recover(orderHash, signature);
-        if (signer != order.maker) revert InvalidSignature();
+        if (!SignatureChecker.isValidSignatureNow(order.maker, orderHash, signature)) {
+            revert InvalidSignature();
+        }
 
         // Fees: order.feeBps on each MON leg; flat fee when no MON moves at all.
         uint256 makerLegFee = (order.makerMonAmount * order.feeBps) / BPS_DENOMINATOR;
