@@ -107,6 +107,7 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
     error SelfTrade();
     error EmptyOrder();
     error TooManyItems();
+    error NoNFTInTrade();
     error IncorrectPayment();
     error InsufficientEscrow();
     error NotTokenOwner(address nft, uint256 tokenId, address expectedOwner);
@@ -205,6 +206,10 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
         // ----- Checks -----
         if (order.makerNFTs.length == 0 && order.makerMonAmount == 0) revert EmptyOrder();
         if (order.takerNFTs.length == 0 && order.takerMonAmount == 0) revert EmptyOrder();
+        // This is an NFT marketplace: at least one side must move an NFT. Reject
+        // MON-only (native-for-native) orders so they can't settle here and
+        // pollute trade/volume accounting.
+        if (order.makerNFTs.length == 0 && order.takerNFTs.length == 0) revert NoNFTInTrade();
         if (order.makerNFTs.length > MAX_ITEMS_PER_SIDE || order.takerNFTs.length > MAX_ITEMS_PER_SIDE) {
             revert TooManyItems();
         }
