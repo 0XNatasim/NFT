@@ -54,7 +54,7 @@ export default function OfferDetailPage({
   const { writeContractAsync } = useWriteContract();
   const queryClient = useQueryClient();
   const [working, setWorking] = useState<
-    "accept" | "cancel" | "approve" | "deposit" | null
+    "accept" | "cancel" | "approve" | "deposit" | "withdraw" | null
   >(null);
 
   /**
@@ -72,6 +72,19 @@ export default function OfferDetailPage({
     queryClient.invalidateQueries({ queryKey: ["escrow-status"] });
     queryClient.invalidateQueries({ queryKey: ["stats"] });
   }
+
+  const proceedsQuery = useQuery({
+    queryKey: ["claimable-proceeds", offer?.id, address],
+    enabled:
+      !!offer && !!address && !!publicClient && offer.status === "completed",
+    queryFn: () =>
+      publicClient!.readContract({
+        address: SETTLEMENT_CONTRACT_ADDRESS,
+        abi: settlementAbi,
+        functionName: "escrowBalance",
+        args: [address! as Address],
+      }),
+  });
 
   const escrowQuery = useQuery({
     queryKey: ["escrow-status", offer?.id, address],
@@ -123,6 +136,19 @@ export default function OfferDetailPage({
   const takerNfts = offer.nfts.filter((n) => n.side === "taker");
   const makerMon = BigInt(offer.makerMonAmount);
   const takerMon = BigInt(offer.takerMonAmount);
+  const connectedAddress = address?.toLowerCase();
+  const expectedProceeds =
+    connectedAddress === offer.makerAddress.toLowerCase()
+      ? takerMon
+      : connectedAddress === (offer.takerAddress ?? "").toLowerCase()
+        ? makerMon
+        : 0n;
+  const claimableProceeds =
+    offer.status === "completed" && expectedProceeds > 0n
+      ? expectedProceeds < (proceedsQuery.data ?? 0n)
+        ? expectedProceeds
+        : (proceedsQuery.data ?? 0n)
+      : 0n;
   const hasCollectionBid = takerNfts.some(isCollectionBid);
   const isMaker = address?.toLowerCase() === offer.makerAddress.toLowerCase();
   const isDesignatedTaker =
@@ -293,10 +319,40 @@ export default function OfferDetailPage({
         throw new Error(body.error ?? "Trade executed but handshake update failed");
       }
 
-      toast.success("Handshake completed 🎉");
+      toast.success(
+        "Handshake completed 🎉 MON proceeds are now withdrawable from escrow."
+      );
       refreshAfterTx();
     } catch (err: any) {
       toast.error(err?.message ?? "Failed to execute trade");
+    } finally {
+      setWorking(null);
+    }
+  }
+
+  async function handleClaimProceeds() {
+    if (!publicClient || !address || claimableProceeds <= 0n) return;
+
+    setWorking("withdraw");
+    try {
+      await runWrite({
+        publicClient,
+        writeContractAsync,
+        account: address,
+        walletChainId: chainId,
+        expectedChainId: MONAD_CHAIN_ID,
+        label: "Claim proceeds",
+        address: SETTLEMENT_CONTRACT_ADDRESS,
+        abi: settlementAbi,
+        functionName: "withdraw",
+        args: [claimableProceeds],
+        onSubmitted: () => toast.info("Claiming proceeds…"),
+      });
+      toast.success(`Claimed ${formatMon(claimableProceeds)} MON proceeds`);
+      proceedsQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ["escrow-balance"] });
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to claim proceeds");
     } finally {
       setWorking(null);
     }
@@ -545,6 +601,42 @@ export default function OfferDetailPage({
             <p className="text-sm text-muted-foreground">
               Connect your wallet to accept this deal.
             </p>
+          )}
+
+          {offer.status === "completed" && expectedProceeds > 0n && address && (
+            <div className="space-y-3 rounded-lg border border-monad-purple/30 bg-monad-purple/10 p-3 text-sm text-foreground">
+              <div className="space-y-1">
+                <p className="font-semibold text-monad-purple">
+                  Claim sale proceeds
+                </p>
+                <p className="text-muted-foreground">
+                  Settlement credited {formatMon(expectedProceeds)} MON to your
+                  withdrawable escrow balance instead of sending a direct wallet
+                  transfer. Claim it here when you want the MON in your wallet.
+                </p>
+              </div>
+              {claimableProceeds > 0n ? (
+                <Button
+                  className="w-full"
+                  disabled={working !== null}
+                  onClick={handleClaimProceeds}
+                >
+                  {working === "withdraw" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Claiming…
+                    </>
+                  ) : (
+                    `Claim ${formatMon(claimableProceeds)} MON proceeds`
+                  )}
+                </Button>
+              ) : (
+                <p className="rounded-md border border-border/70 bg-background/50 p-2 text-xs text-muted-foreground">
+                  No claimable proceeds detected for this sale right now. If you
+                  already withdrew from escrow, the proceeds may already be in
+                  your wallet.
+                </p>
+              )}
+            </div>
           )}
 
           {offer.completedTxHash && (

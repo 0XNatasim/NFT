@@ -89,6 +89,7 @@ Collection logos are resolved at runtime from collection contract metadata inste
 ```bash
 npm run typecheck && npm run lint && npm run test   # app: should all pass
 npm run contracts:test                              # Foundry suite should pass
+forge build                                         # also works from repo root
 ```
 
 ## Architecture
@@ -190,20 +191,23 @@ Apply every file in `supabase/migrations/` (in filename order) via the Supabase 
 npm run dev / build / lint / typecheck
 npm run test              # vitest (fee math, validation, EIP-712)
 npm run contracts:test    # foundry test suite
+forge build               # root-level Foundry build; equivalent project settings are in ./foundry.toml
 npm run contracts:deploy  # deploy to $MONAD_RPC_URL
 ```
 
 ## Deployment
 
 1. **Contracts** — set `MONAD_RPC_URL`, `PRIVATE_KEY_DEPLOYER`, `FEE_RECIPIENT_ADDRESS`, `CONTRACT_OWNER`, then `npm run contracts:deploy`. Record the address.
-   - Verify via Etherscan's V2 multichain API (MonadScan is served through it):
+   - Verify via Etherscan's V2 multichain API (MonadScan is served through it). Run this from the repository root, not from inside `contracts/`, so `--root contracts` points Foundry at the correct project. The `${VAR:?message}` checks fail fast if a required environment variable is missing instead of producing an empty constructor-args value.
      ```bash
-     forge verify-contract <ADDRESS> src/MonadMarketSettlement.sol:MonadMarketSettlement \
+     forge verify-contract --root contracts ${NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS:?set contract address} \
+       src/MonadMarketSettlement.sol:MonadMarketSettlement \
        --chain 143 --compiler-version 0.8.28 --num-of-optimizations 1000 --evm-version cancun \
-       --constructor-args $(cast abi-encode "constructor(address,address)" $CONTRACT_OWNER $FEE_RECIPIENT_ADDRESS) \
+       --constructor-args $(cast abi-encode "constructor(address,address)" ${CONTRACT_OWNER:?set owner} ${FEE_RECIPIENT_ADDRESS:?set fee recipient}) \
        --verifier etherscan --verifier-url 'https://api.etherscan.io/v2/api?chainid=143' \
-       --etherscan-api-key $ETHERSCAN_API_KEY --watch
+       --etherscan-api-key ${ETHERSCAN_API_KEY:?set Etherscan API key} --watch
      ```
+   - If your shell is already in `contracts/`, either `cd ..` first and use the command above, or omit `--root contracts` and keep the source path as `src/MonadMarketSettlement.sol:MonadMarketSettlement`.
 2. **Database** — create a Supabase project, run every migration, copy keys.
 3. **Frontend** — deploy to Vercel; set all `NEXT_PUBLIC_*` vars plus `SUPABASE_SERVICE_ROLE_KEY`, `NFT_PROVIDER`, provider API key, `MONAD_RPC_URL`.
 
