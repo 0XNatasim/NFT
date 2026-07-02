@@ -57,7 +57,7 @@ export function getOrderDomain(
   verifyingContract: Address = SETTLEMENT_CONTRACT_ADDRESS
 ): TypedDataDomain {
   return {
-    name: "MonadMarket",
+    name: "Handshake",
     version: "1",
     chainId,
     verifyingContract,

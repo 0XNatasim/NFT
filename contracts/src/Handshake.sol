@@ -147,7 +147,7 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     // ---------------------------------------------------------------------
 
     constructor(address initialOwner, address initialFeeRecipient)
-        EIP712("MonadMarket", "1")
+        EIP712("Handshake", "1")
         Ownable(initialOwner)
     {
         if (initialFeeRecipient == address(0)) revert ZeroAddress();
