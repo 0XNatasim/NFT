@@ -1,0 +1,29 @@
+[profile.default]
+src = "contracts/src"
+out = "contracts/out"
+test = "contracts/test"
+script = "contracts/script"
+cache_path = "contracts/cache"
+libs = ["contracts/lib", "node_modules"]
+solc_version = "0.8.28"
+optimizer = true
+optimizer_runs = 1000
+evm_version = "cancun"
+# ReturnBomber intentionally has a payable fallback and no receive() so tests
+# exercise fallback returndata on bare native transfers. Suppress only that
+# expected Solidity warning while preserving the test behavior.
+ignored_error_codes = [3628]
+
+remappings = [
+    "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+    "forge-std/=contracts/lib/forge-std/src/",
+]
+
+[fuzz]
+runs = 256
+
+# Keep root-level `forge build` behavior aligned with contracts/foundry.toml.
+# Order expiry intentionally compares a signed deadline against block.timestamp;
+# skip build-time linting so normal builds stay focused on compilation errors.
+[lint]
+lint_on_build = false

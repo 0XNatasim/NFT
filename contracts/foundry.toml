@@ -8,6 +8,10 @@ solc_version = "0.8.28"
 optimizer = true
 optimizer_runs = 1000
 evm_version = "cancun"
+# ReturnBomber intentionally has a payable fallback and no receive() so tests
+# exercise fallback returndata on bare native transfers. Suppress only that
+# expected Solidity warning while preserving the test behavior.
+ignored_error_codes = [3628]
 
 remappings = [
     "@openzeppelin/contracts/=../node_modules/@openzeppelin/contracts/",
@@ -16,3 +20,11 @@ remappings = [
 
 [fuzz]
 runs = 256
+
+# Marketplace order expiry must compare signed deadlines against the current
+# block timestamp. The app uses user-selected expiry windows, so small validator
+# timestamp drift does not influence settlement economics. Foundry currently
+# emits this as a build-time lint warning, so skip lint-on-build and run
+# explicit contract tests/lints separately when desired.
+[lint]
+lint_on_build = false
