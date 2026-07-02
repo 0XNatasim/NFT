@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {MonadMarketSettlement} from "../src/MonadMarketSettlement.sol";
+import {Handshake} from "../src/Handshake.sol";
 import {MockERC721} from "./mocks/MockERC721.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
@@ -18,14 +18,14 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 ///         payout. In both callbacks it re-enters `fulfillTrade` with the very
 ///         same signed order, attempting a double-settlement / drain.
 contract ReentrantTaker is IERC721Receiver {
-    MonadMarketSettlement public s;
-    MonadMarketSettlement.TradeOrder private order;
+    Handshake public s;
+    Handshake.TradeOrder private order;
     bytes private sig;
     bool public armed;
     bool public reentered; // set true only if a nested fulfillTrade SUCCEEDS
     bool public reentrancyBlocked; // set true when the guard rejects the reentry
 
-    constructor(MonadMarketSettlement _s) {
+    constructor(Handshake _s) {
         s = _s;
     }
 
@@ -33,7 +33,7 @@ contract ReentrantTaker is IERC721Receiver {
         nft.setApprovalForAll(address(s), true);
     }
 
-    function arm(MonadMarketSettlement.TradeOrder calldata o, bytes calldata _sig) external {
+    function arm(Handshake.TradeOrder calldata o, bytes calldata _sig) external {
         order = o;
         sig = _sig;
         armed = true;
@@ -74,12 +74,12 @@ contract ReentrantTaker is IERC721Receiver {
 contract ReentrantMaker is IERC721Receiver {
     bytes4 internal constant MAGICVALUE = 0x1626ba7e;
 
-    MonadMarketSettlement public s;
+    Handshake public s;
     address public owner;
     bool public armed;
     bool public reentrancyBlocked;
 
-    constructor(MonadMarketSettlement _s, address _owner) {
+    constructor(Handshake _s, address _owner) {
         s = _s;
         owner = _owner;
     }
@@ -122,11 +122,11 @@ contract ReentrantMaker is IERC721Receiver {
 ///         before ownership is finalized) to test both classic and read-only
 ///         reentrancy exposure through an untrusted token.
 contract ReentrantNFT is ERC721 {
-    MonadMarketSettlement public s;
+    Handshake public s;
     bool public armed;
     bool public reentrancyBlocked;
 
-    constructor(MonadMarketSettlement _s) ERC721("Evil", "EVL") {
+    constructor(Handshake _s) ERC721("Evil", "EVL") {
         s = _s;
     }
 
@@ -155,12 +155,12 @@ contract ReentrantNFT is ERC721 {
 ///         then during the `withdraw` payout it re-enters `withdraw` again to try
 ///         to pull more than it deposited (draining other users' escrow).
 contract ReentrantWithdrawer {
-    MonadMarketSettlement public s;
+    Handshake public s;
     uint256 public amount;
     bool public armed;
     bool public reentrancyBlocked;
 
-    constructor(MonadMarketSettlement _s) {
+    constructor(Handshake _s) {
         s = _s;
     }
 
@@ -191,8 +191,8 @@ contract ReentrantWithdrawer {
 //                              TEST SUITE
 // =====================================================================
 
-contract MonadMarketSettlementReentrancyTest is Test {
-    MonadMarketSettlement settlement;
+contract HandshakeReentrancyTest is Test {
+    Handshake settlement;
     MockERC721 nftA;
     MockERC721 nftB;
 
@@ -206,7 +206,7 @@ contract MonadMarketSettlementReentrancyTest is Test {
     function setUp() public {
         maker = vm.addr(makerKey);
         taker = vm.addr(takerKey);
-        settlement = new MonadMarketSettlement(owner, feeRecipient);
+        settlement = new Handshake(owner, feeRecipient);
         nftA = new MockERC721();
         nftB = new MockERC721();
 
@@ -224,7 +224,7 @@ contract MonadMarketSettlementReentrancyTest is Test {
 
     // ----- helpers -----
 
-    function _sign(MonadMarketSettlement.TradeOrder memory order, uint256 key)
+    function _sign(Handshake.TradeOrder memory order, uint256 key)
         internal
         view
         returns (bytes memory)
@@ -234,13 +234,13 @@ contract MonadMarketSettlementReentrancyTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
-    function _order() internal view returns (MonadMarketSettlement.TradeOrder memory order) {
-        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
-        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 1);
-        MonadMarketSettlement.NFTItem[] memory takerItems = new MonadMarketSettlement.NFTItem[](1);
-        takerItems[0] = MonadMarketSettlement.NFTItem(address(nftB), 2);
+    function _order() internal view returns (Handshake.TradeOrder memory order) {
+        Handshake.NFTItem[] memory makerItems = new Handshake.NFTItem[](1);
+        makerItems[0] = Handshake.NFTItem(address(nftA), 1);
+        Handshake.NFTItem[] memory takerItems = new Handshake.NFTItem[](1);
+        takerItems[0] = Handshake.NFTItem(address(nftB), 2);
 
-        order = MonadMarketSettlement.TradeOrder({
+        order = Handshake.TradeOrder({
             maker: maker,
             taker: address(0),
             makerNFTs: makerItems,
@@ -263,8 +263,8 @@ contract MonadMarketSettlementReentrancyTest is Test {
         nftB.mint(address(attacker), 20);
         attacker.approveNFT(nftB);
 
-        MonadMarketSettlement.TradeOrder memory order = _order();
-        order.takerNFTs[0] = MonadMarketSettlement.NFTItem(address(nftB), 20);
+        Handshake.TradeOrder memory order = _order();
+        order.takerNFTs[0] = Handshake.NFTItem(address(nftB), 20);
         bytes memory sig = _sign(order, makerKey);
 
         attacker.arm(order, sig);
@@ -292,10 +292,10 @@ contract MonadMarketSettlementReentrancyTest is Test {
         nftB.mint(address(attacker), 21);
         attacker.approveNFT(nftB);
 
-        MonadMarketSettlement.TradeOrder memory order = _order();
-        order.makerNFTs = new MonadMarketSettlement.NFTItem[](0); // maker gives only MON
+        Handshake.TradeOrder memory order = _order();
+        order.makerNFTs = new Handshake.NFTItem[](0); // maker gives only MON
         order.makerMonAmount = 1 ether;
-        order.takerNFTs[0] = MonadMarketSettlement.NFTItem(address(nftB), 21);
+        order.takerNFTs[0] = Handshake.NFTItem(address(nftB), 21);
         bytes memory sig = _sign(order, makerKey);
 
         // Maker funds escrow: 1 MON leg + 1% maker-leg fee.
@@ -327,9 +327,9 @@ contract MonadMarketSettlementReentrancyTest is Test {
         nftA.mint(address(attacker), 30);
         attacker.approveNFT(nftA);
 
-        MonadMarketSettlement.TradeOrder memory order = _order();
+        Handshake.TradeOrder memory order = _order();
         order.maker = address(attacker);
-        order.makerNFTs[0] = MonadMarketSettlement.NFTItem(address(nftA), 30);
+        order.makerNFTs[0] = Handshake.NFTItem(address(nftA), 30);
         // taker side stays nftB #2 owned by the taker EOA.
         bytes memory sig = _sign(order, makerKey); // owner key -> EIP-1271 valid
 
@@ -353,8 +353,8 @@ contract MonadMarketSettlementReentrancyTest is Test {
         evil.setApprovalForAll(address(settlement), true);
         evil.arm();
 
-        MonadMarketSettlement.TradeOrder memory order = _order();
-        order.makerNFTs[0] = MonadMarketSettlement.NFTItem(address(evil), 40);
+        Handshake.TradeOrder memory order = _order();
+        order.makerNFTs[0] = Handshake.NFTItem(address(evil), 40);
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
@@ -396,7 +396,7 @@ contract MonadMarketSettlementReentrancyTest is Test {
     // =================================================================
 
     function test_CannotSettleTwice() public {
-        MonadMarketSettlement.TradeOrder memory order = _order();
+        Handshake.TradeOrder memory order = _order();
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
@@ -409,37 +409,37 @@ contract MonadMarketSettlementReentrancyTest is Test {
         nftB.transferFrom(maker, taker, 2);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.NonceAlreadyUsed.selector);
+        vm.expectRevert(Handshake.NonceAlreadyUsed.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     function test_CannotCancelAfterSettlement() public {
-        MonadMarketSettlement.TradeOrder memory order = _order();
+        Handshake.TradeOrder memory order = _order();
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
         settlement.fulfillTrade(order, sig);
 
         vm.prank(maker);
-        vm.expectRevert(MonadMarketSettlement.NonceAlreadyUsed.selector);
+        vm.expectRevert(Handshake.NonceAlreadyUsed.selector);
         settlement.cancelNonce(order.nonce);
     }
 
     function test_CannotSettleAfterCancel() public {
-        MonadMarketSettlement.TradeOrder memory order = _order();
+        Handshake.TradeOrder memory order = _order();
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(maker);
         settlement.cancelNonce(order.nonce);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.NonceAlreadyUsed.selector);
+        vm.expectRevert(Handshake.NonceAlreadyUsed.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     function test_CannotWithdrawFeesTwice() public {
-        MonadMarketSettlement.TradeOrder memory order = _order();
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        Handshake.TradeOrder memory order = _order();
+        order.takerNFTs = new Handshake.NFTItem[](0);
         order.takerMonAmount = 10 ether;
         bytes memory sig = _sign(order, makerKey);
 
@@ -451,7 +451,7 @@ contract MonadMarketSettlementReentrancyTest is Test {
         settlement.withdrawFees();
 
         vm.prank(feeRecipient);
-        vm.expectRevert(MonadMarketSettlement.ZeroAmount.selector);
+        vm.expectRevert(Handshake.ZeroAmount.selector);
         settlement.withdrawFees();
     }
 }

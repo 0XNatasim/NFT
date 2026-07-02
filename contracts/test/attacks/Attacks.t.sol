@@ -2,16 +2,16 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {MonadMarketSettlement} from "../../src/MonadMarketSettlement.sol";
+import {Handshake} from "../../src/Handshake.sol";
 import {MockERC721} from "../mocks/MockERC721.sol";
 import {ReentrantActor} from "./ReentrantActor.sol";
 
 /// @notice Adversarial tests that go beyond the negative-path unit tests in
-///         MonadMarketSettlement.t.sol. These mount ACTIVE attacks — malicious
+///         Handshake.t.sol. These mount ACTIVE attacks — malicious
 ///         callbacks that re-enter, orders that try to double-spend an NFT, and
 ///         a cross-maker escrow isolation check.
 contract AttacksTest is Test {
-    MonadMarketSettlement settlement;
+    Handshake settlement;
     MockERC721 nftA; // maker side
     MockERC721 nftB; // taker side
 
@@ -22,7 +22,7 @@ contract AttacksTest is Test {
 
     function setUp() public {
         maker = vm.addr(makerKey);
-        settlement = new MonadMarketSettlement(owner, feeRecipient);
+        settlement = new Handshake(owner, feeRecipient);
         nftA = new MockERC721();
         nftB = new MockERC721();
 
@@ -33,7 +33,7 @@ contract AttacksTest is Test {
 
     // ---- helpers (mirror the main harness) ----
 
-    function _sign(MonadMarketSettlement.TradeOrder memory order, uint256 key)
+    function _sign(Handshake.TradeOrder memory order, uint256 key)
         internal
         view
         returns (bytes memory)
@@ -46,14 +46,14 @@ contract AttacksTest is Test {
     function _one(address nft, uint256 id)
         internal
         pure
-        returns (MonadMarketSettlement.NFTItem[] memory items)
+        returns (Handshake.NFTItem[] memory items)
     {
-        items = new MonadMarketSettlement.NFTItem[](1);
-        items[0] = MonadMarketSettlement.NFTItem(nft, id);
+        items = new Handshake.NFTItem[](1);
+        items[0] = Handshake.NFTItem(nft, id);
     }
 
-    function _none() internal pure returns (MonadMarketSettlement.NFTItem[] memory items) {
-        items = new MonadMarketSettlement.NFTItem[](0);
+    function _none() internal pure returns (Handshake.NFTItem[] memory items) {
+        items = new Handshake.NFTItem[](0);
     }
 
     // ================================================================
@@ -77,7 +77,7 @@ contract AttacksTest is Test {
         // NFT-for-NFT: maker gives nftA#1, actor(taker) gives nftB#2.
         nftB.mint(address(actor), 2);
 
-        MonadMarketSettlement.TradeOrder memory order = MonadMarketSettlement.TradeOrder({
+        Handshake.TradeOrder memory order = Handshake.TradeOrder({
             maker: maker,
             taker: address(actor),
             makerNFTs: _one(address(nftA), 1),
@@ -131,7 +131,7 @@ contract AttacksTest is Test {
         vm.prank(maker);
         settlement.deposit{value: makerMon + makerLegFee}();
 
-        MonadMarketSettlement.TradeOrder memory order = MonadMarketSettlement.TradeOrder({
+        Handshake.TradeOrder memory order = Handshake.TradeOrder({
             maker: maker,
             taker: address(actor),
             makerNFTs: _none(),
@@ -175,14 +175,14 @@ contract AttacksTest is Test {
     function test_DuplicateNftInOrderReverts() public {
         nftA.mint(maker, 1);
 
-        MonadMarketSettlement.NFTItem[] memory dup = new MonadMarketSettlement.NFTItem[](2);
-        dup[0] = MonadMarketSettlement.NFTItem(address(nftA), 1);
-        dup[1] = MonadMarketSettlement.NFTItem(address(nftA), 1);
+        Handshake.NFTItem[] memory dup = new Handshake.NFTItem[](2);
+        dup[0] = Handshake.NFTItem(address(nftA), 1);
+        dup[1] = Handshake.NFTItem(address(nftA), 1);
 
         address taker = makeAddr("taker");
         vm.deal(taker, 10 ether);
 
-        MonadMarketSettlement.TradeOrder memory order = MonadMarketSettlement.TradeOrder({
+        Handshake.TradeOrder memory order = Handshake.TradeOrder({
             maker: maker,
             taker: address(0),
             makerNFTs: dup,
@@ -217,7 +217,7 @@ contract AttacksTest is Test {
         address taker = makeAddr("taker");
         vm.deal(taker, 10 ether);
 
-        MonadMarketSettlement.TradeOrder memory order = MonadMarketSettlement.TradeOrder({
+        Handshake.TradeOrder memory order = Handshake.TradeOrder({
             maker: maker,
             taker: address(0),
             makerNFTs: _one(address(nftA), 1),

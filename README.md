@@ -2,7 +2,7 @@
 
 A peer-to-peer NFT trading marketplace for the Monad ecosystem — no bots, no snipers. Users negotiate and exchange NFTs directly wallet-to-wallet — NFT-for-NFT, NFT+MON, MON-for-NFT, private wallet-targeted offers — settled atomically by a non-custodial smart contract.
 
-> The on-chain settlement contract keeps its original name (`MonadMarketSettlement`) and EIP-712 domain (`MonadMarket`) — these are baked into the deployed bytecode and every signature, so they must not be renamed. "Handshake" is the product brand only.
+> The on-chain settlement contract keeps its original name (`Handshake`) and EIP-712 domain (`MonadMarket`) — these are baked into the deployed bytecode and every signature, so they must not be renamed. "Handshake" is the product brand only.
 
 It's a trading desk, not a sniping ground: off-chain signed orders (free to create), offer expirations, private offers, wallet reputation, and no instant floor-sniping mechanics.
 
@@ -107,7 +107,7 @@ forge build                                         # also works from repo root
        │ fulfillTrade(order, signature) + msg.value
        ▼
 ┌──────────────────────────────┐
-│ MonadMarketSettlement.sol     │  EIP-712 verify · nonce/replay ·
+│ Handshake.sol     │  EIP-712 verify · nonce/replay ·
 │ (Monad, non-custodial)        │  expiry · ownership · approvals ·
 └──────────────────────────────┘  atomic NFT+MON transfer · pausable
 ```
@@ -128,8 +128,8 @@ forge build                                         # also works from repo root
 ```
 contracts/
   foundry.toml
-  src/MonadMarketSettlement.sol     # settlement contract
-  test/MonadMarketSettlement.t.sol  # Foundry tests (success, replay, fees, pause, ...)
+  src/Handshake.sol     # settlement contract
+  test/Handshake.t.sol  # Foundry tests (success, replay, fees, pause, ...)
   test/mocks/MockERC721.sol
   script/Deploy.s.sol
   lib/forge-std/                    # vendored
@@ -176,7 +176,7 @@ See `.env.example`. Key ones:
 | --- | --- |
 | `NEXT_PUBLIC_CHAIN_ID` | Monad chain id (mainnet `143`) |
 | `NEXT_PUBLIC_MONAD_RPC_URL` / `MONAD_RPC_URL` | RPC endpoints (client / server) |
-| `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | Deployed `MonadMarketSettlement` |
+| `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | Deployed `Handshake` |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase |
 | `NFT_PROVIDER` + `ALCHEMY_API_KEY` / `OPENSEA_API_KEY` | NFT indexing (swappable) |
 | `PRIVATE_KEY_DEPLOYER`, `FEE_RECIPIENT_ADDRESS`, `CONTRACT_OWNER` | contract deployment only |
@@ -201,19 +201,19 @@ npm run contracts:deploy  # deploy to $MONAD_RPC_URL
    - Verify via Etherscan's V2 multichain API (MonadScan is served through it). Run this from the repository root, not from inside `contracts/`, so `--root contracts` points Foundry at the correct project. The `${VAR:?message}` checks fail fast if a required environment variable is missing instead of producing an empty constructor-args value.
      ```bash
      forge verify-contract --root contracts ${NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS:?set contract address} \
-       src/MonadMarketSettlement.sol:MonadMarketSettlement \
+       src/Handshake.sol:Handshake \
        --chain 143 --compiler-version 0.8.28 --num-of-optimizations 1000 --evm-version cancun \
        --constructor-args $(cast abi-encode "constructor(address,address)" ${CONTRACT_OWNER:?set owner} ${FEE_RECIPIENT_ADDRESS:?set fee recipient}) \
        --verifier etherscan --verifier-url 'https://api.etherscan.io/v2/api?chainid=143' \
        --etherscan-api-key ${ETHERSCAN_API_KEY:?set Etherscan API key} --watch
      ```
-   - If your shell is already in `contracts/`, either `cd ..` first and use the command above, or omit `--root contracts` and keep the source path as `src/MonadMarketSettlement.sol:MonadMarketSettlement`.
+   - If your shell is already in `contracts/`, either `cd ..` first and use the command above, or omit `--root contracts` and keep the source path as `src/Handshake.sol:Handshake`.
 2. **Database** — create a Supabase project, run every migration, copy keys.
 3. **Frontend** — deploy to Vercel; set all `NEXT_PUBLIC_*` vars plus `SUPABASE_SERVICE_ROLE_KEY`, `NFT_PROVIDER`, provider API key, `MONAD_RPC_URL`.
 
 ### Deployed contracts
 
-| Network | MonadMarketSettlement | Status |
+| Network | Handshake | Status |
 | --- | --- | --- |
 | Monad Mainnet (143) | [`0x72F3E21c12E85F2043e316737179734b30c87533`](https://monadscan.com/address/0x72F3E21c12E85F2043e316737179734b30c87533#code) | ✅ Verified on MonadScan (EIP-1271 smart-wallet support) |
 

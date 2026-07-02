@@ -1,4 +1,4 @@
-/** ABI of MonadMarketSettlement — keep in sync with the Solidity source. */
+/** ABI of Handshake — keep in sync with the Solidity source. */
 export const settlementAbi = [
   {
     type: "function",

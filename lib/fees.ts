@@ -1,5 +1,5 @@
 /**
- * Protocol fee math. Mirrors MonadMarketSettlement.sol exactly
+ * Protocol fee math. Mirrors Handshake.sol exactly
  * (integer division, bps on each MON leg, flat fee on NFT-only swaps).
  */
 

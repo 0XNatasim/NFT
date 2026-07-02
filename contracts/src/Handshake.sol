@@ -8,7 +8,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-/// @title MonadMarketSettlement
+/// @title Handshake
 /// @notice Atomic peer-to-peer settlement of off-chain signed NFT/MON trade
 ///         orders on Monad. Orders are EIP-712 signed by the maker, stored
 ///         off-chain (zero gas to create), and settled on-chain by the taker.
@@ -25,7 +25,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 ///         the amount safely falls back to an escrow credit it can pull later, so
 ///         a hostile counterparty can never grief or OOG the trade. Protocol fees
 ///         are always pull payments (pendingFees + withdrawFees).
-contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
+contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     // ---------------------------------------------------------------------
     // Types
     // ---------------------------------------------------------------------

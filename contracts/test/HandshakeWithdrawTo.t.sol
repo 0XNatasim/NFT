@@ -2,15 +2,15 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {MonadMarketSettlement} from "../src/MonadMarketSettlement.sol";
+import {Handshake} from "../src/Handshake.sol";
 import {MockERC721} from "./mocks/MockERC721.sol";
 
 /// @notice A contract that can deposit escrow but cannot receive native MON
 ///         (no payable receive/fallback). Models the L-2 stranded-funds case.
 contract EscrowDepositorNoReceive {
-    MonadMarketSettlement public s;
+    Handshake public s;
 
-    constructor(MonadMarketSettlement _s) {
+    constructor(Handshake _s) {
         s = _s;
     }
 
@@ -29,8 +29,8 @@ contract NonPayableTarget {
 ///         let a fund owner whose own address cannot receive native MON redirect
 ///         the payout to a payable address, without letting anyone touch a
 ///         balance that isn't theirs.
-contract MonadMarketSettlementWithdrawToTest is Test {
-    MonadMarketSettlement settlement;
+contract HandshakeWithdrawToTest is Test {
+    Handshake settlement;
     MockERC721 nftA;
 
     uint256 makerKey = 0xA11CE;
@@ -44,7 +44,7 @@ contract MonadMarketSettlementWithdrawToTest is Test {
     function setUp() public {
         maker = vm.addr(makerKey);
         taker = vm.addr(takerKey);
-        settlement = new MonadMarketSettlement(owner, feeRecipient);
+        settlement = new Handshake(owner, feeRecipient);
         nftA = new MockERC721();
         nftA.mint(maker, 1);
 
@@ -54,7 +54,7 @@ contract MonadMarketSettlementWithdrawToTest is Test {
         vm.deal(taker, 100 ether);
     }
 
-    function _sign(MonadMarketSettlement.TradeOrder memory order, uint256 key)
+    function _sign(Handshake.TradeOrder memory order, uint256 key)
         internal
         view
         returns (bytes memory)
@@ -66,14 +66,14 @@ contract MonadMarketSettlementWithdrawToTest is Test {
 
     /// @dev Accrue a protocol fee to `feeRecipient` via an NFT-for-MON trade.
     function _accrueFee() internal returns (uint256 fee) {
-        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
-        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 1);
+        Handshake.NFTItem[] memory makerItems = new Handshake.NFTItem[](1);
+        makerItems[0] = Handshake.NFTItem(address(nftA), 1);
 
-        MonadMarketSettlement.TradeOrder memory order = MonadMarketSettlement.TradeOrder({
+        Handshake.TradeOrder memory order = Handshake.TradeOrder({
             maker: maker,
             taker: address(0),
             makerNFTs: makerItems,
-            takerNFTs: new MonadMarketSettlement.NFTItem[](0),
+            takerNFTs: new Handshake.NFTItem[](0),
             makerMonAmount: 0,
             takerMonAmount: 10 ether,
             feeBps: 100,
@@ -100,7 +100,7 @@ contract MonadMarketSettlementWithdrawToTest is Test {
         vm.prank(address(depositor));
         vm.expectRevert(
             abi.encodeWithSelector(
-                MonadMarketSettlement.NativeTransferFailed.selector, address(depositor), 1 ether
+                Handshake.NativeTransferFailed.selector, address(depositor), 1 ether
             )
         );
         settlement.withdraw(1 ether);
@@ -116,7 +116,7 @@ contract MonadMarketSettlementWithdrawToTest is Test {
         vm.prank(maker);
         settlement.deposit{value: 1 ether}();
         vm.prank(maker);
-        vm.expectRevert(MonadMarketSettlement.ZeroAddress.selector);
+        vm.expectRevert(Handshake.ZeroAddress.selector);
         settlement.withdrawTo(address(0), 1 ether);
     }
 
@@ -127,7 +127,7 @@ contract MonadMarketSettlementWithdrawToTest is Test {
 
         address stranger = makeAddr("stranger");
         vm.prank(stranger);
-        vm.expectRevert(MonadMarketSettlement.InsufficientEscrow.selector);
+        vm.expectRevert(Handshake.InsufficientEscrow.selector);
         settlement.withdrawTo(stranger, 1 ether);
 
         assertEq(settlement.escrowBalance(maker), 2 ether);
@@ -147,7 +147,7 @@ contract MonadMarketSettlementWithdrawToTest is Test {
         vm.prank(address(bad));
         vm.expectRevert(
             abi.encodeWithSelector(
-                MonadMarketSettlement.NativeTransferFailed.selector, address(bad), fee
+                Handshake.NativeTransferFailed.selector, address(bad), fee
             )
         );
         settlement.withdrawFees();
@@ -162,13 +162,13 @@ contract MonadMarketSettlementWithdrawToTest is Test {
     function test_WithdrawFeesTo_ZeroAddressReverts() public {
         _accrueFee();
         vm.prank(feeRecipient);
-        vm.expectRevert(MonadMarketSettlement.ZeroAddress.selector);
+        vm.expectRevert(Handshake.ZeroAddress.selector);
         settlement.withdrawFeesTo(address(0));
     }
 
     function test_WithdrawFeesTo_NothingOwedReverts() public {
         vm.prank(feeRecipient);
-        vm.expectRevert(MonadMarketSettlement.ZeroAmount.selector);
+        vm.expectRevert(Handshake.ZeroAmount.selector);
         settlement.withdrawFeesTo(rescue);
     }
 
@@ -177,7 +177,7 @@ contract MonadMarketSettlementWithdrawToTest is Test {
         _accrueFee();
         address stranger = makeAddr("stranger");
         vm.prank(stranger);
-        vm.expectRevert(MonadMarketSettlement.ZeroAmount.selector);
+        vm.expectRevert(Handshake.ZeroAmount.selector);
         settlement.withdrawFeesTo(stranger);
     }
 }

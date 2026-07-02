@@ -2,14 +2,14 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {MonadMarketSettlement} from "../../src/MonadMarketSettlement.sol";
+import {Handshake} from "../../src/Handshake.sol";
 import {MockERC721} from "../mocks/MockERC721.sol";
 
 /// @notice Drives random, bounded sequences of every value-moving entrypoint.
 ///         All calls are guarded or wrapped so the handler itself never reverts
 ///         on legitimately-invalid input; the invariant does the asserting.
 contract SolvencyHandler is Test {
-    MonadMarketSettlement public settlement;
+    Handshake public settlement;
     MockERC721 public nft;
     address public feeRecipient;
 
@@ -21,7 +21,7 @@ contract SolvencyHandler is Test {
     mapping(address => uint256) internal nextNonce;
     uint256 internal tokenCounter;
 
-    constructor(MonadMarketSettlement _settlement, MockERC721 _nft, address _feeRecipient) {
+    constructor(Handshake _settlement, MockERC721 _nft, address _feeRecipient) {
         settlement = _settlement;
         nft = _nft;
         feeRecipient = _feeRecipient;
@@ -87,7 +87,7 @@ contract SolvencyHandler is Test {
         address taker = takers[takerSeed % 2];
         takerMon = bound(takerMon, 1, 5 ether);
 
-        (MonadMarketSettlement.TradeOrder memory order, bytes memory sig) = _makeOrder(mIdx, takerMon);
+        (Handshake.TradeOrder memory order, bytes memory sig) = _makeOrder(mIdx, takerMon);
 
         uint256 pay = takerMon + (takerMon * 100) / 10_000;
         vm.deal(taker, taker.balance + pay);
@@ -97,20 +97,20 @@ contract SolvencyHandler is Test {
 
     function _makeOrder(uint256 mIdx, uint256 takerMon)
         internal
-        returns (MonadMarketSettlement.TradeOrder memory order, bytes memory sig)
+        returns (Handshake.TradeOrder memory order, bytes memory sig)
     {
         address maker = makers[mIdx];
         uint256 tokenId = ++tokenCounter;
         nft.mint(maker, tokenId);
 
-        MonadMarketSettlement.NFTItem[] memory makerNFTs = new MonadMarketSettlement.NFTItem[](1);
-        makerNFTs[0] = MonadMarketSettlement.NFTItem(address(nft), tokenId);
+        Handshake.NFTItem[] memory makerNFTs = new Handshake.NFTItem[](1);
+        makerNFTs[0] = Handshake.NFTItem(address(nft), tokenId);
 
-        order = MonadMarketSettlement.TradeOrder({
+        order = Handshake.TradeOrder({
             maker: maker,
             taker: address(0),
             makerNFTs: makerNFTs,
-            takerNFTs: new MonadMarketSettlement.NFTItem[](0),
+            takerNFTs: new Handshake.NFTItem[](0),
             makerMonAmount: 0,
             takerMonAmount: takerMon,
             feeBps: 100,
@@ -129,7 +129,7 @@ contract SolvencyHandler is Test {
 ///         accounted for as either someone's escrow or accrued protocol fees.
 ///         No leak, no phantom balance, under any call ordering.
 contract SolvencyInvariantTest is Test {
-    MonadMarketSettlement settlement;
+    Handshake settlement;
     MockERC721 nft;
     SolvencyHandler handler;
 
@@ -137,7 +137,7 @@ contract SolvencyInvariantTest is Test {
     address feeRecipient = makeAddr("feeRecipient");
 
     function setUp() public {
-        settlement = new MonadMarketSettlement(owner, feeRecipient);
+        settlement = new Handshake(owner, feeRecipient);
         nft = new MockERC721();
         handler = new SolvencyHandler(settlement, nft, feeRecipient);
 
