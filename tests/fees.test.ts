@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseEther } from "viem";
 import { quoteFees } from "@/lib/fees";
 
-describe("fee math (must mirror MonadMarketSettlement.sol)", () => {
+describe("fee math (must mirror Handshake.sol)", () => {
   it("charges 1% on each MON leg by default", () => {
     const q = quoteFees(parseEther("10"), parseEther("4"));
     expect(q.makerLegFee).toBe(parseEther("0.1"));

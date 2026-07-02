@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {MonadMarketSettlement} from "../src/MonadMarketSettlement.sol";
+import {Handshake} from "../src/Handshake.sol";
 import {MockERC721} from "./mocks/MockERC721.sol";
 import {MockSmartWallet} from "./mocks/MockSmartWallet.sol";
 
@@ -53,7 +53,7 @@ contract ReturnBomber {
         return MAGICVALUE;
     }
 
-    function pullEscrow(MonadMarketSettlement s, uint256 amount) external {
+    function pullEscrow(Handshake s, uint256 amount) external {
         s.withdraw(amount);
     }
 
@@ -79,8 +79,8 @@ contract EIP1271NoReceive {
     // no receive()/fallback() => native transfer reverts
 }
 
-contract MonadMarketSettlementTest is Test {
-    MonadMarketSettlement settlement;
+contract HandshakeTest is Test {
+    Handshake settlement;
     MockERC721 nftA;
     MockERC721 nftB;
 
@@ -94,7 +94,7 @@ contract MonadMarketSettlementTest is Test {
     function setUp() public {
         maker = vm.addr(makerKey);
         taker = vm.addr(takerKey);
-        settlement = new MonadMarketSettlement(owner, feeRecipient);
+        settlement = new Handshake(owner, feeRecipient);
         nftA = new MockERC721();
         nftB = new MockERC721();
 
@@ -112,13 +112,13 @@ contract MonadMarketSettlementTest is Test {
 
     // ----- helpers -----
 
-    function _baseOrder() internal view returns (MonadMarketSettlement.TradeOrder memory order) {
-        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
-        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 1);
-        MonadMarketSettlement.NFTItem[] memory takerItems = new MonadMarketSettlement.NFTItem[](1);
-        takerItems[0] = MonadMarketSettlement.NFTItem(address(nftB), 2);
+    function _baseOrder() internal view returns (Handshake.TradeOrder memory order) {
+        Handshake.NFTItem[] memory makerItems = new Handshake.NFTItem[](1);
+        makerItems[0] = Handshake.NFTItem(address(nftA), 1);
+        Handshake.NFTItem[] memory takerItems = new Handshake.NFTItem[](1);
+        takerItems[0] = Handshake.NFTItem(address(nftB), 2);
 
-        order = MonadMarketSettlement.TradeOrder({
+        order = Handshake.TradeOrder({
             maker: maker,
             taker: address(0),
             makerNFTs: makerItems,
@@ -132,7 +132,7 @@ contract MonadMarketSettlementTest is Test {
         });
     }
 
-    function _sign(MonadMarketSettlement.TradeOrder memory order, uint256 key)
+    function _sign(Handshake.TradeOrder memory order, uint256 key)
         internal
         view
         returns (bytes memory)
@@ -143,10 +143,10 @@ contract MonadMarketSettlementTest is Test {
     }
 
     // hashOrder takes calldata; route through this external helper
-    function _toCalldata(MonadMarketSettlement.TradeOrder memory order)
+    function _toCalldata(Handshake.TradeOrder memory order)
         internal
         pure
-        returns (MonadMarketSettlement.TradeOrder memory)
+        returns (Handshake.TradeOrder memory)
     {
         return order;
     }
@@ -154,7 +154,7 @@ contract MonadMarketSettlementTest is Test {
     // ----- settlement success -----
 
     function test_NftForNftSwap() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
@@ -166,8 +166,8 @@ contract MonadMarketSettlementTest is Test {
     }
 
     function test_NftForMon_TakerPays() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        Handshake.TradeOrder memory order = _baseOrder();
+        order.takerNFTs = new Handshake.NFTItem[](0);
         order.takerMonAmount = 10 ether;
         bytes memory sig = _sign(order, makerKey);
 
@@ -187,8 +187,8 @@ contract MonadMarketSettlementTest is Test {
     }
 
     function test_MonForNft_MakerPaysFromEscrow() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
-        order.makerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        Handshake.TradeOrder memory order = _baseOrder();
+        order.makerNFTs = new Handshake.NFTItem[](0);
         order.makerMonAmount = 5 ether;
         bytes memory sig = _sign(order, makerKey);
 
@@ -209,7 +209,7 @@ contract MonadMarketSettlementTest is Test {
     }
 
     function test_NftPlusMonForNft() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.makerMonAmount = 2 ether;
         bytes memory sig = _sign(order, makerKey);
 
@@ -228,7 +228,7 @@ contract MonadMarketSettlementTest is Test {
     // ----- fee math -----
 
     function test_NoFeeOnPureNftSwapByDefault() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
         vm.prank(taker);
         settlement.fulfillTrade(order, sig);
@@ -237,12 +237,12 @@ contract MonadMarketSettlementTest is Test {
 
     function test_FlatSwapFeeOnPureNftSwap() public {
         // The flat fee is part of the signed order now, not contract storage.
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.flatFee = 0.05 ether;
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.IncorrectPayment.selector);
+        vm.expectRevert(Handshake.IncorrectPayment.selector);
         settlement.fulfillTrade(order, sig);
 
         vm.prank(taker);
@@ -257,8 +257,8 @@ contract MonadMarketSettlementTest is Test {
         vm.prank(owner);
         settlement.setFeeBps(500);
 
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        Handshake.TradeOrder memory order = _baseOrder();
+        order.takerNFTs = new Handshake.NFTItem[](0);
         order.takerMonAmount = 10 ether;
         bytes memory sig = _sign(order, makerKey);
 
@@ -269,36 +269,36 @@ contract MonadMarketSettlementTest is Test {
     }
 
     function test_RevertOrderFeeBpsTooHigh() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.feeBps = 501;
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.FeeTooHigh.selector);
+        vm.expectRevert(Handshake.FeeTooHigh.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     function test_RevertOrderFlatFeeTooHigh() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.flatFee = 1 ether + 1;
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.FlatFeeTooHigh.selector);
+        vm.expectRevert(Handshake.FlatFeeTooHigh.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     function test_RevertSetFlatSwapFeeTooHigh() public {
         vm.prank(owner);
-        vm.expectRevert(MonadMarketSettlement.FlatFeeTooHigh.selector);
+        vm.expectRevert(Handshake.FlatFeeTooHigh.selector);
         settlement.setFlatSwapFee(1 ether + 1);
     }
 
     // ----- pull-payment fee withdrawal -----
 
     function test_WithdrawFees() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        Handshake.TradeOrder memory order = _baseOrder();
+        order.takerNFTs = new Handshake.NFTItem[](0);
         order.takerMonAmount = 10 ether;
         bytes memory sig = _sign(order, makerKey);
 
@@ -315,7 +315,7 @@ contract MonadMarketSettlementTest is Test {
 
     function test_RevertWithdrawFeesWhenNothingOwed() public {
         vm.prank(feeRecipient);
-        vm.expectRevert(MonadMarketSettlement.ZeroAmount.selector);
+        vm.expectRevert(Handshake.ZeroAmount.selector);
         settlement.withdrawFees();
     }
 
@@ -324,9 +324,9 @@ contract MonadMarketSettlementTest is Test {
         vm.prank(owner);
         settlement.setFeeRecipient(address(badRecipient));
 
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.takerMonAmount = 1 ether;
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerNFTs = new Handshake.NFTItem[](0);
         bytes memory sig = _sign(order, makerKey);
 
         // Trade now succeeds; fee just accrues to the (broken) recipient.
@@ -339,7 +339,7 @@ contract MonadMarketSettlementTest is Test {
         vm.prank(address(badRecipient));
         vm.expectRevert(
             abi.encodeWithSelector(
-                MonadMarketSettlement.NativeTransferFailed.selector, address(badRecipient), 0.01 ether
+                Handshake.NativeTransferFailed.selector, address(badRecipient), 0.01 ether
             )
         );
         settlement.withdrawFees();
@@ -351,7 +351,7 @@ contract MonadMarketSettlementTest is Test {
         vm.prank(owner);
         settlement.pause();
 
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
@@ -398,37 +398,37 @@ contract MonadMarketSettlementTest is Test {
     // ----- signature / auth failures -----
 
     function test_RevertBadSignature() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, takerKey); // wrong signer
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.InvalidSignature.selector);
+        vm.expectRevert(Handshake.InvalidSignature.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     function test_RevertTamperedOrder() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
         order.takerMonAmount = 0; // tamper after signing
         order.makerMonAmount = 1 ether;
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.InvalidSignature.selector);
+        vm.expectRevert(Handshake.InvalidSignature.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     function test_RevertWrongTaker() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.taker = makeAddr("designated");
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.NotAuthorizedTaker.selector);
+        vm.expectRevert(Handshake.NotAuthorizedTaker.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     function test_DesignatedTakerCanFill() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.taker = taker;
         bytes memory sig = _sign(order, makerKey);
         vm.prank(taker);
@@ -437,10 +437,10 @@ contract MonadMarketSettlementTest is Test {
     }
 
     function test_RevertSelfTrade() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
         vm.prank(maker);
-        vm.expectRevert(MonadMarketSettlement.SelfTrade.selector);
+        vm.expectRevert(Handshake.SelfTrade.selector);
         settlement.fulfillTrade(order, sig);
     }
 
@@ -458,12 +458,12 @@ contract MonadMarketSettlementTest is Test {
             abi.encodeWithSignature("setApprovalForAll(address,bool)", address(settlement), true)
         );
 
-        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
-        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 10);
-        MonadMarketSettlement.NFTItem[] memory takerItems = new MonadMarketSettlement.NFTItem[](1);
-        takerItems[0] = MonadMarketSettlement.NFTItem(address(nftB), 2);
+        Handshake.NFTItem[] memory makerItems = new Handshake.NFTItem[](1);
+        makerItems[0] = Handshake.NFTItem(address(nftA), 10);
+        Handshake.NFTItem[] memory takerItems = new Handshake.NFTItem[](1);
+        takerItems[0] = Handshake.NFTItem(address(nftB), 2);
 
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.maker = address(wallet);
         order.makerNFTs = makerItems;
         order.takerNFTs = takerItems;
@@ -489,10 +489,10 @@ contract MonadMarketSettlementTest is Test {
             abi.encodeWithSignature("setApprovalForAll(address,bool)", address(settlement), true)
         );
 
-        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
-        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 11);
+        Handshake.NFTItem[] memory makerItems = new Handshake.NFTItem[](1);
+        makerItems[0] = Handshake.NFTItem(address(nftA), 11);
 
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.maker = address(wallet);
         order.makerNFTs = makerItems;
 
@@ -500,19 +500,19 @@ contract MonadMarketSettlementTest is Test {
         bytes memory sig = _sign(order, takerKey);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.InvalidSignature.selector);
+        vm.expectRevert(Handshake.InvalidSignature.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     // ----- expiry / nonce / replay -----
 
     function test_RevertExpiredOrder() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
         vm.warp(order.expiry + 1);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.OrderExpired.selector);
+        vm.expectRevert(Handshake.OrderExpired.selector);
         settlement.fulfillTrade(order, sig);
     }
 
@@ -520,18 +520,18 @@ contract MonadMarketSettlementTest is Test {
 
     /// @dev At exactly the expiry second the order is already dead (>= check).
     function test_RevertFillAtExactExpiry() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
         vm.warp(order.expiry);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.OrderExpired.selector);
+        vm.expectRevert(Handshake.OrderExpired.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     /// @dev One second before expiry still fills.
     function test_FillOneSecondBeforeExpiry() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
         vm.warp(order.expiry - 1);
 
@@ -541,19 +541,19 @@ contract MonadMarketSettlementTest is Test {
     }
 
     function test_RevertCancelledNonce() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(maker);
         settlement.cancelNonce(order.nonce);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.NonceAlreadyUsed.selector);
+        vm.expectRevert(Handshake.NonceAlreadyUsed.selector);
         settlement.fulfillTrade(order, sig);
     }
 
     function test_RevertReplayAttack() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
@@ -566,7 +566,7 @@ contract MonadMarketSettlementTest is Test {
         nftB.transferFrom(maker, taker, 2);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.NonceAlreadyUsed.selector);
+        vm.expectRevert(Handshake.NonceAlreadyUsed.selector);
         settlement.fulfillTrade(order, sig);
     }
 
@@ -607,7 +607,7 @@ contract MonadMarketSettlementTest is Test {
     ///      every other order, not revert and leave them fillable.
     function test_CancelNonces_FrontRunFillDoesNotVoidBatch() public {
         // maker signs three orders (nonces 1, 2, 3); only nonce 1 is the base swap.
-        MonadMarketSettlement.TradeOrder memory filled = _baseOrder(); // nonce 1
+        Handshake.TradeOrder memory filled = _baseOrder(); // nonce 1
         bytes memory sig = _sign(filled, makerKey);
 
         // Taker front-runs the pending batch cancel by filling order #1.
@@ -631,7 +631,7 @@ contract MonadMarketSettlementTest is Test {
     // ----- ownership / approval failures -----
 
     function test_RevertMakerNoLongerOwnsNFT() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(maker);
@@ -640,14 +640,14 @@ contract MonadMarketSettlementTest is Test {
         vm.prank(taker);
         vm.expectRevert(
             abi.encodeWithSelector(
-                MonadMarketSettlement.NotTokenOwner.selector, address(nftA), 1, maker
+                Handshake.NotTokenOwner.selector, address(nftA), 1, maker
             )
         );
         settlement.fulfillTrade(order, sig);
     }
 
     function test_RevertApprovalRevoked() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(maker);
@@ -656,7 +656,7 @@ contract MonadMarketSettlementTest is Test {
         vm.prank(taker);
         vm.expectRevert(
             abi.encodeWithSelector(
-                MonadMarketSettlement.MissingApproval.selector, address(nftA), 1, maker
+                Handshake.MissingApproval.selector, address(nftA), 1, maker
             )
         );
         settlement.fulfillTrade(order, sig);
@@ -667,9 +667,9 @@ contract MonadMarketSettlementTest is Test {
     /// @dev A MON-only (native-for-native) order must be rejected — this is an
     ///      NFT marketplace, so at least one side has to move an NFT.
     function test_RevertMonOnlyOrderHasNoNFT() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
-        order.makerNFTs = new MonadMarketSettlement.NFTItem[](0);
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        Handshake.TradeOrder memory order = _baseOrder();
+        order.makerNFTs = new Handshake.NFTItem[](0);
+        order.takerNFTs = new Handshake.NFTItem[](0);
         order.makerMonAmount = 1 ether;
         order.takerMonAmount = 2 ether;
         bytes memory sig = _sign(order, makerKey);
@@ -682,14 +682,14 @@ contract MonadMarketSettlementTest is Test {
 
         uint256 takerFee = (2 ether * 100) / 10_000;
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.NoNFTInTrade.selector);
+        vm.expectRevert(Handshake.NoNFTInTrade.selector);
         settlement.fulfillTrade{value: 2 ether + takerFee}(order, sig);
     }
 
     /// @dev An order with an NFT on only one side still settles (NFT↔MON).
     function test_SingleSidedNFTLegStillAllowed() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        Handshake.TradeOrder memory order = _baseOrder();
+        order.takerNFTs = new Handshake.NFTItem[](0);
         order.takerMonAmount = 3 ether;
         bytes memory sig = _sign(order, makerKey);
 
@@ -702,22 +702,22 @@ contract MonadMarketSettlementTest is Test {
     // ----- payment validation -----
 
     function test_RevertIncorrectPayment() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.takerMonAmount = 1 ether;
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.IncorrectPayment.selector);
+        vm.expectRevert(Handshake.IncorrectPayment.selector);
         settlement.fulfillTrade{value: 1 ether}(order, sig); // missing fee
     }
 
     function test_RevertInsufficientEscrow() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.makerMonAmount = 5 ether;
         bytes memory sig = _sign(order, makerKey);
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.InsufficientEscrow.selector);
+        vm.expectRevert(Handshake.InsufficientEscrow.selector);
         settlement.fulfillTrade(order, sig);
     }
 
@@ -739,7 +739,7 @@ contract MonadMarketSettlementTest is Test {
         vm.prank(maker);
         settlement.deposit{value: 1 ether}();
         vm.prank(maker);
-        vm.expectRevert(MonadMarketSettlement.InsufficientEscrow.selector);
+        vm.expectRevert(Handshake.InsufficientEscrow.selector);
         settlement.withdraw(2 ether);
     }
 
@@ -750,14 +750,14 @@ contract MonadMarketSettlementTest is Test {
         settlement.setFeeBps(250);
         assertEq(settlement.feeBps(), 250);
 
-        vm.expectRevert(MonadMarketSettlement.FeeTooHigh.selector);
+        vm.expectRevert(Handshake.FeeTooHigh.selector);
         settlement.setFeeBps(501);
 
         address newRecipient = makeAddr("newRecipient");
         settlement.setFeeRecipient(newRecipient);
         assertEq(settlement.feeRecipient(), newRecipient);
 
-        vm.expectRevert(MonadMarketSettlement.ZeroAddress.selector);
+        vm.expectRevert(Handshake.ZeroAddress.selector);
         settlement.setFeeRecipient(address(0));
         vm.stopPrank();
     }
@@ -775,12 +775,12 @@ contract MonadMarketSettlementTest is Test {
     function test_RevertNoOpNFTTransfer() public {
         NoOpERC721 fake = new NoOpERC721(maker); // reports maker as owner, approves all
 
-        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
-        makerItems[0] = MonadMarketSettlement.NFTItem(address(fake), 1);
+        Handshake.NFTItem[] memory makerItems = new Handshake.NFTItem[](1);
+        makerItems[0] = Handshake.NFTItem(address(fake), 1);
 
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.makerNFTs = makerItems;
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerNFTs = new Handshake.NFTItem[](0);
         order.takerMonAmount = 1 ether;
         bytes memory sig = _sign(order, makerKey);
 
@@ -788,7 +788,7 @@ contract MonadMarketSettlementTest is Test {
         vm.prank(taker);
         vm.expectRevert(
             abi.encodeWithSelector(
-                MonadMarketSettlement.TransferNotEffective.selector, address(fake), 1
+                Handshake.TransferNotEffective.selector, address(fake), 1
             )
         );
         settlement.fulfillTrade{value: 1 ether + fee}(order, sig);
@@ -810,7 +810,7 @@ contract MonadMarketSettlementTest is Test {
     }
 
     function test_CancelNonceFor_BlocksSubsequentFill() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         bytes memory orderSig = _sign(order, makerKey);
 
         bytes32 digest = settlement.hashCancel(maker, order.nonce);
@@ -818,7 +818,7 @@ contract MonadMarketSettlementTest is Test {
         settlement.cancelNonceFor(maker, order.nonce, abi.encodePacked(r, s, v));
 
         vm.prank(taker);
-        vm.expectRevert(MonadMarketSettlement.NonceAlreadyUsed.selector);
+        vm.expectRevert(Handshake.NonceAlreadyUsed.selector);
         settlement.fulfillTrade(order, orderSig);
     }
 
@@ -837,7 +837,7 @@ contract MonadMarketSettlementTest is Test {
         uint256 nonce = 9;
         bytes32 digest = settlement.hashCancel(maker, nonce);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(takerKey, digest); // wrong signer
-        vm.expectRevert(MonadMarketSettlement.InvalidSignature.selector);
+        vm.expectRevert(Handshake.InvalidSignature.selector);
         settlement.cancelNonceFor(maker, nonce, abi.encodePacked(r, s, v));
     }
 
@@ -847,7 +847,7 @@ contract MonadMarketSettlementTest is Test {
 
         bytes32 digest = settlement.hashCancel(maker, 5);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(makerKey, digest);
-        vm.expectRevert(MonadMarketSettlement.NonceAlreadyUsed.selector);
+        vm.expectRevert(Handshake.NonceAlreadyUsed.selector);
         settlement.cancelNonceFor(maker, 5, abi.encodePacked(r, s, v));
     }
 
@@ -862,13 +862,13 @@ contract MonadMarketSettlementTest is Test {
         nftA.mint(address(bomber), 50);
         bomber.approveAll(nftA, address(settlement));
 
-        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
-        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 50);
+        Handshake.NFTItem[] memory makerItems = new Handshake.NFTItem[](1);
+        makerItems[0] = Handshake.NFTItem(address(nftA), 50);
 
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.maker = address(bomber);
         order.makerNFTs = makerItems;
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerNFTs = new Handshake.NFTItem[](0);
         order.takerMonAmount = 1 ether; // taker pays MON -> bomber is the recipient
         bytes memory sig = _sign(order, makerKey); // bomber's EIP-1271 accepts it
 
@@ -893,13 +893,13 @@ contract MonadMarketSettlementTest is Test {
         nftA.mint(address(maker2), 51);
         maker2.approveAll(nftA, address(settlement));
 
-        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
-        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 51);
+        Handshake.NFTItem[] memory makerItems = new Handshake.NFTItem[](1);
+        makerItems[0] = Handshake.NFTItem(address(nftA), 51);
 
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.maker = address(maker2);
         order.makerNFTs = makerItems;
-        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerNFTs = new Handshake.NFTItem[](0);
         order.takerMonAmount = 1 ether;
         bytes memory sig = _sign(order, makerKey);
 
@@ -919,7 +919,7 @@ contract MonadMarketSettlementTest is Test {
     ///      to the EOA parties; a bounded stipend keeps a hostile recipient from
     ///      griefing/OOG-ing the trade, falling back to escrow only on failure.
     function test_DualMonAutoWithdraws() public {
-        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        Handshake.TradeOrder memory order = _baseOrder();
         order.makerMonAmount = 2 ether;
         order.takerMonAmount = 3 ether;
         bytes memory sig = _sign(order, makerKey);

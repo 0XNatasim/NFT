@@ -9,7 +9,7 @@ import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad"
 
 /**
  * EIP-712 order model. Must stay byte-compatible with
- * contracts/src/MonadMarketSettlement.sol.
+ * contracts/src/Handshake.sol.
  */
 
 export const ORDER_TYPES = {
