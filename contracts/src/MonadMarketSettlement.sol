@@ -19,10 +19,12 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 ///         balance (deposit/withdraw — the contract owner can never move
 ///         user funds). Taker-side MON is provided as msg.value.
 ///
-///         MON proceeds (and protocol fees) are paid via pull payments: they are
-///         credited to the recipient's escrow balance during settlement and
-///         collected later with withdraw()/withdrawTo(). Settlement itself makes
-///         no native calls, so no counterparty callback can grief or reenter it.
+///         MON proceeds are auto-withdrawn: settlement sends them directly with a
+///         bounded gas stipend so no second transaction is needed. If a recipient
+///         can't receive within that budget (reverts / gas-heavy / non-payable),
+///         the amount safely falls back to an escrow credit it can pull later, so
+///         a hostile counterparty can never grief or OOG the trade. Protocol fees
+///         are always pull payments (pendingFees + withdrawFees).
 contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     // ---------------------------------------------------------------------
     // Types
@@ -68,6 +70,13 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MAX_ITEMS_PER_SIDE = 20;
 
+    /// @notice Gas forwarded to an auto-withdraw MON payout. Bounded so a hostile
+    ///         recipient can't burn gas / OOG the settlement tail; if the payout
+    ///         needs more than this (or reverts), it safely falls back to an
+    ///         escrow credit the recipient can pull later. Generous enough for
+    ///         EOAs and simple smart wallets to receive directly.
+    uint256 public constant PAYOUT_GAS_STIPEND = 30_000;
+
     // ---------------------------------------------------------------------
     // Storage
     // ---------------------------------------------------------------------
@@ -106,6 +115,9 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
     event EscrowDeposited(address indexed account, uint256 amount);
     event EscrowWithdrawn(address indexed account, uint256 amount);
     event FeesWithdrawn(address indexed recipient, uint256 amount);
+    /// @notice Emitted when an auto-withdraw MON payout could not be delivered
+    ///         directly and was credited to the recipient's escrow instead.
+    event ProceedsCredited(address indexed to, uint256 amount);
 
     // ---------------------------------------------------------------------
     // Errors
@@ -270,19 +282,17 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
         // Fees accrue to the recipient's pull-payment balance instead of being
         // pushed here, so a reverting fee recipient can never brick a trade.
         if (totalFee > 0) pendingFees[feeRecipient] += totalFee;
-        // MON proceeds are credited to the recipients' escrow (pull payment)
-        // rather than pushed. This removes every native call from settlement, so
-        // a hostile contract counterparty cannot grief the trade with a
-        // gas-burning, return-bombing, or reverting native callback (and there is
-        // no reentrancy surface on the payout at all). Recipients collect via
-        // withdraw() / withdrawTo(). Balanced: the debits above plus these
-        // credits net exactly to msg.value, so the contract stays solvent.
-        if (order.takerMonAmount > 0) escrowBalance[order.maker] += order.takerMonAmount;
-        if (order.makerMonAmount > 0) escrowBalance[msg.sender] += order.makerMonAmount;
 
         // ----- Interactions -----
         _transferNFTs(order.makerNFTs, order.maker, msg.sender);
         _transferNFTs(order.takerNFTs, msg.sender, order.maker);
+
+        // Auto-withdraw the MON proceeds: send them directly with a bounded gas
+        // stipend so recipients don't need a second transaction, while a hostile
+        // recipient still can't grief/OOG the trade — a failed or gas-heavy
+        // payout falls back to an escrow credit instead of reverting settlement.
+        _payout(order.maker, order.takerMonAmount);
+        _payout(msg.sender, order.makerMonAmount);
 
         emit TradeExecuted(
             orderHash,
@@ -467,5 +477,26 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
             success := call(gas(), to, amount, 0, 0, 0, 0)
         }
         if (!success) revert NativeTransferFailed(to, amount);
+    }
+
+    /// @dev Auto-withdraw a MON proceeds leg during settlement. Sends `amount`
+    ///      directly to `to` with a bounded gas stipend (so a hostile recipient
+    ///      cannot burn gas or OOG the rest of the settlement), discarding
+    ///      returndata. If the direct send fails — recipient reverts, needs more
+    ///      than the stipend, or is non-payable — the amount is credited to the
+    ///      recipient's escrow so the trade never reverts; they pull it later via
+    ///      withdraw()/withdrawTo(). Reachable only from the nonReentrant
+    ///      fulfillTrade, and all trade state is already finalized before it runs.
+    function _payout(address to, uint256 amount) private {
+        if (amount == 0) return;
+        bool success;
+        uint256 stipend = PAYOUT_GAS_STIPEND;
+        assembly {
+            success := call(stipend, to, amount, 0, 0, 0, 0)
+        }
+        if (!success) {
+            escrowBalance[to] += amount;
+            emit ProceedsCredited(to, amount);
+        }
     }
 }
