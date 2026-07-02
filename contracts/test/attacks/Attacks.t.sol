@@ -145,6 +145,11 @@ contract AttacksTest is Test {
         });
         bytes memory sig = _sign(order, makerKey);
 
+        // Total MON the actor controls (spendable balance + escrow) before the
+        // trade. It is owed exactly 1 MON of proceeds; a successful drain would
+        // make it gain more than that.
+        uint256 actorBefore = address(actor).balance + settlement.escrowBalance(address(actor));
+
         // Taker's leg is zero MON, so it owes nothing: msg.value == 0.
         vm.prank(address(actor));
         settlement.fulfillTrade{value: 0}(order, sig);
@@ -152,12 +157,11 @@ contract AttacksTest is Test {
         // The actor is owed 1 MON, auto-sent with a bounded stipend. Its receive()
         // re-enters withdraw(); the nonReentrant guard blocks any nested state
         // change, so it cannot drain. Fund conservation is the robust invariant:
-        // the actor ends with exactly its 5 ETH funded escrow + 1 ETH proceeds
-        // (as balance or escrow), never more — a successful drain would exceed it.
+        // the actor gains exactly its 1 MON proceeds (as balance or escrow), no more.
         assertEq(nftB.ownerOf(2), maker, "maker should receive the NFT");
         assertEq(
             address(actor).balance + settlement.escrowBalance(address(actor)),
-            6 ether,
+            actorBefore + 1 ether,
             "funds not conserved / drain occurred"
         );
     }
