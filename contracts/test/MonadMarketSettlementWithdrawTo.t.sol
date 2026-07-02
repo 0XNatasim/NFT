@@ -50,6 +50,7 @@ contract MonadMarketSettlementWithdrawToTest is Test {
 
         vm.prank(maker);
         nftA.setApprovalForAll(address(settlement), true);
+        vm.deal(maker, 100 ether);
         vm.deal(taker, 100 ether);
     }
 
