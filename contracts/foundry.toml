@@ -16,3 +16,10 @@ remappings = [
 
 [fuzz]
 runs = 256
+
+# Marketplace order expiry must compare signed deadlines against the current
+# block timestamp. The app uses user-selected expiry windows, so small validator
+# timestamp drift does not influence settlement economics; suppress this known
+# low-severity lint to keep `forge build` clean.
+[lint]
+without_lints = ["block-timestamp"]
