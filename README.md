@@ -89,6 +89,7 @@ Collection logos are resolved at runtime from collection contract metadata inste
 ```bash
 npm run typecheck && npm run lint && npm run test   # app: should all pass
 npm run contracts:test                              # Foundry suite should pass
+forge build                                         # also works from repo root
 ```
 
 ## Architecture
@@ -190,6 +191,7 @@ Apply every file in `supabase/migrations/` (in filename order) via the Supabase 
 npm run dev / build / lint / typecheck
 npm run test              # vitest (fee math, validation, EIP-712)
 npm run contracts:test    # foundry test suite
+forge build               # root-level Foundry build; equivalent project settings are in ./foundry.toml
 npm run contracts:deploy  # deploy to $MONAD_RPC_URL
 ```
 
