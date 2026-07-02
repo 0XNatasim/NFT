@@ -55,6 +55,10 @@ contract ReentrantActor is IERC721Receiver {
         IERC721(nft).setApprovalForAll(address(settlement), true);
     }
 
+    function withdrawEscrow(uint256 amount) external {
+        settlement.withdraw(amount);
+    }
+
     function _tryReenter() internal {
         if (mode == Mode.NONE) return;
         reentryAttempted = true;

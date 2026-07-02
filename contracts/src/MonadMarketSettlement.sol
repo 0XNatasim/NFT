@@ -18,6 +18,11 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 ///         Maker-side MON is funded from the maker's self-managed escrow
 ///         balance (deposit/withdraw — the contract owner can never move
 ///         user funds). Taker-side MON is provided as msg.value.
+///
+///         MON proceeds (and protocol fees) are paid via pull payments: they are
+///         credited to the recipient's escrow balance during settlement and
+///         collected later with withdraw()/withdrawTo(). Settlement itself makes
+///         no native calls, so no counterparty callback can grief or reenter it.
 contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     // ---------------------------------------------------------------------
     // Types
@@ -265,13 +270,19 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
         // Fees accrue to the recipient's pull-payment balance instead of being
         // pushed here, so a reverting fee recipient can never brick a trade.
         if (totalFee > 0) pendingFees[feeRecipient] += totalFee;
+        // MON proceeds are credited to the recipients' escrow (pull payment)
+        // rather than pushed. This removes every native call from settlement, so
+        // a hostile contract counterparty cannot grief the trade with a
+        // gas-burning, return-bombing, or reverting native callback (and there is
+        // no reentrancy surface on the payout at all). Recipients collect via
+        // withdraw() / withdrawTo(). Balanced: the debits above plus these
+        // credits net exactly to msg.value, so the contract stays solvent.
+        if (order.takerMonAmount > 0) escrowBalance[order.maker] += order.takerMonAmount;
+        if (order.makerMonAmount > 0) escrowBalance[msg.sender] += order.makerMonAmount;
 
         // ----- Interactions -----
         _transferNFTs(order.makerNFTs, order.maker, msg.sender);
         _transferNFTs(order.takerNFTs, msg.sender, order.maker);
-
-        if (order.takerMonAmount > 0) _sendNative(order.maker, order.takerMonAmount);
-        if (order.makerMonAmount > 0) _sendNative(msg.sender, order.makerMonAmount);
 
         emit TradeExecuted(
             orderHash,

@@ -53,6 +53,10 @@ contract ReturnBomber {
         return MAGICVALUE;
     }
 
+    function pullEscrow(MonadMarketSettlement s, uint256 amount) external {
+        s.withdraw(amount);
+    }
+
     fallback() external payable {
         assembly {
             return(0, 0x10000) // 64KB of returndata
@@ -159,7 +163,9 @@ contract MonadMarketSettlementTest is Test {
         settlement.fulfillTrade{value: 10 ether + fee}(order, sig);
 
         assertEq(nftA.ownerOf(1), taker);
-        assertEq(maker.balance, makerBefore + 10 ether);
+        // Proceeds are credited to the seller's escrow (pull payment), not pushed.
+        assertEq(maker.balance, makerBefore);
+        assertEq(settlement.escrowBalance(maker), 10 ether);
         // Fees accrue to the pull-payment ledger, not pushed to the recipient.
         assertEq(feeRecipient.balance, 0);
         assertEq(settlement.pendingFees(feeRecipient), fee);
@@ -180,7 +186,9 @@ contract MonadMarketSettlementTest is Test {
         settlement.fulfillTrade(order, sig);
 
         assertEq(nftB.ownerOf(2), maker);
-        assertEq(taker.balance, takerBefore + 5 ether);
+        // Taker's MON proceeds are credited to its escrow (pull payment).
+        assertEq(taker.balance, takerBefore);
+        assertEq(settlement.escrowBalance(taker), 5 ether);
         assertEq(settlement.pendingFees(feeRecipient), fee);
         assertEq(settlement.escrowBalance(maker), 0);
     }
@@ -828,13 +836,15 @@ contract MonadMarketSettlementTest is Test {
         settlement.cancelNonceFor(maker, 5, abi.encodePacked(r, s, v));
     }
 
-    // ----- L-06: return-bomb recipient is still paid -----
+    // ----- L-06: return-bomb recipient is still paid on withdraw -----
 
-    /// @dev A maker whose fallback return-bombs on the MON payout is still paid
-    ///      and the trade completes — _sendNative discards the returndata instead
-    ///      of copying the hostile blob into memory. ReturnBomber accepts any
-    ///      signature via EIP-1271, so it can be the maker receiving takerMon.
-    function test_ReturnBombMakerStillPaidOnPayout() public {
+    /// @dev Settlement no longer pushes MON (L-08 pull payments), so the remaining
+    ///      native call is withdraw(). A recipient whose fallback return-bombs is
+    ///      still paid there — _sendNative discards the returndata instead of
+    ///      copying the hostile blob into memory. ReturnBomber accepts any
+    ///      signature via EIP-1271, so it can be the maker whose proceeds it later
+    ///      withdraws.
+    function test_ReturnBombRecipientStillPaidOnWithdraw() public {
         ReturnBomber bomber = new ReturnBomber();
         nftA.mint(address(bomber), 50);
         bomber.approveAll(nftA, address(settlement));
@@ -846,7 +856,7 @@ contract MonadMarketSettlementTest is Test {
         order.maker = address(bomber);
         order.makerNFTs = makerItems;
         order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
-        order.takerMonAmount = 1 ether; // taker pays MON -> maker(bomber) receives it
+        order.takerMonAmount = 1 ether; // taker pays MON -> credited to bomber's escrow
         bytes memory sig = _sign(order, makerKey); // bomber's EIP-1271 accepts it
 
         uint256 fee = (1 ether * 100) / 10_000;
@@ -854,7 +864,44 @@ contract MonadMarketSettlementTest is Test {
         settlement.fulfillTrade{value: 1 ether + fee}(order, sig);
 
         assertEq(nftA.ownerOf(50), taker);
-        assertEq(address(bomber).balance, 1 ether); // paid despite the return bomb
+        assertEq(settlement.escrowBalance(address(bomber)), 1 ether); // pull credit
+
+        // Now the bomber withdraws; its return-bombing fallback must not choke it.
+        bomber.pullEscrow(settlement, 1 ether);
+        assertEq(address(bomber).balance, 1 ether);
+        assertEq(settlement.escrowBalance(address(bomber)), 0);
+    }
+
+    // ----- L-08: dual-MON proceeds credited to escrow, no push -----
+
+    /// @dev NFT+MON <-> NFT+MON settles with both MON legs credited to escrow, so
+    ///      there is no native push a hostile recipient could grief or OOG.
+    function test_DualMonSettlesToEscrow() public {
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.makerMonAmount = 2 ether;
+        order.takerMonAmount = 3 ether;
+        bytes memory sig = _sign(order, makerKey);
+
+        uint256 makerLegFee = (2 ether * 100) / 10_000;
+        uint256 takerLegFee = (3 ether * 100) / 10_000;
+        vm.prank(maker);
+        settlement.deposit{value: 2 ether + makerLegFee}();
+
+        uint256 makerBefore = maker.balance;
+        uint256 takerBefore = taker.balance;
+
+        vm.prank(taker);
+        settlement.fulfillTrade{value: 3 ether + takerLegFee}(order, sig);
+
+        // NFTs swapped.
+        assertEq(nftA.ownerOf(1), taker);
+        assertEq(nftB.ownerOf(2), maker);
+        // No native pushed to either party; proceeds are escrow credits.
+        assertEq(maker.balance, makerBefore);
+        assertEq(taker.balance, takerBefore - (3 ether + takerLegFee));
+        assertEq(settlement.escrowBalance(maker), 3 ether); // received taker's MON
+        assertEq(settlement.escrowBalance(taker), 2 ether); // received maker's MON
+        assertEq(settlement.pendingFees(feeRecipient), makerLegFee + takerLegFee);
     }
 
     // ----- fuzz -----
