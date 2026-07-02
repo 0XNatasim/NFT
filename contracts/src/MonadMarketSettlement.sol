@@ -52,6 +52,12 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
         "TradeOrder(address maker,address taker,NFTItem[] makerNFTs,NFTItem[] takerNFTs,uint256 makerMonAmount,uint256 takerMonAmount,uint256 feeBps,uint256 flatFee,uint256 nonce,uint256 expiry)NFTItem(address contractAddress,uint256 tokenId)"
     );
 
+    /// @notice EIP-712 type for a maker-authorized nonce cancellation, so an
+    ///         EIP-1271 wallet maker that cannot call the contract directly can
+    ///         still revoke a resting order via a relayed signed message.
+    bytes32 public constant CANCEL_TYPEHASH =
+        keccak256("Cancel(address maker,uint256 nonce)");
+
     uint256 public constant MAX_FEE_BPS = 500; // 5%
     uint256 public constant MAX_FLAT_SWAP_FEE = 1 ether; // hard cap on flat swap fee
     uint256 public constant BPS_DENOMINATOR = 10_000;
@@ -112,6 +118,7 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
     error InsufficientEscrow();
     error NotTokenOwner(address nft, uint256 tokenId, address expectedOwner);
     error MissingApproval(address nft, uint256 tokenId, address owner);
+    error TransferNotEffective(address nft, uint256 tokenId);
     error NativeTransferFailed(address to, uint256 amount);
     error FeeTooHigh();
     error FlatFeeTooHigh();
@@ -213,7 +220,10 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
         if (order.makerNFTs.length > MAX_ITEMS_PER_SIDE || order.takerNFTs.length > MAX_ITEMS_PER_SIDE) {
             revert TooManyItems();
         }
-        if (block.timestamp > order.expiry) revert OrderExpired();
+        // Expiry is exclusive: an order is dead at and after its expiry second,
+        // matching the app's exclusive off-chain filtering so a taker can't
+        // settle during the exact deadline second after the UI shows it expired.
+        if (block.timestamp >= order.expiry) revert OrderExpired();
         if (order.taker != address(0) && order.taker != msg.sender) revert NotAuthorizedTaker();
         if (order.maker == msg.sender) revert SelfTrade();
         if (nonceUsed[order.maker][order.nonce]) revert NonceAlreadyUsed();
@@ -290,6 +300,30 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
             nonceUsed[msg.sender][nonces[i]] = true;
             emit TradeCancelled(msg.sender, nonces[i]);
         }
+    }
+
+    /// @notice Cancel a maker's nonce using the maker's EIP-712 signature, so
+    ///         anyone can relay it. This gives EIP-1271 / execution-limited
+    ///         smart-wallet makers a trustless on-chain revocation path even when
+    ///         the wallet itself cannot make an arbitrary call into this contract.
+    ///         The signature is validated via SignatureChecker, so it accepts both
+    ///         ECDSA (EOA) and EIP-1271 (contract wallet) signatures — the same
+    ///         authorization surface as fulfillTrade. Idempotent: reverts if the
+    ///         nonce is already used (filled or cancelled).
+    function cancelNonceFor(address maker, uint256 nonce, bytes calldata signature) external {
+        if (nonceUsed[maker][nonce]) revert NonceAlreadyUsed();
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(CANCEL_TYPEHASH, maker, nonce)));
+        if (!SignatureChecker.isValidSignatureNow(maker, digest, signature)) {
+            revert InvalidSignature();
+        }
+        nonceUsed[maker][nonce] = true;
+        emit TradeCancelled(maker, nonce);
+    }
+
+    /// @notice EIP-712 digest a maker signs to authorize cancelling `nonce` via
+    ///         cancelNonceFor. Exposed so off-chain code can build the message.
+    function hashCancel(address maker, uint256 nonce) external view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(CANCEL_TYPEHASH, maker, nonce)));
     }
 
     // ---------------------------------------------------------------------
@@ -395,12 +429,32 @@ contract MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Ste
 
     function _transferNFTs(NFTItem[] calldata items, address from, address to) internal {
         for (uint256 i = 0; i < items.length; i++) {
-            IERC721(items[i].contractAddress).safeTransferFrom(from, to, items[i].tokenId);
+            IERC721 nft = IERC721(items[i].contractAddress);
+            nft.safeTransferFrom(from, to, items[i].tokenId);
+            // Confirm the token actually moved. A non-compliant token whose
+            // transfer is a silent no-op would otherwise pass the pre-transfer
+            // ownerOf/approval checks and let us release the opposite leg for an
+            // NFT that never changed hands, breaking atomicity. This catches
+            // broken/no-op implementations; a fully adversarial `ownerOf` that
+            // lies both before and after can only be excluded by an allowlist —
+            // callers must still verify collection addresses they trade.
+            if (nft.ownerOf(items[i].tokenId) != to) {
+                revert TransferNotEffective(items[i].contractAddress, items[i].tokenId);
+            }
         }
     }
 
+    /// @dev Native transfer that discards callee returndata. The plain
+    ///      `to.call{value:}("")` form copies the callee's full returndata into
+    ///      this contract's memory, so a hostile recipient can "return-bomb" a
+    ///      large blob to inflate the caller's gas cost. The assembly form
+    ///      ignores returndata (0-length output buffer) while keeping the same
+    ///      revert-on-failure semantics.
     function _sendNative(address to, uint256 amount) internal {
-        (bool success,) = payable(to).call{value: amount}("");
+        bool success;
+        assembly {
+            success := call(gas(), to, amount, 0, 0, 0, 0)
+        }
         if (!success) revert NativeTransferFailed(to, amount);
     }
 }

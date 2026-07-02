@@ -10,6 +10,56 @@ contract RejectEther {
     // no receive/fallback => native transfers to this contract revert
 }
 
+/// @notice A non-compliant "ERC721" whose transfer is a silent no-op: it reports
+///         a fixed owner and blanket approval so it passes the pre-transfer
+///         checks, but safeTransferFrom does nothing. Used to prove L-04 — the
+///         post-transfer ownership check catches tokens that never move.
+contract NoOpERC721 {
+    address public immutable fixedOwner;
+
+    constructor(address _owner) {
+        fixedOwner = _owner;
+    }
+
+    function ownerOf(uint256) external view returns (address) {
+        return fixedOwner;
+    }
+
+    function getApproved(uint256) external pure returns (address) {
+        return address(0);
+    }
+
+    function isApprovedForAll(address, address) external pure returns (bool) {
+        return true;
+    }
+
+    function safeTransferFrom(address, address, uint256) external {
+        // no-op: the token never actually moves
+    }
+}
+
+/// @notice A contract that return-bombs from its payable fallback (returns a
+///         large blob on a bare-value call). It also implements EIP-1271 (accepts
+///         any signature) so it can act as a maker and receive a MON payout,
+///         exercising the L-06 hardened _sendNative which must ignore returndata.
+contract ReturnBomber {
+    bytes4 internal constant MAGICVALUE = 0x1626ba7e;
+
+    function approveAll(MockERC721 nft, address op) external {
+        nft.setApprovalForAll(op, true);
+    }
+
+    function isValidSignature(bytes32, bytes calldata) external pure returns (bytes4) {
+        return MAGICVALUE;
+    }
+
+    fallback() external payable {
+        assembly {
+            return(0, 0x10000) // 64KB of returndata
+        }
+    }
+}
+
 contract MonadMarketSettlementTest is Test {
     MonadMarketSettlement settlement;
     MockERC721 nftA;
@@ -443,6 +493,30 @@ contract MonadMarketSettlementTest is Test {
         settlement.fulfillTrade(order, sig);
     }
 
+    // ----- L-07: expiry is exclusive -----
+
+    /// @dev At exactly the expiry second the order is already dead (>= check).
+    function test_RevertFillAtExactExpiry() public {
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        bytes memory sig = _sign(order, makerKey);
+        vm.warp(order.expiry);
+
+        vm.prank(taker);
+        vm.expectRevert(MonadMarketSettlement.OrderExpired.selector);
+        settlement.fulfillTrade(order, sig);
+    }
+
+    /// @dev One second before expiry still fills.
+    function test_FillOneSecondBeforeExpiry() public {
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        bytes memory sig = _sign(order, makerKey);
+        vm.warp(order.expiry - 1);
+
+        vm.prank(taker);
+        settlement.fulfillTrade(order, sig);
+        assertEq(nftA.ownerOf(1), taker);
+    }
+
     function test_RevertCancelledNonce() public {
         MonadMarketSettlement.TradeOrder memory order = _baseOrder();
         bytes memory sig = _sign(order, makerKey);
@@ -669,6 +743,118 @@ contract MonadMarketSettlementTest is Test {
         vm.prank(taker);
         vm.expectRevert();
         settlement.setFeeBps(50);
+    }
+
+    // ----- L-04: transfer effectiveness -----
+
+    /// @dev A no-op ERC721 (transfer does nothing) must not let settlement
+    ///      release the opposite leg; the post-transfer ownerOf check reverts.
+    function test_RevertNoOpNFTTransfer() public {
+        NoOpERC721 fake = new NoOpERC721(maker); // reports maker as owner, approves all
+
+        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
+        makerItems[0] = MonadMarketSettlement.NFTItem(address(fake), 1);
+
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.makerNFTs = makerItems;
+        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerMonAmount = 1 ether;
+        bytes memory sig = _sign(order, makerKey);
+
+        uint256 fee = (1 ether * 100) / 10_000;
+        vm.prank(taker);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MonadMarketSettlement.TransferNotEffective.selector, address(fake), 1
+            )
+        );
+        settlement.fulfillTrade{value: 1 ether + fee}(order, sig);
+    }
+
+    // ----- L-05: signature-authorized cancellation -----
+
+    function test_CancelNonceFor_ECDSA() public {
+        uint256 nonce = 42;
+        bytes32 digest = settlement.hashCancel(maker, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(makerKey, digest);
+        bytes memory sig = abi.encodePacked(r, s, v);
+
+        // A random relayer submits the maker's signed cancellation.
+        address relayer = makeAddr("relayer");
+        vm.prank(relayer);
+        settlement.cancelNonceFor(maker, nonce, sig);
+        assertTrue(settlement.nonceUsed(maker, nonce));
+    }
+
+    function test_CancelNonceFor_BlocksSubsequentFill() public {
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        bytes memory orderSig = _sign(order, makerKey);
+
+        bytes32 digest = settlement.hashCancel(maker, order.nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(makerKey, digest);
+        settlement.cancelNonceFor(maker, order.nonce, abi.encodePacked(r, s, v));
+
+        vm.prank(taker);
+        vm.expectRevert(MonadMarketSettlement.NonceAlreadyUsed.selector);
+        settlement.fulfillTrade(order, orderSig);
+    }
+
+    function test_CancelNonceFor_EIP1271Wallet() public {
+        MockSmartWallet wallet = new MockSmartWallet(maker); // owner key = makerKey
+        uint256 nonce = 7;
+
+        bytes32 digest = settlement.hashCancel(address(wallet), nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(makerKey, digest);
+
+        settlement.cancelNonceFor(address(wallet), nonce, abi.encodePacked(r, s, v));
+        assertTrue(settlement.nonceUsed(address(wallet), nonce));
+    }
+
+    function test_RevertCancelNonceForBadSig() public {
+        uint256 nonce = 9;
+        bytes32 digest = settlement.hashCancel(maker, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(takerKey, digest); // wrong signer
+        vm.expectRevert(MonadMarketSettlement.InvalidSignature.selector);
+        settlement.cancelNonceFor(maker, nonce, abi.encodePacked(r, s, v));
+    }
+
+    function test_RevertCancelNonceForAlreadyUsed() public {
+        vm.prank(maker);
+        settlement.cancelNonce(5);
+
+        bytes32 digest = settlement.hashCancel(maker, 5);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(makerKey, digest);
+        vm.expectRevert(MonadMarketSettlement.NonceAlreadyUsed.selector);
+        settlement.cancelNonceFor(maker, 5, abi.encodePacked(r, s, v));
+    }
+
+    // ----- L-06: return-bomb recipient is still paid -----
+
+    /// @dev A maker whose fallback return-bombs on the MON payout is still paid
+    ///      and the trade completes — _sendNative discards the returndata instead
+    ///      of copying the hostile blob into memory. ReturnBomber accepts any
+    ///      signature via EIP-1271, so it can be the maker receiving takerMon.
+    function test_ReturnBombMakerStillPaidOnPayout() public {
+        ReturnBomber bomber = new ReturnBomber();
+        nftA.mint(address(bomber), 50);
+        bomber.approveAll(nftA, address(settlement));
+
+        MonadMarketSettlement.NFTItem[] memory makerItems = new MonadMarketSettlement.NFTItem[](1);
+        makerItems[0] = MonadMarketSettlement.NFTItem(address(nftA), 50);
+
+        MonadMarketSettlement.TradeOrder memory order = _baseOrder();
+        order.maker = address(bomber);
+        order.makerNFTs = makerItems;
+        order.takerNFTs = new MonadMarketSettlement.NFTItem[](0);
+        order.takerMonAmount = 1 ether; // taker pays MON -> maker(bomber) receives it
+        bytes memory sig = _sign(order, makerKey); // bomber's EIP-1271 accepts it
+
+        uint256 fee = (1 ether * 100) / 10_000;
+        vm.prank(taker);
+        settlement.fulfillTrade{value: 1 ether + fee}(order, sig);
+
+        assertEq(nftA.ownerOf(50), taker);
+        assertEq(address(bomber).balance, 1 ether); // paid despite the return bomb
     }
 
     // ----- fuzz -----
