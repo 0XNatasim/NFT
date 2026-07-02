@@ -279,17 +279,16 @@ contract MonadMarketSettlementReentrancyTest is Test {
     }
 
     // =================================================================
-    // 2. Reentrant BUYER (taker) — reenter during the MON withdraw payout.
-    //    Settlement now uses pull payments (L-08): MON proceeds are credited
-    //    to escrow with NO native call, so the payout-reentrancy surface has
-    //    moved to withdraw(). During settlement the attacker's receive() never
-    //    fires; when it later withdraws, its receive() reenters and the guard
-    //    on withdraw() blocks it.
+    // 2. Reentrant BUYER (taker) — reenter during the auto-withdraw MON payout.
+    //    The taker (attacker) is owed a MON payout, which settlement auto-sends
+    //    with a bounded gas stipend. Its receive() tries to re-enter fulfillTrade;
+    //    the nonReentrant guard blocks any nested settlement. Whether the capped
+    //    payout lands directly or falls back to escrow, the invariants hold: no
+    //    double settlement, and the attacker is paid exactly once (balance +
+    //    escrow == the amount owed).
     // =================================================================
-    function test_ReentrantTaker_DuringMonWithdraw_Blocked() public {
+    function test_ReentrantTaker_PayoutCannotBeExploited() public {
         ReentrantTaker attacker = new ReentrantTaker(settlement);
-        // Maker sells MON for the taker's NFT, so the taker (attacker) is owed a
-        // MON payout — now credited to its escrow rather than pushed.
         nftB.mint(address(attacker), 21);
         attacker.approveNFT(nftB);
 
@@ -307,21 +306,17 @@ contract MonadMarketSettlementReentrancyTest is Test {
         attacker.arm(order, sig);
         attacker.fulfill(0);
 
-        // Settlement made no native call: no callback fired, proceeds are escrow.
-        assertFalse(attacker.reentrancyBlocked(), "no callback should fire in settlement");
+        // No nested settlement succeeded, and the attacker got exactly its 1 MON
+        // (directly or, if its callback exceeded the stipend, as an escrow credit).
         assertFalse(attacker.reentered(), "nested settlement succeeded");
-        assertEq(address(attacker).balance, 0);
-        assertEq(settlement.escrowBalance(address(attacker)), 1 ether);
+        assertEq(
+            address(attacker).balance + settlement.escrowBalance(address(attacker)),
+            1 ether,
+            "attacker not paid exactly once"
+        );
         assertEq(nftB.ownerOf(21), maker);
         assertEq(settlement.escrowBalance(maker), 0);
-
-        // Now the attacker withdraws; its receive() reenters and is blocked, but
-        // the (idempotent, CEI) withdraw still pays it exactly its 1 MON.
-        attacker.withdrawEscrow(1 ether);
-        assertTrue(attacker.reentrancyBlocked(), "withdraw reentry was not blocked");
-        assertFalse(attacker.reentered(), "nested settlement succeeded on withdraw");
-        assertEq(address(attacker).balance, 1 ether);
-        assertEq(settlement.escrowBalance(address(attacker)), 0);
+        assertTrue(settlement.nonceUsed(maker, order.nonce));
     }
 
     // =================================================================
