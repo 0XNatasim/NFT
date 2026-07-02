@@ -16,7 +16,8 @@ import { formatMon } from "@/lib/utils";
 
 /**
  * Self-managed MON escrow on the settlement contract. Funds maker-side
- * MON legs of deals; fully user-controlled (deposit/withdraw anytime).
+ * MON legs of deals and holds sale proceeds until users claim them; fully
+ * user-controlled (deposit/withdraw anytime).
  */
 export function EscrowPanel() {
   const { address, chainId } = useAccount();
@@ -100,8 +101,9 @@ export function EscrowPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Funds the MON side of deals you propose. Only you can deposit or
-          withdraw — the platform has no access.
+          Funds the MON side of deals you propose and receives MON proceeds from
+          completed sales. Only you can deposit or withdraw — the platform has
+          no access.
         </p>
         <p className="text-2xl font-bold text-monad-purple">
           {balanceQuery.isLoading
