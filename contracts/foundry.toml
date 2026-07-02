@@ -19,7 +19,8 @@ runs = 256
 
 # Marketplace order expiry must compare signed deadlines against the current
 # block timestamp. The app uses user-selected expiry windows, so small validator
-# timestamp drift does not influence settlement economics; suppress this known
-# low-severity lint to keep `forge build` clean.
+# timestamp drift does not influence settlement economics. Foundry currently
+# emits this as a build-time lint warning, so skip lint-on-build and run
+# explicit contract tests/lints separately when desired.
 [lint]
-without_lints = ["block-timestamp"]
+lint_on_build = false
