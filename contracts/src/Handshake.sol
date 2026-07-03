@@ -221,6 +221,26 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     /// @notice Settle a maker-signed order. Caller is the taker and must
     ///         send `takerMonAmount` plus the taker-side protocol fee
     ///         (and the flat swap fee for NFT-only swaps) as msg.value.
+    /// @dev Slither triage:
+    ///   - reentrancy-no-eth (benign / false positive): the function is
+    ///     `nonReentrant`, so re-entry into fulfillTrade / withdraw* is blocked
+    ///     by the guard. It is CEI-ordered — every consumable state write
+    ///     (nonceUsed, the maker escrow debit, and the pendingFees accrual) is
+    ///     committed in the Effects block BEFORE any external call. The only
+    ///     state written after the external NFT transfers is the additive
+    ///     `escrowBalance[to] += amount` credit in _payout, which runs on the
+    ///     payout-failure fallback; it is a pure increment of the recipient's
+    ///     own balance, never a read-modify-write of a value a callback observed
+    ///     stale, and it cannot be withdrawn until the guard is released (by
+    ///     which point it is finalized). No callback can act on partial state,
+    ///     so the solvency invariant (balance == Σescrow + ΣpendingFees) holds.
+    ///   - timestamp (accepted by design): `block.timestamp >= order.expiry`
+    ///     is an intentional settlement deadline; miner drift of a few seconds
+    ///     cannot change trade economics, only whether a near-expiry order fills.
+    ///   - cyclomatic-complexity (accepted): the settlement path deliberately
+    ///     performs all validation inline; decomposing it would add call surface
+    ///     and stack juggling for no security benefit.
+    // slither-disable-next-line reentrancy-no-eth,timestamp,cyclomatic-complexity
     function fulfillTrade(TradeOrder calldata order, bytes calldata signature)
         external
         payable
@@ -433,6 +453,12 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         return keccak256(abi.encodePacked(hashes));
     }
 
+    // slither-disable-start calls-loop
+    // calls-loop (accepted by design): the per-item ownerOf/getApproved/
+    // isApprovedForAll external reads run inside a loop bounded by
+    // MAX_ITEMS_PER_SIDE (20, enforced in fulfillTrade), and the whole
+    // settlement is atomic — a revert on any item rolls back the trade — so the
+    // bounded external calls cannot be used to grief or partially settle.
     function _verifyNFTs(NFTItem[] calldata items, address expectedOwner) internal view {
         for (uint256 i = 0; i < items.length; i++) {
             IERC721 nft = IERC721(items[i].contractAddress);
@@ -464,6 +490,7 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
             }
         }
     }
+    // slither-disable-end calls-loop
 
     /// @dev Native transfer that discards callee returndata. The plain
     ///      `to.call{value:}("")` form copies the callee's full returndata into
@@ -473,6 +500,10 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     ///      revert-on-failure semantics.
     function _sendNative(address to, uint256 amount) internal {
         bool success;
+        // assembly (accepted by design): intentional returndata-discard native
+        // send (0-length output buffer) to prevent return-bomb griefing; keeps
+        // the same revert-on-failure semantics as a checked `.call`.
+        // slither-disable-next-line assembly
         assembly {
             success := call(gas(), to, amount, 0, 0, 0, 0)
         }
@@ -491,6 +522,10 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         if (amount == 0) return;
         bool success;
         uint256 stipend = PAYOUT_GAS_STIPEND;
+        // assembly (accepted by design): bounded-gas, returndata-discarding
+        // native send; failure falls back to an escrow credit below so a hostile
+        // recipient can neither OOG the settlement nor return-bomb the caller.
+        // slither-disable-next-line assembly
         assembly {
             success := call(stipend, to, amount, 0, 0, 0, 0)
         }
