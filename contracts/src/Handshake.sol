@@ -77,6 +77,15 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     ///         EOAs and simple smart wallets to receive directly.
     uint256 public constant PAYOUT_GAS_STIPEND = 30_000;
 
+    /// @notice Timelock applied to *adding* a collection to the tradable
+    ///         allowlist. Removals are instant (see removeCollection). This
+    ///         asymmetry bounds a compromised owner key: it cannot whitelist a
+    ///         malicious collection and drain in the same block — the collection
+    ///         sits publicly pending for this window, during which anyone
+    ///         watching CollectionProposed can react and the owner (or a fresh
+    ///         key after recovery) can remove it instantly.
+    uint256 public constant ADD_DELAY = 48 hours;
+
     // ---------------------------------------------------------------------
     // Storage
     // ---------------------------------------------------------------------
@@ -95,6 +104,15 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     ///         Accrued during settlement; claimed via withdrawFees(). Pull
     ///         payments stop a reverting fee recipient from bricking trades.
     mapping(address => uint256) public pendingFees;
+
+    /// @notice Collection allowlist: contract address => unix time at which it
+    ///         becomes tradable. 0 means the collection is not allowed. A trade
+    ///         may only touch a collection whose timestamp is set and has
+    ///         elapsed (see _isAllowedCollection), so a maliciously-lying
+    ///         `ownerOf` is excluded before it is ever called. Adds are
+    ///         timelocked by ADD_DELAY; removals set the entry back to 0
+    ///         instantly.
+    mapping(address => uint256) public collectionAllowedAt;
 
     // ---------------------------------------------------------------------
     // Events
@@ -118,6 +136,14 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     /// @notice Emitted when an auto-withdraw MON payout could not be delivered
     ///         directly and was credited to the recipient's escrow instead.
     event ProceedsCredited(address indexed to, uint256 amount);
+    /// @notice Emitted when a collection is proposed for (or seeded onto) the
+    ///         allowlist. `allowedAt` is the unix time it becomes tradable —
+    ///         block.timestamp + ADD_DELAY for a proposal, or block.timestamp
+    ///         for a constructor seed. Indexers/watchers should surface these
+    ///         during the delay window.
+    event CollectionProposed(address indexed collection, uint256 allowedAt);
+    /// @notice Emitted when a collection is removed from the allowlist (instant).
+    event CollectionRemoved(address indexed collection);
 
     // ---------------------------------------------------------------------
     // Errors
@@ -141,12 +167,28 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     error FlatFeeTooHigh();
     error ZeroAddress();
     error ZeroAmount();
+    /// @notice A traded collection is not on the allowlist (never proposed,
+    ///         still within its ADD_DELAY window, or removed).
+    error CollectionNotAllowed(address collection);
+    /// @notice proposeCollection was called on a collection that is already
+    ///         live, which would otherwise reset a working collection's timer
+    ///         and disable it for ADD_DELAY.
+    error AlreadyAllowed(address collection);
 
     // ---------------------------------------------------------------------
     // Constructor
     // ---------------------------------------------------------------------
 
-    constructor(address initialOwner, address initialFeeRecipient)
+    /// @param initialCollections Collections trusted at launch. Seeded with no
+    ///        timelock (tradable in the deployment block) because the deployer
+    ///        is, by construction, the trust root at genesis — there is no
+    ///        compromised-key window to bound before the contract exists. Every
+    ///        post-deploy addition instead goes through the ADD_DELAY timelock.
+    constructor(
+        address initialOwner,
+        address initialFeeRecipient,
+        address[] memory initialCollections
+    )
         EIP712("Handshake", "1")
         Ownable(initialOwner)
     {
@@ -154,6 +196,17 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         feeRecipient = initialFeeRecipient;
         feeBps = 100; // 1%
         flatSwapFee = 0;
+
+        // Seed the launch allowlist. Active immediately (allowedAt ==
+        // block.timestamp, and _isAllowedCollection uses >=), so no redeploy is
+        // needed for the initial set. Emit CollectionProposed for each so
+        // indexers observe the seed exactly as they would a live proposal.
+        for (uint256 i = 0; i < initialCollections.length; i++) {
+            address c = initialCollections[i];
+            if (c == address(0)) revert ZeroAddress();
+            collectionAllowedAt[c] = block.timestamp;
+            emit CollectionProposed(c, block.timestamp);
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -428,6 +481,35 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         flatSwapFee = newFlatFee;
     }
 
+    /// @notice Propose a collection for the tradable allowlist. It becomes
+    ///         tradable only after ADD_DELAY has elapsed, giving watchers a
+    ///         public window to react (and the owner a window to removeCollection
+    ///         it instantly) before a malicious or mistaken listing can settle a
+    ///         single trade. This is the ONLY power the owner gains over trading;
+    ///         it confers no control over escrow, pending fees, or user assets.
+    /// @dev Guards against silently disabling a LIVE collection for ADD_DELAY: if
+    ///      the collection is already active, revert AlreadyAllowed. Re-proposing
+    ///      a still-pending collection is allowed and overwrites (resets) its
+    ///      timer.
+    function proposeCollection(address c) external onlyOwner {
+        if (c == address(0)) revert ZeroAddress();
+        uint256 t = collectionAllowedAt[c];
+        if (t != 0 && block.timestamp >= t) revert AlreadyAllowed(c);
+        uint256 allowedAt = block.timestamp + ADD_DELAY;
+        collectionAllowedAt[c] = allowedAt;
+        emit CollectionProposed(c, allowedAt);
+    }
+
+    /// @notice Remove a collection from the allowlist. Instant and always
+    ///         available — the removal side of the asymmetric timelock — so a
+    ///         pending-malicious or newly-discovered-malicious collection can be
+    ///         killed within the delay window (or any time after) in a single
+    ///         block. Idempotent: removing an absent collection is a no-op write.
+    function removeCollection(address c) external onlyOwner {
+        collectionAllowedAt[c] = 0; // instant, always available
+        emit CollectionRemoved(c);
+    }
+
     /// @notice Emergency stop for new settlements. Escrow withdrawal, fee
     ///         withdrawal, and nonce cancellation stay available while paused
     ///         so users can always exit.
@@ -442,6 +524,16 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     // ---------------------------------------------------------------------
     // Internal
     // ---------------------------------------------------------------------
+
+    /// @dev True iff `c` has an allowlist entry whose timelock has elapsed.
+    ///      Pure storage read — no external call — so it is safe to run inside
+    ///      the checks phase of settlement and adds zero reentrancy surface.
+    ///      `>=` makes a collection tradable in the exact block it becomes due
+    ///      (and, for a constructor seed, in the deployment block).
+    function _isAllowedCollection(address c) internal view returns (bool) {
+        uint256 t = collectionAllowedAt[c];
+        return t != 0 && block.timestamp >= t;
+    }
 
     function _hashNFTItems(NFTItem[] calldata items) internal pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
@@ -461,6 +553,15 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     // bounded external calls cannot be used to grief or partially settle.
     function _verifyNFTs(NFTItem[] calldata items, address expectedOwner) internal view {
         for (uint256 i = 0; i < items.length; i++) {
+            // Allowlist gate FIRST, before we ever call into the collection: a
+            // non-allowlisted contract is rejected without trusting — or even
+            // invoking — its ownerOf. This is the real defense against a
+            // collection whose ownerOf lies both before and after transfer; the
+            // downstream ownerOf/approval and post-transfer effectiveness checks
+            // remain as defense in depth for allowlisted (trusted) collections.
+            if (!_isAllowedCollection(items[i].contractAddress)) {
+                revert CollectionNotAllowed(items[i].contractAddress);
+            }
             IERC721 nft = IERC721(items[i].contractAddress);
             if (nft.ownerOf(items[i].tokenId) != expectedOwner) {
                 revert NotTokenOwner(items[i].contractAddress, items[i].tokenId, expectedOwner);
