@@ -1,0 +1,49 @@
+name: contracts
+
+# Build and test the Foundry contracts. OpenZeppelin is resolved from
+# node_modules (see the remappings in foundry.toml), so npm deps are installed
+# before forge runs; forge-std is vendored under contracts/lib and needs no
+# submodule checkout.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "foundry.toml"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/contracts.yml"
+
+jobs:
+  forge:
+    name: forge build & test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Installs @openzeppelin/contracts (a devDependency) into node_modules,
+      # which foundry.toml remaps @openzeppelin/contracts/ onto.
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: forge --version
+        run: forge --version
+
+      - name: Build
+        run: forge build --sizes
+
+      - name: Test
+        run: forge test -vvv
