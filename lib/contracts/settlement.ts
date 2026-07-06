@@ -120,6 +120,20 @@ export const settlementAbi = [
     ],
   },
   {
+    type: "function",
+    name: "isCollectionAllowed",
+    stateMutability: "view",
+    inputs: [{ name: "c", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "collectionAllowedAt",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     type: "event",
     name: "TradeExecuted",
     inputs: [
@@ -177,6 +191,16 @@ export const settlementAbi = [
       { name: "amount", type: "uint256" },
     ],
   },
+  {
+    type: "error",
+    name: "CollectionNotAllowed",
+    inputs: [{ name: "collection", type: "address" }],
+  },
+  {
+    type: "error",
+    name: "AlreadyAllowed",
+    inputs: [{ name: "collection", type: "address" }],
+  },
 ] as const;
 
 /** Human-readable explanations for settlement revert reasons. */
@@ -193,6 +217,8 @@ export const settlementErrorMessages: Record<string, string> = {
   InsufficientEscrow:
     "The maker hasn't deposited enough MON escrow to fund their side yet.",
   NotTokenOwner: "One of the NFTs is no longer owned by the expected wallet.",
+  CollectionNotAllowed:
+    "One of the collections in this trade isn't approved for trading on Handshake yet.",
   MissingApproval:
     "The maker hasn't approved the settlement contract for one of their NFTs yet. Ask them to open the offer and approve.",
   NativeTransferFailed: "A MON transfer failed.",
@@ -241,3 +267,52 @@ export const erc721Abi = [
     outputs: [{ name: "", type: "string" }],
   },
 ] as const;
+
+/**
+ * Return the subset of `collections` that the settlement contract will reject
+ * as not tradable (not allowlisted, or still inside the ADD_DELAY timelock).
+ *
+ * Fail-open by design: the on-chain `_verifyNFTs` check is the real security
+ * boundary. This is a UX guard that spares a maker from signing an order that
+ * would revert with CollectionNotAllowed at fill time. If the settlement
+ * contract predates the allowlist (no `isCollectionAllowed` function) or a read
+ * fails for any reason, the collection is treated as allowed so we never block
+ * legitimate order creation on an inconclusive check.
+ */
+export async function findDisallowedCollections(
+  publicClient: PublicClientLike,
+  settlementAddress: `0x${string}`,
+  collections: string[],
+): Promise<string[]> {
+  const unique = Array.from(
+    new Set(collections.map((c) => c.toLowerCase())),
+  ) as `0x${string}`[];
+
+  const checks = await Promise.all(
+    unique.map(async (collection) => {
+      try {
+        const allowed = (await publicClient.readContract({
+          address: settlementAddress,
+          abi: settlementAbi,
+          functionName: "isCollectionAllowed",
+          args: [collection],
+        })) as boolean;
+        return { collection, allowed };
+      } catch {
+        return { collection, allowed: true }; // fail open (see above)
+      }
+    }),
+  );
+
+  return checks.filter((c) => !c.allowed).map((c) => c.collection);
+}
+
+/** Minimal shape of a viem public client used by findDisallowedCollections. */
+type PublicClientLike = {
+  readContract: (args: {
+    address: `0x${string}`;
+    abi: typeof settlementAbi;
+    functionName: "isCollectionAllowed";
+    args: readonly [`0x${string}`];
+  }) => Promise<unknown>;
+};

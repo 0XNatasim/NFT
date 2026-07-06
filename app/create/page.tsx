@@ -37,7 +37,11 @@ import {
 } from "@/lib/chains/monad";
 import { runWrite } from "@/lib/chains/tx";
 import { classifyTxError } from "@/lib/chains/tx-errors";
-import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
+import {
+  erc721Abi,
+  findDisallowedCollections,
+  settlementAbi,
+} from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
 import { CollectionSearch } from "@/components/trade/collection-search";
@@ -559,6 +563,28 @@ function ProposeDealForm() {
         throw new Error(
           "Approve your selected NFT collections before proposing this deal.",
         );
+      }
+
+      // Allowlist gate (UX): don't let a maker sign an order whose collections
+      // the settlement contract would reject with CollectionNotAllowed at fill
+      // time. Fail-open — if the contract predates the allowlist or the read is
+      // inconclusive, findDisallowedCollections returns nothing and we proceed;
+      // the on-chain check remains the real enforcement.
+      if (publicClient) {
+        const disallowed = await findDisallowedCollections(
+          publicClient,
+          SETTLEMENT_CONTRACT_ADDRESS,
+          [...offeredNfts, ...requestedNfts].map((n) => n.contractAddress),
+        );
+        if (disallowed.length > 0) {
+          const shown = disallowed
+            .map((c) => `${c.slice(0, 6)}…${c.slice(-4)}`)
+            .join(", ");
+          throw new Error(
+            `These collections aren't approved for trading on Handshake yet: ${shown}. ` +
+              `A collection must be allowlisted (and past its timelock) before an offer using it can settle.`,
+          );
+        }
       }
 
       let feeBps = 100n;

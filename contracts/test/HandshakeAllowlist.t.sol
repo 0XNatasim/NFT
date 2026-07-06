@@ -106,7 +106,9 @@ contract HandshakeAllowlistTest is Test {
     }
 
     /// @dev Fund the maker's escrow with exactly the cost of a maker MON leg.
+    ///      No-op when the order has no maker MON leg (deposit() rejects zero).
     function _fundMaker(uint256 makerMon) internal {
+        if (makerMon == 0) return;
         uint256 makerCost = makerMon + (makerMon * 100) / 10_000; // + 1% maker-leg fee
         vm.deal(maker, makerCost);
         vm.prank(maker);
