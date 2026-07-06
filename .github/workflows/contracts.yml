@@ -5,6 +5,7 @@ name: contracts
 # before forge runs; forge-std is vendored under contracts/lib and needs no
 # submodule checkout.
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
