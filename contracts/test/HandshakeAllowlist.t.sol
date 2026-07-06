@@ -374,6 +374,27 @@ contract HandshakeAllowlistTest is Test {
     }
 
     // ---------------------------------------------------------------------
+    // isCollectionAllowed view mirrors the enforced predicate at each phase
+    // ---------------------------------------------------------------------
+
+    function test_IsCollectionAllowed_TracksLifecycle() public {
+        // Never proposed.
+        assertFalse(hs.isCollectionAllowed(address(colA)), "unlisted -> false");
+
+        // Pending: proposed but timelock not elapsed.
+        hs.proposeCollection(address(colA));
+        assertFalse(hs.isCollectionAllowed(address(colA)), "pending -> false");
+
+        // Boundary: exactly allowedAt flips it true.
+        vm.warp(hs.collectionAllowedAt(address(colA)));
+        assertTrue(hs.isCollectionAllowed(address(colA)), "at allowedAt -> true");
+
+        // Removed: instantly false again.
+        hs.removeCollection(address(colA));
+        assertFalse(hs.isCollectionAllowed(address(colA)), "removed -> false");
+    }
+
+    // ---------------------------------------------------------------------
     // 10. Events
     // ---------------------------------------------------------------------
 

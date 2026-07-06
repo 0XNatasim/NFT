@@ -448,6 +448,16 @@ contract Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         return _domainSeparatorV4();
     }
 
+    /// @notice Whether `c` is currently tradable: it is on the allowlist AND its
+    ///         ADD_DELAY timelock has elapsed. Frontends and integrators should
+    ///         gate order creation on this so users never build an order that
+    ///         reverts with CollectionNotAllowed at fill time. Mirrors the exact
+    ///         predicate enforced in _verifyNFTs, so off-chain code need not — and
+    ///         must not — re-derive the timelock logic itself.
+    function isCollectionAllowed(address c) external view returns (bool) {
+        return _isAllowedCollection(c);
+    }
+
     /// @notice Quote the protocol fee for a prospective trade.
     function quoteFees(uint256 makerMonAmount, uint256 takerMonAmount)
         external
