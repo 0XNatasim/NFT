@@ -45,5 +45,8 @@ jobs:
       - name: Build
         run: forge build --sizes
 
-      - name: Test
-        run: forge test -vvv
+      # -vvv surfaces traces on failure; --gas-report prints the per-function
+      # gas table (including fulfillTrade) so the allowlist's cost is visible in
+      # CI output. Single run so the ~20s invariant isn't executed twice.
+      - name: Test (with gas report)
+        run: forge test -vvv --gas-report
