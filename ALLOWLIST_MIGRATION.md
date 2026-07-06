@@ -77,6 +77,22 @@ collection added *after* deployment must go through `proposeCollection`, which
 enforces the `ADD_DELAY` (48h) timelock. Adds are delayed; `removeCollection` is
 instant.
 
+**Vetting checklist (per collection, before seeding or proposing):**
+
+- [ ] It is a real ERC-721 whose `ownerOf`/`transferFrom` behave honestly.
+- [ ] **Upgradeability:** is the collection an upgradeable proxy? The allowlist
+      trusts a collection *address*, but a proxy can have its implementation
+      swapped **after** it clears the timelock — same address, new (possibly
+      malicious, lying-`ownerOf`) code, with no re-proposal and no delay. This
+      is the sharpest residual in the "allowlisted == trusted" model. If the
+      collection is a proxy, identify who controls the upgrade key and treat an
+      unknown/EOA-controlled upgrader as **disqualifying**, even if today's
+      bytecode is honest. Prefer immutable (non-proxy) collections; where a
+      proxy must be listed, rely on `pause()` + monitoring (§6) as the only
+      defense once it turns hostile.
+- [ ] No known admin/mint/rug powers that would let the collection owner grief
+      settled trades.
+
 ---
 
 ## 4. Cut over
@@ -137,5 +153,8 @@ public pending window); bounds a compromised owner key.
 **Does not protect:** a malicious collection that is allowlisted and stays live
 past the timelock (allowlisted == trusted, by design); an owner who is malicious
 *and* patient with nobody watching the window; or rug/bug behavior *inside* a
-legitimately listed collection. The allowlist grants the owner **zero** power
+legitimately listed collection — including an **upgradeable-proxy collection
+whose implementation is swapped to lying code after it clears the timelock**
+(see the §3 vetting checklist; the address stays trusted, so only `pause()` +
+monitoring defend against it). The allowlist grants the owner **zero** power
 over escrow, pending fees, or user assets — only over which collections trade.
