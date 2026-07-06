@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "contracts:build": "forge build --root contracts",
     "contracts:test": "forge test --root contracts -vvv",
-    "contracts:deploy": "forge script contracts/script/Deploy.s.sol:Deploy --root contracts --rpc-url $MONAD_RPC_URL --broadcast"
+    "contracts:deploy": "forge script contracts/script/Deploy.s.sol:Deploy --root contracts --rpc-url $MONAD_RPC_URL --broadcast",
+    "verify:allowlist": "node scripts/verify-allowlist.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
