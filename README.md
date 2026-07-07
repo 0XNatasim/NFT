@@ -198,16 +198,19 @@ npm run contracts:deploy  # deploy to $MONAD_RPC_URL
 ## Deployment
 
 1. **Contracts** — set `MONAD_RPC_URL`, `PRIVATE_KEY_DEPLOYER`, `FEE_RECIPIENT_ADDRESS`, `CONTRACT_OWNER`, then `npm run contracts:deploy`. Record the address.
-   - Verify via Etherscan's V2 multichain API (MonadScan is served through it). Run this from the repository root, not from inside `contracts/`, so `--root contracts` points Foundry at the correct project. The `${VAR:?message}` checks fail fast if a required environment variable is missing instead of producing an empty constructor-args value.
+   - Verify through Monad's Sourcify-compatible verifier (the same BlockVision endpoint is used by MonadVision/MonadScan). Prefer the wrapper script so constructor encoding and line continuations cannot be mangled by the shell:
      ```bash
-     forge verify-contract --root contracts ${NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS:?set contract address} \
-       src/Handshake.sol:Handshake \
-       --chain 143 --compiler-version 0.8.28 --num-of-optimizations 1000 --evm-version cancun \
-       --constructor-args $(cast abi-encode "constructor(address,address)" ${CONTRACT_OWNER:?set owner} ${FEE_RECIPIENT_ADDRESS:?set fee recipient}) \
-       --verifier etherscan --verifier-url 'https://api.etherscan.io/v2/api?chainid=143' \
-       --etherscan-api-key ${ETHERSCAN_API_KEY:?set Etherscan API key} --watch
+     export MONAD_RPC_URL=https://rpc.monad.xyz
+     export NEXT_PUBLIC_CHAIN_ID=143
+     export HANDSHAKE_ADDRESS=0x...                 # deployed Handshake address
+     export CONTRACT_OWNER=0x...                    # constructor arg 1
+     export FEE_RECIPIENT_ADDRESS=0x...             # constructor arg 2
+     export INITIAL_COLLECTIONS=0xabc...,0xdef...   # constructor arg 3, exactly as deployed
+     # Leave ETHERSCAN_API_KEY set if you need it elsewhere; the wrapper hides it for Sourcify.
+     npm run contracts:verify
      ```
-   - If your shell is already in `contracts/`, either `cd ..` first and use the command above, or omit `--root contracts` and keep the source path as `src/Handshake.sol:Handshake`.
+   - The verifier URL defaults to `https://sourcify-api-monad.blockvision.org/` (note the trailing slash). The wrapper removes `ETHERSCAN_API_KEY` from the child `forge` environment when using Sourcify because some Foundry builds otherwise auto-select Etherscan despite `--verifier sourcify`. If you need Etherscan V2 instead, set `VERIFIER=etherscan` and `ETHERSCAN_API_KEY`; the script will use `https://api.etherscan.io/v2/api?chainid=143`.
+   - If running the raw Foundry command manually, keep it as one command with backslashes at the end of every continued line and encode all three constructor arguments: `constructor(address,address,address[])`.
 2. **Database** — create a Supabase project, run every migration, copy keys.
 3. **Frontend** — deploy to Vercel; set all `NEXT_PUBLIC_*` vars plus `SUPABASE_SERVICE_ROLE_KEY`, `NFT_PROVIDER`, provider API key, `MONAD_RPC_URL`.
 
@@ -232,7 +235,7 @@ set to this address.
 - [x] Contract deployed on Monad mainnet and source-verified on MonadScan
 - [ ] Contract owner moved to a multisig (currently a single EOA)
 - [ ] `feeBps` confirmed (default 100), `flatFee` decided
-- [ ] `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` set everywhere to `0xA9E7…a277`
+- [ ] `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` set everywhere to `0x72F3…7533`
 - [ ] Supabase migrations applied, RLS verified, service key only on server
 - [ ] WalletConnect project id set
 - [ ] NFT provider key set and Monad mainnet slug confirmed
