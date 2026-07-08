@@ -134,10 +134,26 @@ describe("completeOfferSchema", () => {
 });
 
 describe("cancelOfferSchema", () => {
-  it("requires the maker wallet", () => {
+  it("requires the maker wallet and the on-chain cancel tx hash", () => {
+    // Both walletAddress and txHash are required: the route verifies the tx
+    // emits TradeCancelled for this offer, so txHash can no longer be omitted.
+    expect(
+      cancelOfferSchema.safeParse({
+        walletAddress: "0x" + "5".repeat(40),
+        txHash: "0x" + "a".repeat(64),
+      }).success
+    ).toBe(true);
+    // Missing txHash is now rejected (previously accepted).
     expect(
       cancelOfferSchema.safeParse({ walletAddress: "0x" + "5".repeat(40) }).success
-    ).toBe(true);
+    ).toBe(false);
+    // Malformed tx hash is rejected.
+    expect(
+      cancelOfferSchema.safeParse({
+        walletAddress: "0x" + "5".repeat(40),
+        txHash: "0xdeadbeef",
+      }).success
+    ).toBe(false);
     expect(cancelOfferSchema.safeParse({}).success).toBe(false);
   });
 });
