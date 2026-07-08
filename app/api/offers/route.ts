@@ -8,10 +8,11 @@ import {
 } from "@/lib/validation/offers";
 import {
   hashOrder,
-  verifyOrderSignature,
+  verifyOrderSignatureOnchain,
   ZERO_ADDRESS,
   type TradeOrder,
 } from "@/lib/orders/eip712";
+import { publicClient } from "@/lib/chains/client";
 import { MONAD_CHAIN_ID } from "@/lib/chains/monad";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 
@@ -86,7 +87,14 @@ export async function POST(req: Request) {
     expiry: BigInt(input.expiry),
   };
 
-  const validSig = await verifyOrderSignature(order, input.signature as Hex);
+  // Accepts EOA (ECDSA) and smart-contract-wallet (EIP-1271 / ERC-6492)
+  // signatures, matching the settlement contract's SignatureChecker so Safe /
+  // account-abstraction makers can also create offers.
+  const validSig = await verifyOrderSignatureOnchain(
+    publicClient,
+    order,
+    input.signature as Hex
+  );
   if (!validSig) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
