@@ -76,10 +76,10 @@ export const completeOfferSchema = z.object({
 });
 
 export const cancelOfferSchema = z.object({
-  txHash: z
-    .string()
-    .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid tx hash")
-    .optional(),
+  // Required: the cancel route verifies this tx emits TradeCancelled for the
+  // offer's maker+nonce, so a fill (which also consumes the nonce) cannot be
+  // passed off as a cancellation.
+  txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/, "Invalid tx hash"),
   walletAddress: addressSchema,
 });
 

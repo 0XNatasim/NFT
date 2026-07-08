@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { decodeEventLog } from "viem";
 import { getServiceClient } from "@/lib/supabase/server";
 import { bumpReputation, getOfferById, recordEvent } from "@/lib/db/offers";
 import { cancelOfferSchema } from "@/lib/validation/offers";
@@ -11,10 +12,13 @@ import { clientKey, rateLimit } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 /**
- * Mark an offer cancelled. Cancellation is an on-chain action
- * (cancelNonce) — we verify nonceUsed on-chain rather than trusting
- * the caller, so this endpoint cannot be abused to hide other
- * people's offers.
+ * Mark an offer cancelled. Cancellation is an on-chain action (cancelNonce). We
+ * verify the submitted tx actually emitted TradeCancelled for this offer's
+ * maker+nonce — not merely that the nonce is consumed. `nonceUsed` is true after
+ * BOTH a cancel and a fill, so trusting it would let anyone re-label a freshly
+ * settled trade as "cancelled" (and skew reputation) in the window before the
+ * complete call lands. Verifying the event closes that race and keeps the
+ * endpoint unable to hide or mislabel other people's offers.
  */
 export async function POST(
   req: Request,
@@ -64,16 +68,44 @@ export async function POST(
       );
     }
 
-    // Trustless check: the maker must have consumed the nonce on-chain.
-    const used = await publicClient.readContract({
-      address: SETTLEMENT_CONTRACT_ADDRESS,
-      abi: settlementAbi,
-      functionName: "nonceUsed",
-      args: [offer.makerAddress as `0x${string}`, BigInt(offer.nonce)],
+    // Trustless check: the submitted tx must have succeeded and emitted
+    // TradeCancelled(maker, nonce) from our settlement contract for THIS offer.
+    // This distinguishes a real cancellation from a fill (both consume the
+    // nonce), so a settled trade can't be mislabeled cancelled.
+    const receipt = await publicClient.getTransactionReceipt({
+      hash: parsed.data.txHash as `0x${string}`,
     });
-    if (!used) {
+    if (receipt.status !== "success") {
+      return NextResponse.json({ error: "Transaction failed" }, { status: 409 });
+    }
+
+    let cancelled = false;
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== SETTLEMENT_CONTRACT_ADDRESS.toLowerCase()) {
+        continue;
+      }
+      try {
+        const decoded = decodeEventLog({
+          abi: settlementAbi,
+          data: log.data,
+          topics: log.topics,
+        });
+        if (
+          decoded.eventName === "TradeCancelled" &&
+          (decoded.args as any).maker?.toLowerCase() ===
+            offer.makerAddress.toLowerCase() &&
+          (decoded.args as any).nonce?.toString() === String(offer.nonce)
+        ) {
+          cancelled = true;
+          break;
+        }
+      } catch {
+        // not a settlement event we recognise
+      }
+    }
+    if (!cancelled) {
       return NextResponse.json(
-        { error: "Nonce not cancelled on-chain yet" },
+        { error: "Transaction does not cancel this offer" },
         { status: 409 }
       );
     }
@@ -83,13 +115,13 @@ export async function POST(
       .from("trade_offers")
       .update({
         status: "cancelled",
-        cancelled_tx_hash: parsed.data.txHash ?? null,
+        cancelled_tx_hash: parsed.data.txHash,
       })
       .eq("id", id)
       .eq("status", "open");
     if (error) throw error;
 
-    await recordEvent(id, "cancelled", offer.makerAddress, parsed.data.txHash ?? null);
+    await recordEvent(id, "cancelled", offer.makerAddress, parsed.data.txHash);
     await bumpReputation(offer.makerAddress, "cancelled_trades_count");
 
     return NextResponse.json({ ok: true });
