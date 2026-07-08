@@ -7,6 +7,7 @@ import {MockERC721} from "./mocks/MockERC721.sol";
 import {ReentrantTaker} from "./mocks/ReentrantTaker.sol";
 import {GasGriefingReceiver} from "./mocks/GasGriefingReceiver.sol";
 import {ReturnBomber} from "./mocks/ReturnBomber.sol";
+import {ReentrantMaker} from "./mocks/ReentrantMaker.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @notice Adversarial coverage for the two spots the existing suite never
@@ -188,6 +189,77 @@ contract HandshakeAdversarial is Test {
         assertEq(colA.ownerOf(TOKEN_A), address(taker), "maker NFT delivered to taker");
         assertEq(colB.ownerOf(tokenB), maker, "taker NFT delivered to maker");
         assertTrue(hs.nonceUsed(maker, 3), "nonce consumed on success");
+    }
+
+    // ---------------------------------------------------------------------
+    // 1b. Reentrancy at the SECOND leg: a contract MAKER (EIP-1271) re-enters
+    //     from onERC721Received when the taker's NFT is delivered to it. Proves
+    //     the guard holds on the maker side too, not just the taker's first leg.
+    // ---------------------------------------------------------------------
+
+    function test_Reentrancy_MakerSide_Withdraw_UnwindsWholeTrade() public {
+        (ReentrantMaker attackerMaker, address takerEOA, Handshake.TradeOrder memory order) =
+            _setUpMakerSideAttack(400, 401, 10);
+        vm.deal(address(attackerMaker), 1 ether);
+        attackerMaker.depositEscrow{value: 1 ether}();
+        attackerMaker.setMode(ReentrantMaker.Mode.Withdraw);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        vm.prank(takerEOA);
+        hs.fulfillTrade(order, ""); // EIP-1271 maker accepts any signature
+
+        assertEq(colA.ownerOf(400), address(attackerMaker), "maker NFT unmoved");
+        assertEq(colB.ownerOf(401), takerEOA, "taker NFT unmoved");
+        assertFalse(hs.nonceUsed(address(attackerMaker), 10), "nonce not consumed");
+        assertEq(hs.escrowBalance(address(attackerMaker)), 1 ether, "maker escrow untouched");
+    }
+
+    function test_Reentrancy_MakerSide_WithdrawFees_UnwindsWholeTrade() public {
+        (ReentrantMaker attackerMaker, address takerEOA, Handshake.TradeOrder memory order) =
+            _setUpMakerSideAttack(402, 403, 11);
+        attackerMaker.setMode(ReentrantMaker.Mode.WithdrawFees);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        vm.prank(takerEOA);
+        hs.fulfillTrade(order, "");
+
+        assertEq(colA.ownerOf(402), address(attackerMaker), "maker NFT unmoved");
+        assertEq(colB.ownerOf(403), takerEOA, "taker NFT unmoved");
+        assertFalse(hs.nonceUsed(address(attackerMaker), 11), "nonce not consumed");
+    }
+
+    /// @dev Wire up a contract-maker (colA #makerTok) vs EOA-taker (colB #takerTok)
+    ///      NFT<->NFT order. The EOA taker takes the first leg without a callback,
+    ///      so settlement reaches the second leg where the maker's hook fires.
+    function _setUpMakerSideAttack(uint256 makerTok, uint256 takerTok, uint256 nonce)
+        internal
+        returns (ReentrantMaker attackerMaker, address takerEOA, Handshake.TradeOrder memory order)
+    {
+        attackerMaker = new ReentrantMaker(hs);
+        colA.mint(address(attackerMaker), makerTok);
+        attackerMaker.approveCollection(address(colA));
+
+        takerEOA = vm.addr(TAKER_PK);
+        colB.mint(takerEOA, takerTok);
+        vm.prank(takerEOA);
+        colB.setApprovalForAll(address(hs), true);
+
+        Handshake.NFTItem[] memory makerNFTs = new Handshake.NFTItem[](1);
+        makerNFTs[0] = Handshake.NFTItem({contractAddress: address(colA), tokenId: makerTok});
+        Handshake.NFTItem[] memory takerNFTs = new Handshake.NFTItem[](1);
+        takerNFTs[0] = Handshake.NFTItem({contractAddress: address(colB), tokenId: takerTok});
+        order = Handshake.TradeOrder({
+            maker: address(attackerMaker),
+            taker: takerEOA,
+            makerNFTs: makerNFTs,
+            takerNFTs: takerNFTs,
+            makerMonAmount: 0,
+            takerMonAmount: 0,
+            feeBps: 100,
+            flatFee: 0,
+            nonce: nonce,
+            expiry: block.timestamp + 1 days
+        });
     }
 
     // ---------------------------------------------------------------------
