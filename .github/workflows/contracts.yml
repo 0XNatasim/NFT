@@ -15,6 +15,11 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/contracts.yml"
+  # Nightly run so the fork job re-checks the live seeded collections even with
+  # no code change (a collection could be upgraded or its transfer rules changed
+  # out from under the allowlist).
+  schedule:
+    - cron: "0 6 * * *"
 
 jobs:
   forge:
@@ -48,6 +53,38 @@ jobs:
 
       # -vvv surfaces traces on failure; --gas-report prints the per-function
       # gas table (including fulfillTrade) so the allowlist's cost is visible in
-      # CI output. Single run so the ~20s invariant isn't executed twice.
+      # CI output. Single run so the ~20s invariant isn't executed twice. The
+      # fork test (HandshakeForkCollections) self-skips here because MONAD_RPC_URL
+      # is unset; it runs in the dedicated `fork` job below.
       - name: Test (with gas report)
         run: forge test -vvv --gas-report
+
+  # Runs the allowlist hardening fork test against the real seeded collections on
+  # Monad. Gated on the MONAD_RPC_URL secret: if it is not configured the test
+  # self-skips (vm.skip), so this job stays green until the secret is set. Once
+  # set, an upgradeable-proxy collection makes it fail loudly.
+  fork:
+    name: fork checks (seeded collections)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Fork test seeded collections
+        env:
+          MONAD_RPC_URL: ${{ secrets.MONAD_RPC_URL }}
+        run: forge test --match-contract HandshakeForkCollections -vvv
