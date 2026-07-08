@@ -31,3 +31,6 @@ npm-debug.log*
 contracts/cache/
 contracts/out/
 contracts/broadcast/
+
+# collection watcher resume state
+scripts/.collections-watch-state.json
