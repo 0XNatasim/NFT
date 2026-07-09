@@ -34,3 +34,7 @@ contracts/broadcast/
 
 # collection watcher resume state
 scripts/.collections-watch-state.json
+
+# generated audit/verification artifacts (regenerate on demand)
+handshake-verify.json
+slither-report.md

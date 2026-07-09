@@ -1,5 +1,10 @@
 # Handshake
 
+[![contracts](https://github.com/0XNatasim/NFT/actions/workflows/contracts.yml/badge.svg)](https://github.com/0XNatasim/NFT/actions/workflows/contracts.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Solidity 0.8.28](https://img.shields.io/badge/Solidity-0.8.28-363636)
+[![Monad mainnet — verified](https://img.shields.io/badge/Monad%20mainnet-verified-836EF9)](https://monadscan.com/address/0x72F3E21c12E85F2043e316737179734b30c87533#code)
+
 A peer-to-peer NFT trading marketplace for the Monad ecosystem — no bots, no snipers. Users negotiate and exchange NFTs directly wallet-to-wallet — NFT-for-NFT, NFT+MON, MON-for-NFT, private wallet-targeted offers — settled atomically by a non-custodial smart contract.
 
 > The on-chain settlement contract keeps its original name (`Handshake`) and EIP-712 domain (`MonadMarket`) — these are baked into the deployed bytecode and every signature, so they must not be renamed. "Handshake" is the product brand only.
@@ -170,6 +175,10 @@ scripts/
   watch-collections.mjs             # CollectionProposed watcher / alerter (read-only)
 supabase/migrations/                # init + order-fee-fields + nft-rarity
 tests/                              # vitest: fee math, validation, EIP-712, wanted-auth
+docs/
+  SECURITY_AUDIT.md                 # adversarial production-readiness audit
+  slither-findings.md               # static-analysis triage (signal vs noise)
+SECURITY.md                         # disclosure policy + scope
 .github/workflows/
   contracts.yml                     # forge build & test (+ nightly seeded-collection fork job)
   collection-watch.yml              # hourly CollectionProposed watcher (opt-in)
@@ -213,6 +222,30 @@ npm run contracts:deploy  # deploy to $MONAD_RPC_URL
 npm run verify:allowlist  # read-only: confirm seeded collections are allowlisted post-deploy
 npm run watch:collections # watch CollectionProposed (add -- --once for a single cron scan)
 ```
+
+## Testing
+
+Contracts run on Foundry (compiled with the exact deployed toolchain, solc
+`0.8.28`); the app runs on Vitest. Both run in CI on every push
+(`.github/workflows/contracts.yml`).
+
+**Contract suite** (`contracts/test/`)
+
+| Suite | What it proves |
+| --- | --- |
+| `HandshakeAllowlist` | Allowlist gating, the 48h/instant timelock asymmetry, and that a lying-`ownerOf` collection is excluded before it is ever called. |
+| `HandshakeSolvency` (invariant) | `balance == Σescrow + ΣpendingFees` holds across arbitrary deposit / settle / propose / remove / warp sequences. |
+| `HandshakeFallbackSolvency` (invariant) | Same solvency invariant when **every** payout is forced through the post-interaction escrow-credit fallback. |
+| `HandshakeAdversarial` | Reentrancy at the mid-settlement NFT callback on **both** legs (contract taker and EIP-1271 contract maker re-entering `withdraw`/`withdrawFees`) unwinds the trade; gas-griefing and return-bomb payout recipients fall back to a recoverable escrow credit; dual-MON-leg fees exact with off-by-one payments rejected. |
+| `HandshakeFeeMath` (fuzz) | Fee accrual is exact and solvency holds for all `makerMon`/`takerMon`/`feeBps` and the flat-fee branch, including the fee caps and the integer-division rounding boundary. |
+| `HandshakeUpgradeableRisk` | Executable demo of the one residual risk: an allowlisted **upgradeable** collection can swap in a lying `ownerOf` and enable theft — and that instant `removeCollection` stops it. |
+| `HandshakeForkCollections` (fork) | The real seeded Monad collections are non-upgradeable, ERC-721, and transferable. Self-skips without `MONAD_RPC_URL`; runs nightly / on demand. |
+
+Static analysis (Slither) triage is in [`docs/slither-findings.md`](docs/slither-findings.md);
+the full adversarial writeup is in [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md).
+
+**App suite** (`tests/`) — Vitest covers fee math, Zod input validation, EIP-712
+order hashing/verification, and wanted-board signature auth.
 
 ## Deployment
 
@@ -286,6 +319,11 @@ NFTs or escrow. Two operational steps harden what remains:
 - [ ] Independent external smart-contract audit
 
 ## Security review
+
+Vulnerability disclosure policy: [`SECURITY.md`](SECURITY.md). Detailed writeups:
+[`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md) (adversarial audit) and
+[`docs/slither-findings.md`](docs/slither-findings.md) (static analysis). No
+independent external audit has been performed yet.
 
 **Contract.** EIP-712 signatures (EOA + EIP-1271 smart wallets) bound to chain id + verifying contract; **fees (bps + flat) are baked into the signed order** so they can't change after signing, capped by `MAX_FEE_BPS`/`MAX_FLAT_SWAP_FEE`; per-maker nonce map prevents replay and powers on-chain cancellation; expiry enforced; designated-taker enforcement; ownership *and* approval verified before any transfer, plus a **post-transfer effectiveness check**; **collection allowlist** with an asymmetric timelock (48h add, instant remove) that excludes a lying `ownerOf` collection before it is ever called; checks-effects-interactions with `nonReentrant`; MON proceeds auto-withdrawn with a bounded gas stipend that **falls back to a pull-payment escrow credit** so a hostile recipient can't grief/OOG settlement; **protocol fees use pull payments** (`withdrawFees`); **`Pausable`** emergency stop on settlement (escrow/fee withdrawal and cancellation stay open); custom errors throughout; `Ownable2Step` admin limited to fee config + allowlist — **no admin path can move user NFTs or escrow.**
 
