@@ -115,7 +115,7 @@ forge build                                         # also works from repo root
 - **Orders are off-chain.** Makers sign EIP-712 `TradeOrder` structs; the signature and order live in Supabase. Creating/listing an offer costs zero gas.
 - **Settlement is on-chain and atomic.** The taker calls `fulfillTrade`. The contract verifies the maker's signature, nonce, expiry, designated taker, NFT ownership, and approvals — then moves all NFTs and MON in one transaction. Any failure reverts everything.
 - **Maker-side MON** comes from a self-managed escrow on the settlement contract (`deposit`/`withdraw`). The owner can never touch user balances. Taker-side MON is `msg.value`.
-- **Status updates are trustless.** The API only marks an offer completed after verifying the `TradeExecuted` event in the tx receipt, and only marks it cancelled after reading `nonceUsed` on-chain.
+- **Status updates are trustless.** The API only marks an offer completed after verifying the `TradeExecuted` event in the tx receipt, and only marks it cancelled after verifying the `TradeCancelled` event for that maker+nonce — so a fill can't be mislabeled as a cancellation.
 
 ### Fees
 
@@ -128,9 +128,18 @@ forge build                                         # also works from repo root
 ```
 contracts/
   foundry.toml
-  src/Handshake.sol     # settlement contract
-  test/Handshake.t.sol  # Foundry tests (success, replay, fees, pause, ...)
-  test/mocks/MockERC721.sol
+  src/Handshake.sol                 # settlement contract
+  test/                             # Foundry suite (unit + fuzz + invariant + fork)
+    HandshakeAllowlist.t.sol        #   allowlist / timelock / lying-collection
+    HandshakeSolvency.t.sol         #   fuzzed solvency invariant (EOA payouts)
+    HandshakeFallbackSolvency.t.sol #   solvency when every payout hits the escrow fallback
+    HandshakeAdversarial.t.sol      #   reentrancy at the NFT callback (both legs), payout griefing
+    HandshakeFeeMath.t.sol          #   fuzzed fee accrual + solvency across all inputs
+    HandshakeUpgradeableRisk.t.sol  #   upgradeable-collection allowlist theft demo
+    HandshakeForkCollections.t.sol  #   fork check of the real seeded collections
+    mocks/                          #   MockERC721, LyingERC721, ReentrantTaker/Maker,
+                                    #   GasGriefingReceiver, ReturnBomber, RejectingReceiver,
+                                    #   MaliciousProxy721
   script/Deploy.s.sol
   lib/forge-std/                    # vendored
 app/
@@ -149,13 +158,21 @@ components/
 lib/
   chains/monad.ts                   # all Monad config (env-driven)
   chains/client.ts                  # server-side viem public client
-  orders/eip712.ts                  # order types, hashing, verification
+  orders/eip712.ts                  # order types, hashing, EOA + EIP-1271 verification
   fees.ts                           # fee math (mirrors the contract)
+  featured-collections.ts           # curated / seeded collection list
   contracts/settlement.ts           # ABI
   nft/{provider.ts,index.ts,pricing.ts,providers/{alchemy,opensea}.ts}
   supabase/server.ts  db/offers.ts  validation/offers.ts  rate-limit.ts
-supabase/migrations/20260610000000_init.sql
-tests/                              # vitest: fee math, validation, EIP-712
+scripts/
+  verify-allowlist.mjs              # post-deploy allowlist verification (read-only)
+  verify-contract.mjs               # source verification wrapper
+  watch-collections.mjs             # CollectionProposed watcher / alerter (read-only)
+supabase/migrations/                # init + order-fee-fields + nft-rarity
+tests/                              # vitest: fee math, validation, EIP-712, wanted-auth
+.github/workflows/
+  contracts.yml                     # forge build & test (+ nightly seeded-collection fork job)
+  collection-watch.yml              # hourly CollectionProposed watcher (opt-in)
 ```
 
 ## Setup
@@ -189,10 +206,12 @@ Apply every file in `supabase/migrations/` (in filename order) via the Supabase 
 
 ```bash
 npm run dev / build / lint / typecheck
-npm run test              # vitest (fee math, validation, EIP-712)
-npm run contracts:test    # foundry test suite
+npm run test              # vitest (fee math, validation, EIP-712, wanted-auth)
+npm run contracts:test    # foundry suite (unit + fuzz + invariant; fork test self-skips w/o MONAD_RPC_URL)
 forge build               # root-level Foundry build; equivalent project settings are in ./foundry.toml
 npm run contracts:deploy  # deploy to $MONAD_RPC_URL
+npm run verify:allowlist  # read-only: confirm seeded collections are allowlisted post-deploy
+npm run watch:collections # watch CollectionProposed (add -- --once for a single cron scan)
 ```
 
 ## Deployment
@@ -229,10 +248,35 @@ build with order-bound fees, the flat-fee cap, pull-payment fees, and the
 `Pausable` emergency stop. `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` should be
 set to this address.
 
+### Ownership & allowlist monitoring
+
+The owner's only power is fee config and the allowlist — it can never move user
+NFTs or escrow. Two operational steps harden what remains:
+
+1. **Move ownership to a multisig.** `Handshake` is `Ownable2Step`, so it's a
+   two-step handoff (a typo can't brick admin):
+   ```bash
+   # from the current owner key:
+   cast send <HANDSHAKE> "transferOwnership(address)" <SAFE> \
+     --rpc-url https://rpc.monad.xyz --interactive
+   # then, from the Safe: execute acceptOwnership() on <HANDSHAKE>
+   cast call <HANDSHAKE> "owner()(address)" --rpc-url https://rpc.monad.xyz  # == <SAFE>
+   ```
+2. **Watch `CollectionProposed`.** Adding a collection is timelocked by
+   `ADD_DELAY` (48h); removal is instant. The delay is only a real defense if a
+   proposal is noticed during the window. `scripts/watch-collections.mjs` tails
+   the event, flags unexpected or upgradeable-proxy collections, and (optionally)
+   webhooks an alert. Run it yourself, or enable the hourly
+   `collection-watch.yml` workflow: set repo variable
+   `WATCH_COLLECTIONS_ENABLED=true` and secrets `MONAD_RPC_URL`,
+   `HANDSHAKE_ADDRESS`, and optional `ALERT_WEBHOOK_URL`.
+
 ### Production checklist
 
 - [x] Contract deployed on Monad mainnet and source-verified on MonadScan
-- [ ] Contract owner moved to a multisig (currently a single EOA)
+- [ ] Contract owner moved to a multisig — `transferOwnership` + `acceptOwnership` (currently a single EOA)
+- [ ] Every seeded collection confirmed non-upgradeable (run the `HandshakeForkCollections` fork test with `MONAD_RPC_URL` set)
+- [ ] Allowlist watcher running — `collection-watch.yml` enabled or `npm run watch:collections` hosted
 - [ ] `feeBps` confirmed (default 100), `flatFee` decided
 - [ ] `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` set everywhere to `0x72F3…7533`
 - [ ] Supabase migrations applied, RLS verified, service key only on server
@@ -243,9 +287,11 @@ set to this address.
 
 ## Security review
 
-**Contract.** EIP-712 signatures bound to chain id + verifying contract; **fees (bps + flat) are baked into the signed order** so they can't change after signing, capped by `MAX_FEE_BPS`/`MAX_FLAT_SWAP_FEE`; per-maker nonce map prevents replay and powers on-chain cancellation; expiry enforced; designated-taker enforcement; ownership *and* approval verified before any transfer; checks-effects-interactions with `nonReentrant`; **protocol fees use pull payments** (`withdrawFees`) so a reverting fee recipient can't brick trades; **`Pausable`** emergency stop on settlement (escrow/fee withdrawal and cancellation stay open); custom errors throughout; `Ownable2Step` admin limited to fee config — **no admin path can move user NFTs or escrow.**
+**Contract.** EIP-712 signatures (EOA + EIP-1271 smart wallets) bound to chain id + verifying contract; **fees (bps + flat) are baked into the signed order** so they can't change after signing, capped by `MAX_FEE_BPS`/`MAX_FLAT_SWAP_FEE`; per-maker nonce map prevents replay and powers on-chain cancellation; expiry enforced; designated-taker enforcement; ownership *and* approval verified before any transfer, plus a **post-transfer effectiveness check**; **collection allowlist** with an asymmetric timelock (48h add, instant remove) that excludes a lying `ownerOf` collection before it is ever called; checks-effects-interactions with `nonReentrant`; MON proceeds auto-withdrawn with a bounded gas stipend that **falls back to a pull-payment escrow credit** so a hostile recipient can't grief/OOG settlement; **protocol fees use pull payments** (`withdrawFees`); **`Pausable`** emergency stop on settlement (escrow/fee withdrawal and cancellation stay open); custom errors throughout; `Ownable2Step` admin limited to fee config + allowlist — **no admin path can move user NFTs or escrow.**
 
-**Backend.** No private keys, no backend signing, no custody. All inputs validated with Zod. Maker signatures re-verified server-side before storing orders. Complete/cancel endpoints verify on-chain state (receipt event / `nonceUsed`) instead of trusting the client. Per-IP rate limits on mutating routes (distributed via Upstash Redis when configured, in-memory otherwise). Wanted-board posts/deletes require an EIP-191 wallet signature so nobody can post or remove on another address's behalf. Private offers excluded from public feeds.
+**Test coverage.** The Foundry suite exercises the happy path, replay, fees, pause and the allowlist timelock, plus: reentrancy at the mid-settlement NFT callback on **both** legs (contract taker and EIP-1271 contract maker re-entering `withdraw`/`withdrawFees`), the `_payout` escrow-credit fallback under gas-griefing and return-bomb recipients, fuzzed **solvency** and **fee-math** invariants (incl. the fee caps and rounding boundary), an executable **upgradeable-collection** theft demo, and a **fork test** asserting the real seeded collections are non-upgradeable and transferable.
+
+**Backend.** No private keys, no backend signing, no custody. All inputs validated with Zod. Maker signatures re-verified server-side before storing orders — **on-chain `verifyTypedData` so both EOA (ECDSA) and EIP-1271 (Safe / smart-wallet) makers are accepted**, matching the contract. The complete and cancel endpoints each verify the specific on-chain event in the submitted receipt (`TradeExecuted` / `TradeCancelled` for this maker+nonce) rather than trusting the client or a bare `nonceUsed` flag — so a fill can't be mislabeled as a cancellation. Per-IP rate limits on mutating routes (distributed via Upstash Redis when configured, in-memory otherwise). Wanted-board posts/deletes require an EIP-191 wallet signature so nobody can post or remove on another address's behalf. Supabase RLS is enabled on every table with no anon policies (service-role-only). Private offers excluded from public feeds.
 
 **Known limitations.**
 - ERC-721 only (no ERC-1155 yet); `quantity` column is forward-compatible.
@@ -253,7 +299,8 @@ set to this address.
 - Rate limiter uses Upstash Redis when `UPSTASH_REDIS_REST_*` are set; otherwise falls back to a per-instance in-memory window (fine for single-instance/dev).
 - Off-chain order book means a cancelled-in-DB-only offer would still be technically fillable — which is why cancellation is on-chain (`cancelNonce`) and the UI enforces it.
 - The maker's NFT approvals must be in place before a taker accepts; the offer page surfaces approval failures from the contract but a pre-flight maker approval step in `/create` would be smoother UX.
-- The contract owner is currently a single EOA — move it to a multisig (`Ownable2Step`) before treating this as production-grade.
+- **Allowlist trust assumption.** The lying-`ownerOf` defense assumes every allowlisted collection is honest *and immutable*. An **upgradeable** (proxy) collection could swap in a malicious `ownerOf` after being allowlisted, reopening the theft vector — so only non-upgradeable, standard ERC-721s should be allowlisted. The `HandshakeForkCollections` fork test and the `watch-collections` script exist to catch this; `removeCollection` is instant if one is found.
+- The contract owner is currently a single EOA — move it to a multisig (`Ownable2Step`; see *Ownership & allowlist monitoring*) before treating this as production-grade.
 
 ## Roadmap
 
