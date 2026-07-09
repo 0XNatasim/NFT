@@ -27,8 +27,8 @@ the identical scoped result set.
 
 ## Noise excluded vs. signal kept
 
-The original whole-project run (`slither-report.md`, kept raw for reference) is
-dominated by code that is never deployed:
+The original whole-project Slither run was dominated by code that is never
+deployed:
 
 | Source | Finding-lines in raw report | In scope? |
 |---|---:|---|

@@ -1,7 +1,7 @@
 # Handshake Protocol — Production Security Audit
 
 **Target:** Handshake — peer-to-peer NFT/MON marketplace on Monad
-**Settlement contract:** `MonadMarketSettlement.sol` (Solidity 0.8.28)
+**Settlement contract:** `Handshake.sol` (Solidity 0.8.28)
 **Deployed address (claimed):** `0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277` (Monad mainnet, chainId 143)
 **Fee recipient (claimed):** `0x41678c150b0D11f18011fC3F275ee92652A89b5a`
 **Audit date:** 2026-06-30
@@ -72,7 +72,7 @@ Maker (browser)                         Taker (browser)
 POST /api/offers ──► verify EIP-712 sig ──► Supabase (service-role only)
    (off-chain order book; gasless)            trade_offers / _nfts / _events
                                                │
-Taker settles ─────────────────────────────►  MonadMarketSettlement.fulfillTrade
+Taker settles ─────────────────────────────►  Handshake.fulfillTrade
                                                │ verify sig, owner, approval, payment
                                                │ consume nonce, debit maker escrow
                                                │ accrue fee (pull), swap NFTs, move MON
@@ -84,7 +84,7 @@ Taker settles ──────────────────────
 
 | Layer | Files |
 | --- | --- |
-| Contract | `contracts/src/MonadMarketSettlement.sol`, `script/Deploy.s.sol`, `foundry.toml`, full Foundry test suite |
+| Contract | `contracts/src/Handshake.sol`, `script/Deploy.s.sol`, `foundry.toml`, full Foundry test suite |
 | EIP-712 | `lib/orders/eip712.ts` (types, domain, hash, verify, nonce) |
 | ABI / wrappers | `lib/contracts/settlement.ts` (`settlementAbi`, `erc721Abi`, error map) |
 | Tx engine | `lib/chains/tx.ts` (`runWrite`), `gas.ts`, `tx-errors.ts`, `tx-log.ts` |
@@ -96,7 +96,7 @@ Taker settles ──────────────────────
 
 ### Inheritance & dependencies
 
-`MonadMarketSettlement is EIP712, ReentrancyGuard, Pausable, Ownable2Step`
+`Handshake is EIP712, ReentrancyGuard, Pausable, Ownable2Step`
 (OpenZeppelin Contracts ^5.1.0), plus `ECDSA` and `IERC721`. `Ownable2Step` (not
 plain `Ownable`) is correctly chosen so ownership transfer requires the new owner
 to accept — preventing transfer to a wrong/dead address. No upgradeability, no
@@ -125,7 +125,7 @@ important result of the audit. Rationale is documented in Phases 3, 7 and 8.
 
 ### M-01 — Single-key owner is a centralization & availability single point of failure
 **Severity:** Medium · **Type:** Centralization / availability
-**Affected:** `MonadMarketSettlement` — `pause()`, `setFeeBps`, `setFeeRecipient`, `setFlatSwapFee`, `Ownable2Step`
+**Affected:** `Handshake` — `pause()`, `setFeeBps`, `setFeeRecipient`, `setFlatSwapFee`, `Ownable2Step`
 
 **Description.** All admin power sits with one `owner` address. The owner can
 `pause()` indefinitely (halting *all* new settlements) and can redirect *future*
@@ -171,7 +171,7 @@ not verified is a trust hole regardless of how good the source is.
 **Recommendation (must complete before launch).** From an environment with RPC:
 ```
 cast code 0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277 --rpc-url https://rpc.monad.xyz
-forge verify-bytecode 0xA9E7…a277 MonadMarketSettlement --rpc-url https://rpc.monad.xyz
+forge verify-bytecode 0xA9E7…a277 Handshake --rpc-url https://rpc.monad.xyz
 cast call 0xA9E7…a277 "owner()(address)"        --rpc-url https://rpc.monad.xyz
 cast call 0xA9E7…a277 "feeRecipient()(address)" --rpc-url https://rpc.monad.xyz
 cast call 0xA9E7…a277 "feeBps()(uint256)"       --rpc-url https://rpc.monad.xyz
