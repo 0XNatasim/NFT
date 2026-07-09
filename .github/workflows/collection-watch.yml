@@ -1,0 +1,67 @@
+name: collection-watch
+
+# Hourly allowlist watcher: runs scripts/watch-collections.mjs in one-shot mode
+# to catch CollectionProposed events during their 48h ADD_DELAY window and alert
+# (console + optional webhook) so a malicious/mistaken proposal can be removed
+# before it becomes tradable.
+#
+# Dormant until you opt in: set repo variable WATCH_COLLECTIONS_ENABLED=true and
+# the secrets below (Settings -> Secrets and variables -> Actions).
+#   secrets:  MONAD_RPC_URL, HANDSHAKE_ADDRESS, ALERT_WEBHOOK_URL (optional)
+#   vars:     WATCH_COLLECTIONS_ENABLED=true, KNOWN_COLLECTIONS (optional)
+on:
+  workflow_dispatch:
+  schedule:
+    # Every hour, on the hour. ADD_DELAY is 48h, so hourly gives ~48 chances to
+    # react to any proposal before it becomes tradable.
+    - cron: "0 * * * *"
+
+# One run at a time; don't stack overlapping scans.
+concurrency:
+  group: collection-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: watch CollectionProposed
+    runs-on: ubuntu-latest
+    # Stays green/idle until you enable it, so an unconfigured repo isn't red.
+    if: ${{ vars.WATCH_COLLECTIONS_ENABLED == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Rolling cache of the resume state: restore the most recent, then save a
+      # fresh entry every run (unique key + prefix restore-keys). Keeps the
+      # one-shot scan incremental across ephemeral runners.
+      - name: Restore watcher state
+        uses: actions/cache/restore@v4
+        with:
+          path: scripts/.collections-watch-state.json
+          key: collwatch-${{ github.run_id }}
+          restore-keys: |
+            collwatch-
+
+      - name: Scan for CollectionProposed
+        env:
+          MONAD_RPC_URL: ${{ secrets.MONAD_RPC_URL }}
+          HANDSHAKE_ADDRESS: ${{ secrets.HANDSHAKE_ADDRESS }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          KNOWN_COLLECTIONS: ${{ vars.KNOWN_COLLECTIONS }}
+        run: npm run watch:collections -- --once
+
+      - name: Save watcher state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: scripts/.collections-watch-state.json
+          key: collwatch-${{ github.run_id }}
