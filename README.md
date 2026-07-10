@@ -87,6 +87,7 @@ scripts/
   verify-allowlist.mjs              # post-deploy allowlist verification (read-only)
   verify-contract.mjs               # source verification wrapper
   watch-collections.mjs             # CollectionProposed watcher / alerter (read-only)
+  reconcile-offers.mjs              # tails TradeExecuted/TradeCancelled -> offer status (backstop)
 supabase/migrations/                # init + order-fee-fields + nft-rarity
 tests/                              # vitest: fee math, validation, EIP-712, wanted-auth
 docs/
