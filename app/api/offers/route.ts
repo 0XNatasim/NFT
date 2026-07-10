@@ -19,6 +19,10 @@ import { clientKey, rateLimit } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const { allowed } = await rateLimit(clientKey(req, "list-offers"), 60, 60_000);
+  if (!allowed) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
   const { searchParams } = new URL(req.url);
   const parsed = listOffersQuerySchema.safeParse(
     Object.fromEntries(searchParams.entries())

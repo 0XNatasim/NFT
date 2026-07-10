@@ -73,8 +73,29 @@ export async function rateLimit(
   return localLimit(key, limit, windowMs);
 }
 
-export function clientKey(req: Request, scope: string): string {
+/**
+ * Best-effort real client IP behind a single trusted reverse proxy (Vercel).
+ *
+ * Do NOT trust the *leftmost* `x-forwarded-for` entry: a client can send its
+ * own `X-Forwarded-For` header and the proxy appends the true peer IP to the
+ * right of it, so the leftmost value is attacker-controlled. Rotating that
+ * value would mint a fresh rate-limit bucket per request and defeat every
+ * limit. Instead we prefer `x-real-ip` (set by the proxy, overwriting any
+ * client-supplied value) and otherwise take the *rightmost* forwarded entry,
+ * which is the hop appended by our trusted proxy.
+ */
+export function clientIp(req: Request): string {
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
   const forwarded = req.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() ?? "unknown";
-  return `${scope}:${ip}`;
+  if (forwarded) {
+    const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);
+    const rightmost = parts[parts.length - 1];
+    if (rightmost) return rightmost;
+  }
+  return "unknown";
+}
+
+export function clientKey(req: Request, scope: string): string {
+  return `${scope}:${clientIp(req)}`;
 }
