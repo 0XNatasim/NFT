@@ -73,7 +73,7 @@ function unique(results: CollectionSearchResult[]) {
 export async function GET(request: Request) {
   const { allowed } = await rateLimit(
     clientKey(request, "collection-search"),
-    60,
+    12,
     60_000,
   );
   if (!allowed) {
