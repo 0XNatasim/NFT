@@ -43,7 +43,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { allowed } = await rateLimit(clientKey(req, "create-offer"), 2, 60_000);
+  const { allowed } = await rateLimit(clientKey(req, "create-offer"), 4, 60_000);
   if (!allowed) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
