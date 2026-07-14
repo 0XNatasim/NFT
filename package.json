@@ -15,7 +15,8 @@
     "contracts:deploy": "forge script contracts/script/Deploy.s.sol:Deploy --root contracts --rpc-url $MONAD_RPC_URL --broadcast",
     "verify:allowlist": "node scripts/verify-allowlist.mjs",
     "contracts:verify": "node scripts/verify-contract.mjs",
-    "watch:collections": "node scripts/watch-collections.mjs"
+    "watch:collections": "node scripts/watch-collections.mjs",
+    "reconcile:offers": "node scripts/reconcile-offers.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
