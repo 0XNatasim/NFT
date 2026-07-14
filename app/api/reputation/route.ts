@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { getReputation } from "@/lib/db/offers";
 import { addressSchema } from "@/lib/validation/offers";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const { allowed } = await rateLimit(clientKey(req, "reputation"), 12, 60_000);
+  if (!allowed) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
   const wallet = new URL(req.url).searchParams.get("wallet");
   const parsed = addressSchema.safeParse(wallet);
   if (!parsed.success) {

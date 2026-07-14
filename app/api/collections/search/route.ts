@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { CollectionSearchResult } from "@/lib/types";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
 
 const OPENSEA_BASE_URL =
   process.env.OPENSEA_BASE_URL ?? "https://api.opensea.io/api/v2";
@@ -70,6 +71,14 @@ function unique(results: CollectionSearchResult[]) {
 }
 
 export async function GET(request: Request) {
+  const { allowed } = await rateLimit(
+    clientKey(request, "collection-search"),
+    12,
+    60_000,
+  );
+  if (!allowed) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";
 
