@@ -227,12 +227,20 @@ export default function WantedPage() {
                     )}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {!isMine && (
-                        <Link
-                          href={`/create?taker=${post.walletAddress}&private=1`}
-                          className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                        >
-                          <Handshake className="h-4 w-4" /> Propose private deal
-                        </Link>
+                        <>
+                          <Link
+                            href={`/rooms/new?counterparty=${post.walletAddress}&wanted=${post.id}`}
+                            className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                          >
+                            <Handshake className="h-4 w-4" /> Haggle live
+                          </Link>
+                          <Link
+                            href={`/create?taker=${post.walletAddress}&private=1`}
+                            className="inline-flex h-9 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                          >
+                            Propose private deal
+                          </Link>
+                        </>
                       )}
                       {isMine && (
                         <Button

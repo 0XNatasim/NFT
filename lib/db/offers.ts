@@ -36,6 +36,7 @@ export function mapOffer(row: any): TradeOffer {
     orderHash: row.order_hash,
     isPrivate: row.is_private,
     requiredMaxRarityRank: row.required_max_rarity_rank ?? null,
+    dealRoomId: row.deal_room_id ?? null,
     completedTxHash: row.completed_tx_hash,
     cancelledTxHash: row.cancelled_tx_hash,
     createdAt: row.created_at,

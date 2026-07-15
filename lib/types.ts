@@ -43,6 +43,8 @@ export interface TradeOffer {
   orderHash: string;
   isPrivate: boolean;
   requiredMaxRarityRank?: number | null;
+  /** Set when this offer is the final signed order of a Deal Room. */
+  dealRoomId?: string | null;
   completedTxHash: string | null;
   cancelledTxHash: string | null;
   createdAt: string;

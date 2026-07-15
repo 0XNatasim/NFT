@@ -8,6 +8,7 @@ import { publicClient } from "@/lib/chains/client";
 import { settlementAbi } from "@/lib/contracts/settlement";
 import { SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { syncDealRoomsOnOfferChange } from "@/lib/deal-rooms/sync";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +119,8 @@ export async function POST(
     await recordEvent(id, "completed", executedTaker, parsed.data.txHash);
     await bumpReputation(offer.makerAddress, "completed_trades_count");
     await bumpReputation(executedTaker, "completed_trades_count");
+
+    await syncDealRoomsOnOfferChange(id, "completed", parsed.data.txHash);
 
     return NextResponse.json({ ok: true, taker: executedTaker });
   } catch (err) {

@@ -9,6 +9,7 @@ import { OfferCard } from "@/components/trade/offer-card";
 import { WalletNFTs } from "@/components/trade/wallet-nfts";
 import { EmptyState } from "@/components/empty-state";
 import { EscrowPanel } from "@/components/wallet/escrow-panel";
+import { RoomsSection } from "@/components/deal-room/rooms-section";
 import { useOffers, useReputation } from "@/hooks/use-market";
 import { cn, shortAddress } from "@/lib/utils";
 
@@ -109,6 +110,10 @@ export default function AccountPage() {
           </DealColumn>
         </div>
       </section>
+
+      <Section title="Deal Rooms — live negotiations">
+        <RoomsSection wallet={address} />
+      </Section>
 
       <Section
         title={`Completed Handshakes (${completed.length})`}
