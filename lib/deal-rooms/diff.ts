@@ -1,4 +1,4 @@
-import { formatEther } from "viem";
+import { formatMon } from "@/lib/utils";
 import type { DealRoomDraft, RevisionNFT } from "@/lib/types";
 
 /**
@@ -24,12 +24,6 @@ function nftLabel(n: RevisionNFT): string {
   if (n.name) return n.name;
   const short = `${n.contractAddress.slice(0, 6)}…${n.contractAddress.slice(-4)}`;
   return `${n.collectionName ?? short} #${n.tokenId}`;
-}
-
-function formatMon(wei: string): string {
-  const s = formatEther(BigInt(wei));
-  // trim trailing zeros but keep at least one decimal-free form
-  return s.replace(/\.?0+$/, "") || "0";
 }
 
 function diffNFTs(

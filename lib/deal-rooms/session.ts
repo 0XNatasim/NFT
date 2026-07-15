@@ -1,7 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Client, Hex } from "viem";
 import { verifyMessage } from "viem/actions";
-import { MONAD_CHAIN_ID } from "@/lib/chains/monad";
+
+export {
+  buildSessionMessage,
+  sessionTimestampFresh,
+  SESSION_SIGNATURE_MAX_SKEW_MS,
+} from "@/lib/deal-rooms/session-message";
 
 /**
  * Wallet session for Deal Room APIs.
@@ -17,31 +22,6 @@ import { MONAD_CHAIN_ID } from "@/lib/chains/monad";
  */
 
 export const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-export const SESSION_SIGNATURE_MAX_SKEW_MS = 5 * 60 * 1000; // 5 minutes
-
-export function buildSessionMessage(p: {
-  walletAddress: string;
-  timestamp: number;
-}): string {
-  return [
-    "Handshake — Sign in to Deal Rooms",
-    "This signature only proves wallet ownership.",
-    "It does NOT approve, transfer, or trade any asset.",
-    `Wallet: ${p.walletAddress.toLowerCase()}`,
-    `Chain: ${MONAD_CHAIN_ID}`,
-    `Timestamp: ${p.timestamp}`,
-  ].join("\n");
-}
-
-export function sessionTimestampFresh(
-  timestamp: number,
-  now: number = Date.now()
-): boolean {
-  return (
-    Number.isFinite(timestamp) &&
-    Math.abs(now - timestamp) <= SESSION_SIGNATURE_MAX_SKEW_MS
-  );
-}
 
 /**
  * Verifies the sign-in signature. Uses viem's action `verifyMessage`, which

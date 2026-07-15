@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { useAccount, useSignMessage } from "wagmi";
 import { getBrowserClient } from "@/lib/supabase/browser";
-import { buildSessionMessage } from "@/lib/deal-rooms/session";
+import { buildSessionMessage } from "@/lib/deal-rooms/session-message";
 import { roomChannelName } from "@/lib/deal-rooms/broadcast";
 import type {
   DealRoom,

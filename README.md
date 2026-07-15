@@ -11,6 +11,35 @@ A peer-to-peer NFT trading marketplace for the Monad ecosystem — no bots, no s
 
 It's a trading desk, not a sniping ground: off-chain signed orders (free to create), offer expirations, private offers, wallet reputation, and no instant floor-sniping mechanics.
 
+## Deal Rooms — Live Haggle 🤝
+
+Handshake's negotiation layer: a **private, real-time deal room** for any two wallets. Counter each other's terms freely — drafts are signature-less and can never move assets — watch the changes land live (presence + delta chips per round), and when you both agree, the maker signs **one** EIP-712 order that settles atomically in sub-second Monad finality. Bots can't outbid a deal they can't see.
+
+- Enter from any offer (**Suggest changes**), the Wanted board (**Haggle live**), or `/rooms/new` with any wallet.
+- One rule makes it safe: *only the final mutually-agreed revision is ever executable.* Replacing a live signed offer requires retiring its nonce on-chain first, so two versions of a deal can never coexist.
+- No smart-contract changes — the deployed, verified settlement contract is reused as-is.
+
+Full design & threat model: [`docs/deal-rooms.md`](docs/deal-rooms.md).
+
+## Quick start (run it in 3 minutes)
+
+```bash
+npm install
+cp .env.example .env.local   # fill in the values below
+npm run dev                  # http://localhost:3000
+```
+
+Minimum `.env.local` to click around against the live mainnet deployment:
+
+| Variable | Where to get it |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` + `SUPABASE_SERVICE_ROLE_KEY` | a free Supabase project — run the files in `supabase/migrations/` (in order) in its SQL editor |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | free at cloud.reown.com |
+| `ALCHEMY_API_KEY` (or `OPENSEA_API_KEY` + `NFT_PROVIDER=opensea`) | free tier, powers NFT indexing |
+| `NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS` | already set — the verified mainnet contract below |
+
+Tests: `npm test` (app) · `npm run contracts:test` (Foundry). Typecheck: `npm run typecheck`.
+
 ## Architecture
 
 ```
