@@ -19,16 +19,22 @@ export const MONAD_EXPLORER_URL =
   process.env.NEXT_PUBLIC_MONAD_EXPLORER_URL ?? "https://monadscan.com";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const MAINNET_SETTLEMENT_CONTRACT_ADDRESS =
+  "0x72f3e21c12e85f2043e316737179734b30c87533";
 
 function envAddress(value: string | undefined): `0x${string}` {
-  const cleaned = (value ?? ZERO_ADDRESS)
+  const fallback =
+    MONAD_CHAIN_ID === MONAD_MAINNET_ID
+      ? MAINNET_SETTLEMENT_CONTRACT_ADDRESS
+      : ZERO_ADDRESS;
+  const cleaned = (value ?? fallback)
     .trim()
     .replace(/^['\"]|['\"]$/g, "")
     .toLowerCase();
 
   return /^0x[0-9a-f]{40}$/.test(cleaned)
     ? (cleaned as `0x${string}`)
-    : ZERO_ADDRESS;
+    : (fallback as `0x${string}`);
 }
 
 export const MON = {
