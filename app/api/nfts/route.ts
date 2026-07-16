@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getNFTProvider } from "@/lib/nft";
+import { getWalletNFTsWithFallback } from "@/lib/nft";
 import { openseaProvider } from "@/lib/nft/providers/opensea";
 import { addressSchema } from "@/lib/validation/offers";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
@@ -98,8 +98,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const provider = getNFTProvider();
-    const result = await provider.getWalletNFTs(parsed.data.owner, {
+    const result = await getWalletNFTsWithFallback(parsed.data.owner, {
       pageKey: parsed.data.pageKey ?? null,
     });
 
