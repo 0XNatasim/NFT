@@ -18,6 +18,25 @@ export const MONAD_RPC_URL =
 export const MONAD_EXPLORER_URL =
   process.env.NEXT_PUBLIC_MONAD_EXPLORER_URL ?? "https://monadscan.com";
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const MAINNET_SETTLEMENT_CONTRACT_ADDRESS =
+  "0x017605384782b0841fde1f1e8539ebedd2c43420";
+
+function envAddress(value: string | undefined): `0x${string}` {
+  const fallback =
+    MONAD_CHAIN_ID === MONAD_MAINNET_ID
+      ? MAINNET_SETTLEMENT_CONTRACT_ADDRESS
+      : ZERO_ADDRESS;
+  const cleaned = (value ?? fallback)
+    .trim()
+    .replace(/^['\"]|['\"]$/g, "")
+    .toLowerCase();
+
+  return /^0x[0-9a-f]{40}$/.test(cleaned)
+    ? (cleaned as `0x${string}`)
+    : (fallback as `0x${string}`);
+}
+
 export const MON = {
   name: "Monad",
   symbol: "MON",
@@ -37,9 +56,9 @@ export const monad = defineChain({
   testnet: MONAD_CHAIN_ID === MONAD_TESTNET_ID,
 });
 
-export const SETTLEMENT_CONTRACT_ADDRESS = (process.env
-  .NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS ??
-  "0x0000000000000000000000000000000000000000") as `0x${string}`;
+export const SETTLEMENT_CONTRACT_ADDRESS = envAddress(
+  process.env.NEXT_PUBLIC_SETTLEMENT_CONTRACT_ADDRESS,
+);
 
 export function explorerTxUrl(hash: string): string {
   return `${MONAD_EXPLORER_URL}/tx/${hash}`;
