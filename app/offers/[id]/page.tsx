@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard } from "@/components/trade/nft-card";
 import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
+import { SuggestChangesButton } from "@/components/deal-room/suggest-changes-button";
 import { useOffer } from "@/hooks/use-market";
 import {
   explorerTokenUrl,
@@ -417,6 +418,14 @@ export default function OfferDetailPage({
             <Lock className="mr-1 h-3 w-3" /> private
           </Badge>
         )}
+        {offer.dealRoomId && (
+          <a
+            href={`/rooms/${offer.dealRoomId}`}
+            className="inline-flex items-center rounded-full border border-monad-purple/30 bg-monad-purple/10 px-2.5 py-0.5 text-xs font-medium text-monad-purple hover:bg-monad-purple/20"
+          >
+            🤝 Negotiated in a Deal Room
+          </a>
+        )}
         {offer.status === "open" && !isExpired && (
           <span className="text-sm text-muted-foreground">
             expires in {timeUntil(offer.expiry)}
@@ -491,6 +500,11 @@ export default function OfferDetailPage({
                         : "This deal can't be accepted right now."}
                 </p>
               )}
+              <SuggestChangesButton offer={offer} viewer={address!} />
+              <p className="text-center text-xs text-muted-foreground">
+                Want different terms? Open a private Deal Room — drafts are
+                free and can never move assets.
+              </p>
             </>
           )}
 

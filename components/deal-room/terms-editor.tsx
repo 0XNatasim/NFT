@@ -1,0 +1,327 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { parseEther } from "viem";
+import { X } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { NFTMedia } from "@/components/ui/nft-media";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useWalletNFTs } from "@/hooks/use-market";
+import { diffDrafts } from "@/lib/deal-rooms/diff";
+import { cn, formatMon, shortAddress } from "@/lib/utils";
+import type { DealRoomDraft, DealRoomRevision, RevisionNFT } from "@/lib/types";
+import type { NFTAsset } from "@/lib/types";
+
+/**
+ * Counter composer: edit either side of the draft — pick NFTs straight from
+ * each wallet's live inventory, adjust MON, set the offer expiry, add a note.
+ * Drafts cost nothing and move nothing; the sticky diff bar keeps the changes
+ * vs the answered round visible while editing.
+ */
+
+const EXPIRY_CHOICES = [
+  { label: "1 hour", seconds: 3_600 },
+  { label: "24 hours", seconds: 86_400 },
+  { label: "3 days", seconds: 3 * 86_400 },
+  { label: "7 days", seconds: 7 * 86_400 },
+] as const;
+
+function toRevisionNFT(a: NFTAsset): RevisionNFT {
+  return {
+    contractAddress: a.contractAddress.toLowerCase(),
+    tokenId: a.tokenId,
+    collectionName: a.collectionName,
+    name: a.name,
+    imageUrl: a.imageUrl,
+    rarityRank: a.rarityRank ?? null,
+  };
+}
+
+function nftKey(n: { contractAddress: string; tokenId: string }): string {
+  return `${n.contractAddress.toLowerCase()}:${n.tokenId}`;
+}
+
+function SidePicker({
+  label,
+  wallet,
+  selected,
+  onToggle,
+  monValue,
+  onMonChange,
+}: {
+  label: string;
+  wallet: string;
+  selected: RevisionNFT[];
+  onToggle: (nft: RevisionNFT) => void;
+  monValue: string;
+  onMonChange: (v: string) => void;
+}) {
+  const { data, isLoading } = useWalletNFTs(wallet);
+  const selectedKeys = useMemo(
+    () => new Set(selected.map(nftKey)),
+    [selected]
+  );
+
+  return (
+    <div className="flex-1 space-y-3">
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          MON amount
+        </label>
+        <Input
+          inputMode="decimal"
+          placeholder="0"
+          value={monValue}
+          onChange={(e) => onMonChange(e.target.value.replace(/[^0-9.]/g, ""))}
+        />
+      </div>
+
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((nft) => (
+            <button
+              key={nftKey(nft)}
+              type="button"
+              onClick={() => onToggle(nft)}
+              className="group flex items-center gap-1 rounded-full border border-monad-purple/40 bg-monad-purple/10 py-0.5 pl-2 pr-1 text-xs"
+              title="Remove from draft"
+            >
+              {nft.name ?? `#${nft.tokenId}`}
+              <X className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="max-h-56 overflow-y-auto rounded-md border border-border p-2">
+        {isLoading ? (
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-square rounded-md" />
+            ))}
+          </div>
+        ) : !data?.nfts?.length ? (
+          <div className="py-4 text-center text-xs text-muted-foreground">
+            No NFTs found for {shortAddress(wallet)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+            {data.nfts.map((asset) => {
+              const nft = toRevisionNFT(asset);
+              const active = selectedKeys.has(nftKey(nft));
+              return (
+                <button
+                  key={nftKey(nft)}
+                  type="button"
+                  onClick={() => onToggle(nft)}
+                  className={cn(
+                    "overflow-hidden rounded-md border text-left transition",
+                    active
+                      ? "border-monad-purple ring-1 ring-monad-purple"
+                      : "border-border opacity-80 hover:opacity-100"
+                  )}
+                  title={`${nft.collectionName ?? ""} #${nft.tokenId}`}
+                >
+                  <NFTMedia
+                    imageUrl={nft.imageUrl}
+                    alt={nft.name ?? `#${nft.tokenId}`}
+                    className="aspect-square w-full object-cover"
+                  />
+                  <div className="truncate px-1 py-0.5 text-[10px]">
+                    {nft.name ?? `#${nft.tokenId}`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function TermsEditor({
+  base,
+  viewerWallet,
+  onSubmit,
+  onClose,
+  submitting,
+}: {
+  /** The revision being countered — the editor starts from its terms. */
+  base: DealRoomRevision;
+  viewerWallet: string;
+  onSubmit: (draft: DealRoomDraft, note: string | null) => void;
+  onClose: () => void;
+  submitting: boolean;
+}) {
+  const [makerNFTs, setMakerNFTs] = useState<RevisionNFT[]>(base.makerNFTs);
+  const [takerNFTs, setTakerNFTs] = useState<RevisionNFT[]>(base.takerNFTs);
+  const [makerMon, setMakerMon] = useState(
+    BigInt(base.makerMonAmount) > 0n ? formatMon(base.makerMonAmount, 18) : ""
+  );
+  const [takerMon, setTakerMon] = useState(
+    BigInt(base.takerMonAmount) > 0n ? formatMon(base.takerMonAmount, 18) : ""
+  );
+  const [expirySeconds, setExpirySeconds] = useState<number>(86_400);
+  const [note, setNote] = useState("");
+
+  const toggle =
+    (setter: React.Dispatch<React.SetStateAction<RevisionNFT[]>>) =>
+    (nft: RevisionNFT) =>
+      setter((prev) => {
+        const key = nftKey(nft);
+        if (prev.some((p) => nftKey(p) === key)) {
+          return prev.filter((p) => nftKey(p) !== key);
+        }
+        if (prev.length >= 20) {
+          toast.error("Max 20 NFTs per side");
+          return prev;
+        }
+        return [...prev, nft];
+      });
+
+  const draft: DealRoomDraft | null = useMemo(() => {
+    try {
+      return {
+        makerAddress: base.makerAddress,
+        takerAddress: base.takerAddress,
+        makerNFTs,
+        takerNFTs,
+        makerMonAmount: (makerMon ? parseEther(makerMon) : 0n).toString(),
+        takerMonAmount: (takerMon ? parseEther(takerMon) : 0n).toString(),
+        feeBps: base.feeBps,
+        flatFee: base.flatFee,
+        offerExpiry: Math.floor(Date.now() / 1000) + expirySeconds,
+      };
+    } catch {
+      return null;
+    }
+  }, [base, makerNFTs, takerNFTs, makerMon, takerMon, expirySeconds]);
+
+  const chips = useMemo(
+    () => (draft ? diffDrafts(base, draft) : []),
+    [base, draft]
+  );
+
+  const viewerIsMaker =
+    base.makerAddress.toLowerCase() === viewerWallet.toLowerCase();
+  const makerLabel = viewerIsMaker
+    ? "You give (your wallet)"
+    : `${shortAddress(base.makerAddress)} gives`;
+  const takerLabel = viewerIsMaker
+    ? `${shortAddress(base.takerAddress)} gives`
+    : "You give (your wallet)";
+
+  const canSubmit =
+    !!draft &&
+    (draft.makerNFTs.length > 0 || BigInt(draft.makerMonAmount) > 0n) &&
+    (draft.takerNFTs.length > 0 || BigInt(draft.takerMonAmount) > 0n);
+
+  return (
+    <Card className="border-monad-purple/40">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-base">
+          Counter round {base.revisionNumber}
+        </CardTitle>
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close editor">
+          <X className="h-4 w-4" />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row">
+          <SidePicker
+            label={makerLabel}
+            wallet={base.makerAddress}
+            selected={makerNFTs}
+            onToggle={toggle(setMakerNFTs)}
+            monValue={makerMon}
+            onMonChange={setMakerMon}
+          />
+          <SidePicker
+            label={takerLabel}
+            wallet={base.takerAddress}
+            selected={takerNFTs}
+            onToggle={toggle(setTakerNFTs)}
+            monValue={takerMon}
+            onMonChange={setTakerMon}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              Final offer valid for
+            </label>
+            <div className="flex gap-1.5">
+              {EXPIRY_CHOICES.map((c) => (
+                <Button
+                  key={c.seconds}
+                  type="button"
+                  size="sm"
+                  variant={expirySeconds === c.seconds ? "default" : "outline"}
+                  onClick={() => setExpirySeconds(c.seconds)}
+                >
+                  {c.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="min-w-48 flex-1">
+            <label className="mb-1 block text-xs text-muted-foreground">
+              Note (optional, visible in this room)
+            </label>
+            <Input
+              maxLength={240}
+              placeholder="Throw in 5 MON and it's done."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Sticky-feel diff bar: what this counter changes */}
+        <div className="rounded-md border border-border bg-secondary/40 p-2.5">
+          <div className="mb-1 text-xs font-semibold text-muted-foreground">
+            Changes vs round {base.revisionNumber}
+          </div>
+          {chips.length === 0 ? (
+            <span className="text-xs text-muted-foreground">
+              No changes yet — a counter must change something.
+            </span>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {chips.map((chip, i) => (
+                <span
+                  key={i}
+                  className="rounded-full border border-monad-purple/30 bg-monad-purple/10 px-2 py-0.5 text-xs"
+                >
+                  {chip.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Drafts are free and non-executable. Nothing moves until the final
+            deal is signed and settled.
+          </p>
+          <Button
+            disabled={!canSubmit || chips.length === 0 || submitting}
+            onClick={() => draft && onSubmit(draft, note.trim() || null)}
+          >
+            {submitting ? "Proposing…" : "Propose revision"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
