@@ -20,7 +20,7 @@ export const MONAD_EXPLORER_URL =
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const MAINNET_SETTLEMENT_CONTRACT_ADDRESS =
-  "0x72f3e21c12e85f2043e316737179734b30c87533";
+  "0x017605384782b0841fde1f1e8539ebedd2c43420";
 
 function envAddress(value: string | undefined): `0x${string}` {
   const fallback =

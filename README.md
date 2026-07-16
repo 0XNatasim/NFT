@@ -3,7 +3,7 @@
 [![contracts](https://github.com/0XNatasim/NFT/actions/workflows/contracts.yml/badge.svg)](https://github.com/0XNatasim/NFT/actions/workflows/contracts.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Solidity 0.8.28](https://img.shields.io/badge/Solidity-0.8.28-363636)
-[![Monad mainnet — verified](https://img.shields.io/badge/Monad%20mainnet-verified-836EF9)](https://monadscan.com/address/0x72F3E21c12E85F2043e316737179734b30c87533#code)
+[![Monad mainnet — verified](https://img.shields.io/badge/Monad%20mainnet-verified-836EF9)](https://monadscan.com/address/0x017605384782b0841Fde1f1E8539EbEDD2c43420#code)
 
 A peer-to-peer NFT trading marketplace for the Monad ecosystem — no bots, no snipers. Users negotiate and exchange NFTs directly wallet-to-wallet — NFT-for-NFT, NFT+MON, MON-for-NFT, private wallet-targeted offers — settled atomically by a non-custodial smart contract.
 
@@ -103,11 +103,12 @@ SECURITY.md                         # disclosure policy + scope
 
 | Network | Handshake | Status |
 | --- | --- | --- |
-| Monad Mainnet (143) | [`0x72F3E21c12E85F2043e316737179734b30c87533`](https://monadscan.com/address/0x72F3E21c12E85F2043e316737179734b30c87533#code) | ✅ Verified on MonadScan (EIP-1271 smart-wallet support) |
+| Monad Mainnet (143) | [`0x017605384782b0841Fde1f1E8539EbEDD2c43420`](https://monadscan.com/address/0x017605384782b0841Fde1f1E8539EbEDD2c43420#code) | ✅ Verified on MonadScan (EIP-1271 smart-wallet support) |
 
-Previous deployment `0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277` (EOA-only) is
-superseded by the address above, which additionally accepts EIP-1271
-signatures from smart-contract wallets.
+Previous deployments `0x72F3E21c12E85F2043e316737179734b30c87533` and
+`0xA9E7f8D08ecd275D9Dd7C95cF9a557B8bce4a277` are superseded by the address
+above, which additionally accepts EIP-1271 signatures from smart-contract
+wallets.
 
 Source is verified (Solidity `0.8.28`, optimizer 1000 runs, EVM `cancun`, MIT)
 — anyone can read and verify the settlement logic on MonadScan. This is the

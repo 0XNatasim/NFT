@@ -38,7 +38,7 @@
  *
  * Usage:
  *   export MONAD_RPC_URL=https://rpc.monad.xyz
- *   export HANDSHAKE_ADDRESS=0x72F3E21c12E85F2043e316737179734b30c87533
+ *   export HANDSHAKE_ADDRESS=0x017605384782b0841Fde1f1E8539EbEDD2c43420
  *   export NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
  *   export SUPABASE_SERVICE_ROLE_KEY=...            # service role (bypasses RLS)
  *   # optional:
