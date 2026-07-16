@@ -57,9 +57,9 @@ import type { CollectionSearchResult, NFTAsset } from "@/lib/types";
 
 const EXPIRY_OPTIONS = [
   { label: "1 hour", seconds: 3600 },
-  { label: "24 hours", seconds: 86400 },
-  { label: "7 days", seconds: 604800 },
-  { label: "30 days", seconds: 2592000 },
+  { label: "4 hour", seconds: 14400 },
+  { label: "12 hours", seconds: 43200 },
+  { label: "1 days", seconds: 86400 },
 ];
 
 type Intent = "sell" | "buy" | "swap" | "custom";

@@ -28,6 +28,7 @@ export function CollectionButton({
         collectionAddress={collection.address}
         alt=""
         className="h-5 w-5 rounded-sm"
+        fallbackSrc={collection.image}
       />
       {collection.name}
     </button>
