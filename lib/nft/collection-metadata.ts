@@ -1,5 +1,6 @@
 import { publicClient } from "@/lib/chains/client";
 import { erc721Abi } from "@/lib/contracts/settlement";
+import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { safeFetchJson } from "@/lib/nft/safe-fetch";
 import { resolveUri } from "@/lib/nft/onchain-metadata";
 
@@ -11,12 +12,24 @@ export interface CollectionMetadata {
   banner: string | null;
   floorPrice: number | null;
   collectionAddress: string;
-  source: "reservoir" | "opensea" | "contractURI" | "tokenURI" | "placeholder";
+  source:
+    | "reservoir"
+    | "opensea"
+    | "contractURI"
+    | "tokenURI"
+    | "local"
+    | "placeholder";
 }
 
 const TTL_MS = 10 * 60_000;
 const MAX_CACHE_ENTRIES = 1000;
 const cache = new Map<string, { at: number; value: CollectionMetadata }>();
+const localFeaturedCollections = new Map(
+  FEATURED_COLLECTIONS.map((collection) => [
+    collection.address.toLowerCase(),
+    collection,
+  ]),
+);
 
 function cacheSet(key: string, value: CollectionMetadata) {
   if (cache.size >= MAX_CACHE_ENTRIES) {
@@ -113,13 +126,30 @@ async function fromTokenURI(address: string): Promise<CollectionMetadata | null>
   return metadata(address, "tokenURI", { name: nameResult.status === "fulfilled" ? (nameResult.value ?? undefined) : undefined, image: typeof rawImage === "string" ? resolveUri(rawImage) : undefined });
 }
 
+async function fromLocalFeaturedCollection(
+  address: string,
+): Promise<CollectionMetadata | null> {
+  const collection = localFeaturedCollections.get(address.toLowerCase());
+  if (!collection) return null;
+  return metadata(address, "local", {
+    name: collection.name,
+    image: collection.image,
+  });
+}
+
 export async function getCollectionMetadata(collectionAddress: string, chainId: number): Promise<CollectionMetadata> {
   const address = collectionAddress.toLowerCase();
   const key = `${chainId}:${address}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
 
-  for (const load of [() => fromReservoir(address, chainId), () => fromOpenSea(address), () => fromContractURI(address), () => fromTokenURI(address)]) {
+  for (const load of [
+    () => fromReservoir(address, chainId),
+    () => fromOpenSea(address),
+    () => fromLocalFeaturedCollection(address),
+    () => fromContractURI(address),
+    () => fromTokenURI(address),
+  ]) {
     try {
       const value = await load();
       if (value && value.image !== COLLECTION_PLACEHOLDER_IMAGE) {
