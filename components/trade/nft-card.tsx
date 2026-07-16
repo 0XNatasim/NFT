@@ -1,8 +1,11 @@
+"use client";
+
 import { cn, prettyCollectionName, rarityRankBadgeClass, shortAddress } from "@/lib/utils";
 import { isCollectionBid } from "@/lib/collection-bids";
 import type { NFTAsset } from "@/lib/types";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
 import { NFTMedia } from "@/components/ui/nft-media";
+import { useNftMediaFallback } from "@/hooks/use-nft-media-fallback";
 
 type NFTPriceSummary = {
   floorPrice: number | null;
@@ -59,13 +62,25 @@ function NFTThumbnail({
   className?: string;
   mediaClassName?: string;
 }) {
+  // When the indexer listed this token without media (common for newly
+  // indexed Monad collections), resolve the image on-chain as a fallback.
+  const needsFallback = !collectionBid && !hasMedia(nft);
+  const fallback = useNftMediaFallback(nft, needsFallback);
+  const resolved: NFTAsset = needsFallback
+    ? {
+        ...nft,
+        imageUrl: fallback.imageUrl,
+        metadata: nft.metadata ?? fallback.metadata,
+      }
+    : nft;
+
   return (
     <div className={cn("overflow-hidden bg-muted", className)}>
-      {hasMedia(nft) ? (
+      {hasMedia(resolved) ? (
         <NFTMedia
-          imageUrl={nft.imageUrl}
-          metadata={nft.metadata}
-          alt={nft.name ?? `Token #${nft.tokenId}`}
+          imageUrl={resolved.imageUrl}
+          metadata={resolved.metadata}
+          alt={resolved.name ?? `Token #${resolved.tokenId}`}
           className={cn(
             "h-full w-full object-cover transition-transform group-hover:scale-105",
             mediaClassName
