@@ -37,21 +37,24 @@ export default function RootLayout({
                     About
                   </Link>
                   <a
-                    href="https://x.com"
+                    href="https://monadscan.com/address/0x017605384782b0841fde1f1e8539ebedd2c43420"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline"
+                  >
+                    Contract
+                  </a>
+                  <a
+                    href="https://x.com/Handshake_NFT"
                     target="_blank"
                     rel="noreferrer"
                     className="hover:underline"
                   >
                     X
                   </a>
-                  <a
-                    href="https://discord.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:underline"
-                  >
+                  <span className="cursor-default text-muted-foreground">
                     Discord
-                  </a>
+                  </span>
                 </div>
               </div>
             </footer>
