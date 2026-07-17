@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
+import { ApproveCollectionButton } from "@/components/trade/approve-collection-button";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
 import { useCollectionApprovals } from "@/hooks/use-approvals";
@@ -55,6 +56,11 @@ export function WalletNFTs({ owner }: { owner: string }) {
 
   const { stateFor: approvalFor } = useCollectionApprovals(
     collections.map((c) => c.address)
+  );
+
+  const unapprovedCollections = useMemo(
+    () => collections.filter((c) => approvalFor(c.address) === "unapproved"),
+    [collections, approvalFor]
   );
 
   const filtered = useMemo(() => {
@@ -127,6 +133,37 @@ export function WalletNFTs({ owner }: { owner: string }) {
           </p>
         </div>
       </div>
+
+      {unapprovedCollections.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+          <p className="text-sm font-medium">
+            {unapprovedCollections.length} collection
+            {unapprovedCollections.length === 1 ? "" : "s"} need approval before
+            trading
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Approve a collection once so the settlement contract can move its
+            NFTs only when a deal you accept settles.
+          </p>
+          <div className="flex flex-col gap-2 pt-1">
+            {unapprovedCollections.map((c) => (
+              <div
+                key={c.address}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/60 p-2"
+              >
+                <span className="flex items-center gap-2 truncate text-sm">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 ring-2 ring-background" />
+                  <span className="truncate">{c.label}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    ({c.count})
+                  </span>
+                </span>
+                <ApproveCollectionButton collectionAddress={c.address} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <FilterChip
