@@ -175,11 +175,6 @@ function ProposeDealForm() {
   const [selectedRequestCollection, setSelectedRequestCollection] =
     useState<CollectionSearchResult | null>(null);
   const [requestTokenId, setRequestTokenId] = useState("");
-  const [offerContract, setOfferContract] = useState("");
-  const [selectedOfferCollection, setSelectedOfferCollection] =
-    useState<CollectionSearchResult | null>(null);
-  const [offerTokenId, setOfferTokenId] = useState("");
-  const [addingOffered, setAddingOffered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [approvingCollections, setApprovingCollections] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<Record<string, boolean>>(
@@ -313,82 +308,6 @@ function ProposeDealForm() {
         );
       })
       .catch(() => {});
-  }
-
-  async function addOfferedNftManually() {
-    if (!address || !publicClient) return;
-
-    if (!isAddress(offerContract)) {
-      toast.error("Enter a valid NFT contract address");
-      return;
-    }
-
-    if (!/^\d+$/.test(offerTokenId)) {
-      toast.error("Enter a numeric token ID");
-      return;
-    }
-
-    const nft: NFTAsset = {
-      contractAddress: offerContract.toLowerCase(),
-      tokenId: offerTokenId,
-      tokenStandard: "ERC721",
-      name: `#${offerTokenId}`,
-      collectionName:
-        selectedOfferCollection?.name ??
-        FEATURED_COLLECTIONS.find(
-          (c) => c.address.toLowerCase() === offerContract.toLowerCase(),
-        )?.name ??
-        null,
-      imageUrl: null,
-    };
-
-    if (offeredNfts.some((n) => nftKey(n) === nftKey(nft))) {
-      toast.error("Already selected");
-      return;
-    }
-
-    setAddingOffered(true);
-    try {
-      const owner = await publicClient.readContract({
-        address: nft.contractAddress as Address,
-        abi: erc721Abi,
-        functionName: "ownerOf",
-        args: [BigInt(nft.tokenId)],
-      });
-
-      if (owner.toLowerCase() !== address.toLowerCase()) {
-        toast.error("You don't own this token");
-        return;
-      }
-
-      try {
-        const res = await fetch(
-          `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`,
-        );
-        if (res.ok) {
-          const meta = await res.json();
-          nft.name = meta.name ?? nft.name;
-          nft.imageUrl = meta.animationUrl ?? meta.image ?? null;
-          nft.collectionName =
-            nft.collectionName ?? meta.collectionName ?? null;
-          nft.metadata = meta.metadata ?? nft.metadata ?? null;
-          nft.rarityRank = meta.rarityRank ?? nft.rarityRank ?? null;
-        }
-      } catch {
-        // metadata is cosmetic; proceed without it
-      }
-
-      setOfferedNfts((prev) => (prev.length < 20 ? [...prev, nft] : prev));
-      setOfferTokenId("");
-      setSelectedOfferCollection(null);
-      toast.success(`Added ${nft.collectionName ?? "NFT"} #${nft.tokenId}`);
-    } catch {
-      toast.error(
-        "Couldn't verify this token on-chain — check the contract address and token ID",
-      );
-    } finally {
-      setAddingOffered(false);
-    }
   }
 
   const refreshApprovalStatus = useCallback(async () => {
@@ -729,14 +648,6 @@ function ProposeDealForm() {
             setRequestTokenId={setRequestTokenId}
             addRequestedNft={addRequestedNft}
             setRequestedNfts={setRequestedNfts}
-            offerContract={offerContract}
-            setOfferContract={setOfferContract}
-            selectedOfferCollection={selectedOfferCollection}
-            setSelectedOfferCollection={setSelectedOfferCollection}
-            offerTokenId={offerTokenId}
-            setOfferTokenId={setOfferTokenId}
-            addingOffered={addingOffered}
-            addOfferedNftManually={addOfferedNftManually}
             requiredMaxRarityRank={requiredMaxRarityRank}
             setRequiredMaxRarityRank={setRequiredMaxRarityRank}
           />
@@ -961,14 +872,6 @@ function StepDetails(props: {
   setRequestTokenId: (v: string) => void;
   addRequestedNft: () => void;
   setRequestedNfts: React.Dispatch<React.SetStateAction<NFTAsset[]>>;
-  offerContract: string;
-  setOfferContract: (v: string) => void;
-  selectedOfferCollection: CollectionSearchResult | null;
-  setSelectedOfferCollection: (v: CollectionSearchResult | null) => void;
-  offerTokenId: string;
-  setOfferTokenId: (v: string) => void;
-  addingOffered: boolean;
-  addOfferedNftManually: () => void;
   requiredMaxRarityRank: string;
   setRequiredMaxRarityRank: (v: string) => void;
   pendingApprovalContracts?: Set<string>;
@@ -995,14 +898,6 @@ function StepDetails(props: {
     setRequestTokenId,
     addRequestedNft,
     setRequestedNfts,
-    offerContract,
-    setOfferContract,
-    selectedOfferCollection,
-    setSelectedOfferCollection,
-    offerTokenId,
-    setOfferTokenId,
-    addingOffered,
-    addOfferedNftManually,
     requiredMaxRarityRank,
     setRequiredMaxRarityRank,
   } = props;
@@ -1013,8 +908,6 @@ function StepDetails(props: {
     if (!selectedRarityNft) setRequiredMaxRarityRank("");
   }, [selectedRarityNft, setRequiredMaxRarityRank]);
 
-  const canAddOfferedNft =
-    isAddress(offerContract) && /^\d+$/.test(offerTokenId) && !addingOffered;
   const canAddRequestedNft =
     isAddress(requestContract) &&
     (/^\d+$/.test(requestTokenId) ||
@@ -1038,69 +931,19 @@ function StepDetails(props: {
                 onToggle={toggleOffered}
                 pendingContracts={pendingApprovalContracts}
               />
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  NFT not showing? Add it by contract + token ID (ownership is
-                  verified on-chain):
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {FEATURED_COLLECTIONS.map((c) => (
-                    <CollectionButton
-                      key={c.address}
-                      collection={c}
-                      active={
-                        offerContract.toLowerCase() === c.address.toLowerCase()
-                      }
-                      onClick={() => {
-                        setOfferContract(c.address);
-                        setSelectedOfferCollection(null);
-                      }}
-                    />
-                  ))}
-                </div>
-                <CollectionSearch
-                  selected={selectedOfferCollection}
-                  onSelect={(collection) => {
-                    setSelectedOfferCollection(collection);
-                    if (collection.contractAddress) {
-                      setOfferContract(collection.contractAddress);
-                    } else {
-                      setOfferContract("");
-                      toast.info(
-                        "Collection selected, but contract resolution is pending/unavailable.",
-                      );
-                    }
-                  }}
-                />
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="NFT contract address (0x…)"
-                    value={offerContract}
-                    onChange={(e) => {
-                      setOfferContract(e.target.value);
-                      setSelectedOfferCollection(null);
-                    }}
-                  />
-                  <Input
-                    placeholder="Token ID"
-                    className="w-32"
-                    value={offerTokenId}
-                    onChange={(e) => setOfferTokenId(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant={canAddOfferedNft ? "default" : "secondary"}
-                    disabled={addingOffered}
-                    onClick={addOfferedNftManually}
-                  >
-                    {addingOffered ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Add"
-                    )}
-                  </Button>
-                </div>
-              </div>
+              <p className="rounded-lg border border-border bg-secondary/30 p-3 text-sm text-muted-foreground">
+                Don&apos;t see your NFT? Only approved collections can be
+                traded.{" "}
+                <a
+                  href="https://x.com/Handshake_NFT"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-monad-purple hover:underline"
+                >
+                  Request a collection on X
+                </a>
+                .
+              </p>
               {offeredNfts.length > 0 && (
                 <div className="space-y-1.5 rounded-lg border border-border bg-secondary/30 p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

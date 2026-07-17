@@ -45,7 +45,6 @@ export function OwnedNFTPicker({
     new Set()
   );
   const [layout, setLayout] = useState<"cards" | "list">("cards");
-  const [hideUnapproved, setHideUnapproved] = useState(true);
 
   function toggleCollection(address: string) {
     setSelectedCollections((prev) => {
@@ -100,7 +99,10 @@ export function OwnedNFTPicker({
       ) {
         return false;
       }
-      if (hideUnapproved && approvalFor(nft.contractAddress) === "unapproved") {
+      // We never trade unapproved collections, so hide the ones we've
+      // confirmed are unapproved. "unknown" (read failed/loading) and
+      // "pending" stay visible so nothing tradeable is hidden by mistake.
+      if (approvalFor(nft.contractAddress) === "unapproved") {
         return false;
       }
       if (!q) return true;
@@ -112,7 +114,7 @@ export function OwnedNFTPicker({
     });
     // approvalFor closes over approvalState/pendingContracts which are covered.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nfts, query, selectedCollections, hideUnapproved, approvalState, pendingContracts]);
+  }, [nfts, query, selectedCollections, approvalState, pendingContracts]);
 
   if (isLoading) {
     return (
@@ -177,18 +179,7 @@ export function OwnedNFTPicker({
             {filtered.length} of {nfts.length} NFTs
             {isFetchingNextPage && " · loading more…"}
           </p>
-          <div className="flex items-center gap-3">
-            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={hideUnapproved}
-                onChange={(e) => setHideUnapproved(e.target.checked)}
-                className="accent-monad-purple"
-              />
-              Hide unapproved
-            </label>
-            <LayoutToggle layout={layout} onChange={setLayout} />
-          </div>
+          <LayoutToggle layout={layout} onChange={setLayout} />
         </div>
         {filtered.length > 0 ? (
           layout === "cards" ? (
@@ -219,7 +210,10 @@ export function OwnedNFTPicker({
             </div>
           )
         ) : (
-          <EmptyState title="No matches" body="No NFTs match your filter." />
+          <EmptyState
+            title="No tradeable NFTs here"
+            body="Only NFTs from approved collections are shown. If one is missing, its collection may need to be approved or added."
+          />
         )}
       </div>
     </div>
