@@ -9,8 +9,9 @@ import { safeFetchJson } from "@/lib/nft/safe-fetch";
 
 const DEFAULT_IPFS_GATEWAYS = [
   "https://ipfs.io/ipfs/",
-  "https://cloudflare-ipfs.com/ipfs/",
+  "https://dweb.link/ipfs/",
   "https://gateway.pinata.cloud/ipfs/",
+  "https://nftstorage.link/ipfs/",
 ];
 const ARWEAVE_GATEWAY = process.env.ARWEAVE_GATEWAY ?? "https://arweave.net/";
 const MAX_CACHE_ENTRIES = 5000;
