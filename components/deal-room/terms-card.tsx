@@ -2,7 +2,13 @@
 
 import { NFTMedia } from "@/components/ui/nft-media";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, formatMon, timeUntil } from "@/lib/utils";
+import {
+  cn,
+  formatMon,
+  prettyCollectionName,
+  shortAddress,
+  timeUntil,
+} from "@/lib/utils";
 import type { DealRoomRevision, RevisionNFT } from "@/lib/types";
 
 /**
@@ -41,28 +47,34 @@ function AssetSide({
       ) : (
         <div className="space-y-3">
           {nfts.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {nfts.map((nft) => (
-                <div
-                  key={`${nft.contractAddress}:${nft.tokenId}`}
-                  className="group relative overflow-hidden rounded-md border border-border"
-                  title={`${nft.collectionName ?? nft.contractAddress} #${nft.tokenId}`}
-                >
-                  <NFTMedia
-                    imageUrl={nft.imageUrl}
-                    alt={nft.name ?? `${nft.collectionName ?? "NFT"} #${nft.tokenId}`}
-                    className="aspect-square w-full object-cover"
-                  />
-                  <div className="truncate bg-background/90 px-1.5 py-1 text-[10px] leading-tight">
-                    {nft.name ?? `#${nft.tokenId}`}
-                    {nft.rarityRank ? (
-                      <span className="ml-1 text-muted-foreground">
-                        · R{nft.rarityRank}
-                      </span>
-                    ) : null}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {nfts.map((nft) => {
+                const collectionLabel =
+                  prettyCollectionName(nft.collectionName) ??
+                  shortAddress(nft.contractAddress);
+                return (
+                  <div
+                    key={`${nft.contractAddress}:${nft.tokenId}`}
+                    className="group relative overflow-hidden rounded-md border border-border"
+                    title={`${collectionLabel} #${nft.tokenId} · ${nft.contractAddress}`}
+                  >
+                    <NFTMedia
+                      imageUrl={nft.imageUrl}
+                      alt={nft.name ?? `${collectionLabel} #${nft.tokenId}`}
+                      className="aspect-square w-full object-cover"
+                    />
+                    <div className="bg-background/90 px-1.5 py-1 text-[10px] leading-tight">
+                      <div className="truncate font-medium">
+                        {collectionLabel}
+                      </div>
+                      <div className="truncate text-muted-foreground">
+                        #{nft.tokenId}
+                        {nft.rarityRank ? ` · R${nft.rarityRank}` : ""}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           {mon > 0n && (
