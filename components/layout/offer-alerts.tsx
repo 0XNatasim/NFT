@@ -6,6 +6,7 @@ import { useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Check, ExternalLink, X } from "lucide-react";
 import type { TradeOffer } from "@/lib/types";
+import { useNotifications } from "@/hooks/use-deal-rooms";
 import { cn } from "@/lib/utils";
 
 const STATE_KEY_PREFIX = "monad-market-notification-states";
@@ -99,6 +100,15 @@ export function OfferAlerts() {
     },
   });
 
+  // Server-persistent Deal Room notifications (counter-proposals, invites,
+  // agreements, settlements…). These are emitted server-side but were never
+  // surfaced in the bell — so events like a counter appeared to notify nobody.
+  const { data: roomNotifications, markRead } = useNotifications();
+  const serverIds = useMemo(
+    () => new Set((roomNotifications ?? []).map((n) => n.id)),
+    [roomNotifications],
+  );
+
   useEffect(() => {
     setStates(readStates(address));
     setIsOpen(false);
@@ -116,20 +126,37 @@ export function OfferAlerts() {
   }, [isOpen]);
 
   const notifications = useMemo<OfferNotification[]>(() => {
-    if (!incoming || incoming.length === 0) return [];
+    const offerAlerts: OfferNotification[] = (incoming ?? []).map((offer) => ({
+      id: offer.id,
+      title: "Private deal available",
+      message: getOfferSummary(offer),
+      timestamp: offer.createdAt,
+      actionHref: "/account",
+      actionLabel: "View dashboard",
+      state: states[offer.id] ?? "unread",
+    }));
 
-    return incoming
-      .map((offer) => ({
-        id: offer.id,
-        title: "Private deal available",
-        message: getOfferSummary(offer),
-        timestamp: offer.createdAt,
-        actionHref: "/account",
-        actionLabel: "View dashboard",
-        state: states[offer.id] ?? "unread",
-      }))
-      .filter((notification) => notification.state !== "dismissed");
-  }, [incoming, states]);
+    const roomAlerts: OfferNotification[] = (roomNotifications ?? []).map(
+      (n) => ({
+        id: n.id,
+        title: n.title,
+        message: n.body,
+        timestamp: n.createdAt,
+        actionHref: n.actionPath,
+        actionLabel: "Open",
+        // Server tracks read via readAt; a local override wins once set.
+        state: states[n.id] ?? (n.readAt ? "read" : "unread"),
+      }),
+    );
+
+    return [...roomAlerts, ...offerAlerts]
+      .filter((notification) => notification.state !== "dismissed")
+      .sort((a, b) => {
+        const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return tb - ta;
+      });
+  }, [incoming, roomNotifications, states]);
 
   const unreadCount = notifications.filter((notification) => notification.state === "unread").length;
 
@@ -144,6 +171,14 @@ export function OfferAlerts() {
       writeStates(address, next);
       return next;
     });
+
+    // Persist read state server-side for Deal Room notifications so it holds
+    // across devices; offer alerts stay client-only as before.
+    if (state === "read" || state === "dismissed") {
+      ids
+        .filter((id) => serverIds.has(id))
+        .forEach((id) => markRead.mutate({ id }));
+    }
   }
 
   if (!address) return null;
