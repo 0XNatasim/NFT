@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
+import { useCollectionApprovals } from "@/hooks/use-approvals";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -23,6 +24,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
   const [collection, setCollection] = useState<string | null>(null);
   const [selectedNft, setSelectedNft] = useState<NFTAsset | null>(null);
   const [layout, setLayout] = useState<"cards" | "list">("cards");
+  const [hideUnapproved, setHideUnapproved] = useState(false);
 
   const nfts = useMemo<NFTAsset[]>(
     () => data?.pages.flatMap((p) => p.nfts) ?? [],
@@ -51,10 +53,19 @@ export function WalletNFTs({ owner }: { owner: string }) {
     collections.map((c) => c.address)
   );
 
+  const { stateFor: approvalFor } = useCollectionApprovals(
+    collections.map((c) => c.address)
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return nfts.filter((nft) => {
       if (collection && nft.contractAddress.toLowerCase() !== collection) {
+        return false;
+      }
+      // Hide only collections we've confirmed are unapproved; keep unknown
+      // (still loading) visible so nothing flickers out unexpectedly.
+      if (hideUnapproved && approvalFor(nft.contractAddress) === "unapproved") {
         return false;
       }
       if (!q) return true;
@@ -69,7 +80,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [nfts, query, collection]);
+  }, [nfts, query, collection, hideUnapproved, approvalFor]);
 
   if (isLoading) {
     return (
@@ -100,6 +111,15 @@ export function WalletNFTs({ owner }: { owner: string }) {
           className="sm:max-w-xs"
         />
         <div className="flex items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={hideUnapproved}
+              onChange={(e) => setHideUnapproved(e.target.checked)}
+              className="accent-monad-purple"
+            />
+            Hide unapproved
+          </label>
           <LayoutToggle layout={layout} onChange={setLayout} />
           <p className="text-sm text-muted-foreground">
             {filtered.length} of {nfts.length} NFTs
@@ -136,6 +156,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
                 key={`${nft.contractAddress}:${nft.tokenId}`}
                 nft={nft}
                 price={prices?.[nft.contractAddress.toLowerCase()]}
+                approval={approvalFor(nft.contractAddress)}
                 onClick={() => setSelectedNft(nft)}
               />
             ))}
@@ -147,6 +168,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
                 key={`${nft.contractAddress}:${nft.tokenId}`}
                 nft={nft}
                 price={prices?.[nft.contractAddress.toLowerCase()]}
+                approval={approvalFor(nft.contractAddress)}
                 onClick={() => setSelectedNft(nft)}
               />
             ))}

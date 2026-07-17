@@ -9,6 +9,7 @@ import {
   useWriteContract,
 } from "wagmi";
 import { parseEther, isAddress, type Address } from "viem";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -29,6 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NFTCard } from "@/components/trade/nft-card";
 import { OwnedNFTPicker } from "@/components/trade/owned-nft-picker";
+import { COLLECTION_APPROVALS_KEY } from "@/hooks/use-approvals";
 import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
 import {
@@ -144,6 +146,7 @@ function ProposeDealForm() {
   const { signTypedDataAsync } = useSignTypedData();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
+  const queryClient = useQueryClient();
 
   const prefilledTaker = searchParams.get("taker") ?? "";
   const prefilledPrivate =
@@ -469,6 +472,8 @@ function ProposeDealForm() {
       }
 
       await refreshApprovalStatus();
+      // Refresh the approval dots on the NFT picker cards.
+      queryClient.invalidateQueries({ queryKey: [COLLECTION_APPROVALS_KEY] });
       toast.success("Collections approved");
     } catch (err: any) {
       toast.error(err?.message ?? "Failed to approve collections");
@@ -708,6 +713,9 @@ function ProposeDealForm() {
             offeredNfts={offeredNfts}
             requestedNfts={requestedNfts}
             toggleOffered={toggleOffered}
+            pendingApprovalContracts={
+              approvingCollections ? new Set(offeredContracts) : undefined
+            }
             offeredMon={offeredMon}
             setOfferedMon={setOfferedMon}
             requestedMon={requestedMon}
@@ -963,6 +971,7 @@ function StepDetails(props: {
   addOfferedNftManually: () => void;
   requiredMaxRarityRank: string;
   setRequiredMaxRarityRank: (v: string) => void;
+  pendingApprovalContracts?: Set<string>;
 }) {
   const {
     offersNft,
@@ -972,6 +981,7 @@ function StepDetails(props: {
     offeredNfts,
     requestedNfts,
     toggleOffered,
+    pendingApprovalContracts,
     offeredMon,
     setOfferedMon,
     requestedMon,
@@ -1023,7 +1033,11 @@ function StepDetails(props: {
                 Your NFTs ({offeredNfts.length} selected, max 20) — pick a
                 collection on the left, then tap to add/remove.
               </p>
-              <OwnedNFTPicker selected={offeredNfts} onToggle={toggleOffered} />
+              <OwnedNFTPicker
+                selected={offeredNfts}
+                onToggle={toggleOffered}
+                pendingContracts={pendingApprovalContracts}
+              />
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
                   NFT not showing? Add it by contract + token ID (ownership is

@@ -6,6 +6,43 @@ import type { NFTAsset } from "@/lib/types";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
 import { NFTMedia } from "@/components/ui/nft-media";
 import { useNftMediaFallback } from "@/hooks/use-nft-media-fallback";
+import type { ApprovalState } from "@/hooks/use-approvals";
+
+const APPROVAL_DOT: Record<
+  Exclude<ApprovalState, "unknown">,
+  { className: string; label: string }
+> = {
+  approved: { className: "bg-emerald-500", label: "Collection approved" },
+  unapproved: { className: "bg-red-500", label: "Collection not approved" },
+  pending: {
+    className: "bg-amber-400 animate-pulse",
+    label: "Approval pending — confirming on-chain",
+  },
+};
+
+/** Small status dot showing whether a collection is approved for settlement. */
+export function ApprovalDot({
+  state,
+  className,
+}: {
+  state?: ApprovalState;
+  className?: string;
+}) {
+  if (!state || state === "unknown") return null;
+  const dot = APPROVAL_DOT[state];
+  return (
+    <span
+      className={cn(
+        "inline-block h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-background",
+        dot.className,
+        className,
+      )}
+      title={dot.label}
+      aria-label={dot.label}
+      role="img"
+    />
+  );
+}
 
 type NFTPriceSummary = {
   floorPrice: number | null;
@@ -135,12 +172,14 @@ export function NFTCard({
   onClick,
   size = "md",
   price,
+  approval,
 }: {
   nft: NFTAsset;
   selected?: boolean;
   onClick?: () => void;
   size?: "sm" | "md";
   price?: NFTPriceSummary;
+  approval?: ApprovalState;
 }) {
   const collectionBid = isCollectionBid(nft);
   const labels = displayLabels(nft, collectionBid);
@@ -167,11 +206,18 @@ export function NFTCard({
           #{nft.rarityRank.toLocaleString()}
         </div>
       )}
-      <NFTThumbnail
-        nft={nft}
-        collectionBid={collectionBid}
-        className={cn("aspect-square w-full", size === "sm" ? "max-h-28" : "")}
-      />
+      <div className="relative">
+        <NFTThumbnail
+          nft={nft}
+          collectionBid={collectionBid}
+          className={cn("aspect-square w-full", size === "sm" ? "max-h-28" : "")}
+        />
+        {approval && approval !== "unknown" && (
+          <div className="absolute bottom-1.5 left-1.5 z-10">
+            <ApprovalDot state={approval} className="h-3 w-3" />
+          </div>
+        )}
+      </div>
       <div className={cn("p-2", size === "sm" && "p-1.5")}>
         <p className="truncate text-sm font-medium">
           {labels.primary}
@@ -197,11 +243,13 @@ export function NFTListItem({
   selected,
   onClick,
   price,
+  approval,
 }: {
   nft: NFTAsset;
   selected?: boolean;
   onClick?: () => void;
   price?: NFTPriceSummary;
+  approval?: ApprovalState;
 }) {
   const collectionBid = isCollectionBid(nft);
   const labels = displayLabels(nft, collectionBid);
@@ -244,7 +292,10 @@ export function NFTListItem({
             </span>
           )}
         </div>
-        <p className="truncate text-xs text-muted-foreground">{labels.secondary}</p>
+        <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+          <ApprovalDot state={approval} />
+          {labels.secondary}
+        </p>
         <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
           {shortAddress(nft.contractAddress)} · Token {nft.tokenId}
         </p>

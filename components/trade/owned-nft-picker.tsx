@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
+import { useCollectionApprovals } from "@/hooks/use-approvals";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -22,9 +23,12 @@ function nftKey(n: { contractAddress: string; tokenId: string }) {
 export function OwnedNFTPicker({
   selected,
   onToggle,
+  pendingContracts,
 }: {
   selected: NFTAsset[];
   onToggle: (nft: NFTAsset) => void;
+  /** Collections with an in-flight approval tx — shown with a pending dot. */
+  pendingContracts?: Set<string>;
 }) {
   const { address } = useAccount();
   const {
@@ -41,6 +45,7 @@ export function OwnedNFTPicker({
     new Set()
   );
   const [layout, setLayout] = useState<"cards" | "list">("cards");
+  const [hideUnapproved, setHideUnapproved] = useState(false);
 
   function toggleCollection(address: string) {
     setSelectedCollections((prev) => {
@@ -80,6 +85,12 @@ export function OwnedNFTPicker({
     collections.map((c) => c.address)
   );
 
+  const { stateFor: approvalState } = useCollectionApprovals(
+    collections.map((c) => c.address)
+  );
+  const approvalFor = (contract: string) =>
+    approvalState(contract, pendingContracts?.has(contract.toLowerCase()));
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return nfts.filter((nft) => {
@@ -89,6 +100,9 @@ export function OwnedNFTPicker({
       ) {
         return false;
       }
+      if (hideUnapproved && approvalFor(nft.contractAddress) === "unapproved") {
+        return false;
+      }
       if (!q) return true;
       const haystack = [nft.name, nft.collectionName, nft.tokenId, nft.contractAddress]
         .filter(Boolean)
@@ -96,7 +110,9 @@ export function OwnedNFTPicker({
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [nfts, query, selectedCollections]);
+    // approvalFor closes over approvalState/pendingContracts which are covered.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nfts, query, selectedCollections, hideUnapproved, approvalState, pendingContracts]);
 
   if (isLoading) {
     return (
@@ -161,7 +177,18 @@ export function OwnedNFTPicker({
             {filtered.length} of {nfts.length} NFTs
             {isFetchingNextPage && " · loading more…"}
           </p>
-          <LayoutToggle layout={layout} onChange={setLayout} />
+          <div className="flex items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={hideUnapproved}
+                onChange={(e) => setHideUnapproved(e.target.checked)}
+                className="accent-monad-purple"
+              />
+              Hide unapproved
+            </label>
+            <LayoutToggle layout={layout} onChange={setLayout} />
+          </div>
         </div>
         {filtered.length > 0 ? (
           layout === "cards" ? (
@@ -173,6 +200,7 @@ export function OwnedNFTPicker({
                   selected={selected.some((n) => nftKey(n) === nftKey(nft))}
                   onClick={() => onToggle(nft)}
                   price={prices?.[nft.contractAddress.toLowerCase()]}
+                  approval={approvalFor(nft.contractAddress)}
                 />
               ))}
             </div>
@@ -185,6 +213,7 @@ export function OwnedNFTPicker({
                   selected={selected.some((n) => nftKey(n) === nftKey(nft))}
                   onClick={() => onToggle(nft)}
                   price={prices?.[nft.contractAddress.toLowerCase()]}
+                  approval={approvalFor(nft.contractAddress)}
                 />
               ))}
             </div>
