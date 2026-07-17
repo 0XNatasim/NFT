@@ -11,10 +11,20 @@ const IPFS_GATEWAYS = [
   "https://gateway.pinata.cloud/ipfs/",
 ];
 
-const VIDEO_EXTENSIONS = new Set(["mp4", "webm"]);
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "m4v", "ogv"]);
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "avif",
+]);
+const AUDIO_EXTENSIONS = new Set(["mp3", "wav", "oga", "ogg", "flac", "m4a"]);
+const MODEL_EXTENSIONS = new Set(["glb", "gltf"]);
 
-type MediaKind = "image" | "video" | "unknown";
+type MediaKind = "image" | "video" | "audio" | "model" | "unknown";
 
 interface NFTMediaProps {
   imageUrl?: string | null;
@@ -58,7 +68,7 @@ function uniqueUrls(urls: string[]): string[] {
   return Array.from(new Set(urls));
 }
 
-function mediaCandidates({
+export function mediaCandidates({
   imageUrl,
   animationUrl,
   metadata,
@@ -87,19 +97,22 @@ function extensionFromUrl(uri: string): string | null {
   return extension || null;
 }
 
-function kindFromExtension(uri: string): MediaKind {
+export function kindFromExtension(uri: string): MediaKind {
   const extension = extensionFromUrl(uri);
-  if (extension && VIDEO_EXTENSIONS.has(extension)) return "video";
-  if (extension && IMAGE_EXTENSIONS.has(extension)) return "image";
+  if (!extension) return "unknown";
+  if (VIDEO_EXTENSIONS.has(extension)) return "video";
+  if (IMAGE_EXTENSIONS.has(extension)) return "image";
+  if (AUDIO_EXTENSIONS.has(extension)) return "audio";
+  if (MODEL_EXTENSIONS.has(extension)) return "model";
   return "unknown";
 }
 
 function kindFromContentType(contentType: string | null): MediaKind {
   if (!contentType) return "unknown";
-  if (contentType.startsWith("video/mp4") || contentType.startsWith("video/webm")) {
-    return "video";
-  }
+  if (contentType.startsWith("video/")) return "video";
+  if (contentType.startsWith("audio/")) return "audio";
   if (contentType.startsWith("image/")) return "image";
+  if (contentType.startsWith("model/")) return "model";
   return "unknown";
 }
 
@@ -114,6 +127,12 @@ export function NFTMedia({
   const urls = useMemo(
     () => mediaCandidates({ imageUrl, animationUrl, metadata }),
     [animationUrl, imageUrl, metadata]
+  );
+  // A still image among the candidates that can poster a video. Null in the
+  // malformed case where the only candidate is the animation itself.
+  const posterUrl = useMemo(
+    () => urls.find((u) => kindFromExtension(u) === "image") ?? null,
+    [urls]
   );
   const [index, setIndex] = useState(0);
   const [contentTypeKind, setContentTypeKind] = useState<MediaKind>("unknown");
@@ -164,7 +183,9 @@ export function NFTMedia({
         loop
         muted
         playsInline
+        preload="metadata"
         controls={false}
+        poster={posterUrl && posterUrl !== src ? posterUrl : undefined}
         className={className}
         onError={retry}
         aria-label={alt}
@@ -172,6 +193,21 @@ export function NFTMedia({
     );
   }
 
+  if (kind === "audio") {
+    return (
+      <audio
+        src={src}
+        controls
+        preload="metadata"
+        className={className}
+        onError={retry}
+        aria-label={alt}
+      />
+    );
+  }
+
+  // model/unknown: try the static image path; onError advances to the next
+  // candidate and eventually the fallback tile.
   return (
     <img
       src={src}
