@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,10 +29,9 @@ export function WalletNFTs({ owner }: { owner: string }) {
     [data]
   );
 
-  useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
+  // Load the first page only; the user pulls more via "Load more". Previously
+  // this eagerly walked every page on mount (a sequential /api/nfts waterfall,
+  // plus a collection-price refetch per page) which dominated dashboard load.
   const collections = useMemo(() => {
     const map = new Map<string, { label: string; count: number }>();
     for (const nft of nfts) {
