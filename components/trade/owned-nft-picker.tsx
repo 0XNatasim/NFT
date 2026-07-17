@@ -45,7 +45,7 @@ export function OwnedNFTPicker({
     new Set()
   );
   const [layout, setLayout] = useState<"cards" | "list">("cards");
-  const [hideUnapproved, setHideUnapproved] = useState(false);
+  const [hideUnapproved, setHideUnapproved] = useState(true);
 
   function toggleCollection(address: string) {
     setSelectedCollections((prev) => {

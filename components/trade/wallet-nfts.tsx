@@ -24,7 +24,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
   const [collection, setCollection] = useState<string | null>(null);
   const [selectedNft, setSelectedNft] = useState<NFTAsset | null>(null);
   const [layout, setLayout] = useState<"cards" | "list">("cards");
-  const [hideUnapproved, setHideUnapproved] = useState(false);
+  const [hideUnapproved, setHideUnapproved] = useState(true);
 
   const nfts = useMemo<NFTAsset[]>(
     () => data?.pages.flatMap((p) => p.nfts) ?? [],
