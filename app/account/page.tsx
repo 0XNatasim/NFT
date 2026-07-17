@@ -66,8 +66,14 @@ export default function AccountPage() {
             }
           />
         </div>
-        <div className="mt-4 max-w-2xl">
+        {/* Escrow (left) with live Deal Rooms surfaced to its right, kept
+            above the "My Active Deals" grid so ongoing negotiations are the
+            first thing visible on tab switch. */}
+        <div className="mt-4 grid gap-5 lg:grid-cols-2 lg:items-start">
           <EscrowPanel />
+          <Section title="Deal Rooms — live negotiations">
+            <RoomsSection wallet={address} />
+          </Section>
         </div>
       </div>
 
@@ -110,10 +116,6 @@ export default function AccountPage() {
           </DealColumn>
         </div>
       </section>
-
-      <Section title="Deal Rooms — live negotiations">
-        <RoomsSection wallet={address} />
-      </Section>
 
       <Section
         title={`Completed Handshakes (${completed.length})`}
