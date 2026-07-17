@@ -51,6 +51,7 @@ function SidePicker({
   onToggle,
   monValue,
   onMonChange,
+  initialCollection = null,
 }: {
   label: string;
   wallet: string;
@@ -58,11 +59,15 @@ function SidePicker({
   onToggle: (nft: RevisionNFT) => void;
   monValue: string;
   onMonChange: (v: string) => void;
+  /** Pre-select a collection's filter (e.g. seeded from a wanted post). */
+  initialCollection?: string | null;
 }) {
   const { data, isLoading } = useWalletNFTs(wallet);
   // First-step collection filter: the user picks a collection before any NFTs
   // are shown, so a large wallet isn't dumped all at once.
-  const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
+  const [collectionFilter, setCollectionFilter] = useState<string | null>(
+    initialCollection ? initialCollection.toLowerCase() : null,
+  );
   const selectedKeys = useMemo(
     () => new Set(selected.map(nftKey)),
     [selected]
@@ -95,8 +100,13 @@ function SidePicker({
 
   return (
     <div className="flex-1 space-y-3">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Add MON, NFTs, or both — either side can be MON-only.
+        </p>
       </div>
 
       <div>
@@ -212,6 +222,7 @@ export function TermsEditor({
   onSubmit,
   onClose,
   submitting,
+  initialMakerCollection = null,
 }: {
   /** The revision being countered — the editor starts from its terms. */
   base: DealRoomRevision;
@@ -219,6 +230,8 @@ export function TermsEditor({
   onSubmit: (draft: DealRoomDraft, note: string | null) => void;
   onClose: () => void;
   submitting: boolean;
+  /** Pre-select the maker side's collection filter (e.g. from a wanted post). */
+  initialMakerCollection?: string | null;
 }) {
   const [makerNFTs, setMakerNFTs] = useState<RevisionNFT[]>(base.makerNFTs);
   const [takerNFTs, setTakerNFTs] = useState<RevisionNFT[]>(base.takerNFTs);
@@ -302,6 +315,7 @@ export function TermsEditor({
             onToggle={toggle(setMakerNFTs)}
             monValue={makerMon}
             onMonChange={setMakerMon}
+            initialCollection={initialMakerCollection}
           />
           <SidePicker
             label={takerLabel}

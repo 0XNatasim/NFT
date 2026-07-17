@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Handshake, Loader2 } from "lucide-react";
-import { isAddress } from "viem";
+import { isAddress, parseEther } from "viem";
+import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,44 @@ function NewRoomInner() {
     queryKey: ["config"],
     queryFn: async () => (await fetch("/api/config")).json(),
   });
+
+  // When haggling from a wanted post, seed the opening draft from it: the
+  // poster's offered MON on their side, and the requested collection
+  // pre-selected on yours — so a MON-for-NFT counter is a one-field edit.
+  const { data: wantedPost } = useQuery({
+    queryKey: ["wanted-post", wantedPostId],
+    enabled: !!wantedPostId,
+    queryFn: async () => {
+      const res = await fetch("/api/wanted");
+      if (!res.ok) return null;
+      const posts = ((await res.json()).posts ?? []) as {
+        id: string;
+        lookingFor: string;
+        offering: string | null;
+      }[];
+      return posts.find((p) => p.id === wantedPostId) ?? null;
+    },
+  });
+
+  const seed = useMemo(() => {
+    if (!wantedPost) {
+      return { makerCollection: null as string | null, takerMonAmount: "0" };
+    }
+    const lookingFor = wantedPost.lookingFor.toLowerCase();
+    const matched = FEATURED_COLLECTIONS.find((c) =>
+      lookingFor.includes(c.name.toLowerCase()),
+    );
+    let takerMonAmount = "0";
+    const amount = wantedPost.offering?.match(/(\d+(?:\.\d+)?)/)?.[1];
+    if (amount) {
+      try {
+        takerMonAmount = parseEther(amount).toString();
+      } catch {
+        // free-text offering without a clean number — leave it blank
+      }
+    }
+    return { makerCollection: matched?.address ?? null, takerMonAmount };
+  }, [wantedPost]);
 
   if (!isConnected || !address) {
     return (
@@ -84,8 +123,19 @@ function NewRoomInner() {
 
   const cp = counterparty.toLowerCase();
 
-  // Empty seed draft: viewer is the maker, counterparty the taker. The
-  // TermsEditor requires a change vs base, so both sides start blank.
+  // Wait for the wanted post so the editor mounts with the seeded terms
+  // already in place (it reads `base` only on first render).
+  if (wantedPostId && wantedPost === undefined) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Seed draft: viewer is the maker, counterparty the taker. From a wanted
+  // post the taker's offered MON and the requested collection are pre-filled;
+  // otherwise both sides start blank.
   const base: DealRoomRevision = {
     id: "new",
     roomId: "new",
@@ -96,7 +146,7 @@ function NewRoomInner() {
     makerNFTs: [],
     takerNFTs: [],
     makerMonAmount: "0",
-    takerMonAmount: "0",
+    takerMonAmount: seed.takerMonAmount,
     feeBps: config?.feeBps ?? 100,
     flatFee: "0",
     offerExpiry: Math.floor(Date.now() / 1000) + 86_400,
@@ -111,6 +161,7 @@ function NewRoomInner() {
       base={base}
       viewerWallet={me}
       submitting={createRoom.isPending}
+      initialMakerCollection={seed.makerCollection}
       onClose={() => router.back()}
       onSubmit={async (draft, note) => {
         try {
