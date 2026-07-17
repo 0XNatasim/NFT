@@ -15,6 +15,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import {
+  DEFAULT_EXPIRY_SECONDS,
+  ExpirySelector,
+} from "@/components/trade/expiry-selector";
+import {
   buildCreateWantedMessage,
   buildDeleteWantedMessage,
 } from "@/lib/wanted/auth";
@@ -26,6 +30,7 @@ interface WantedPost {
   offering: string | null;
   notes: string | null;
   createdAt: string;
+  expiresAt: string | null;
 }
 
 export default function WantedPage() {
@@ -36,6 +41,7 @@ export default function WantedPage() {
   const [rarity, setRarity] = useState("Any");
   const [offering, setOffering] = useState("");
   const [notes, setNotes] = useState("");
+  const [expirySeconds, setExpirySeconds] = useState(DEFAULT_EXPIRY_SECONDS);
 
   const { data: posts, isLoading } = useQuery({
     queryKey: ["wanted"],
@@ -59,6 +65,7 @@ export default function WantedPage() {
           lookingFor: lookingForValue,
           offering: offeringValue,
           notes: notesValue,
+          expirySeconds,
           timestamp,
         }),
       });
@@ -70,6 +77,7 @@ export default function WantedPage() {
           lookingFor: lookingForValue,
           offering: offeringValue,
           notes: notesValue,
+          expirySeconds,
           timestamp,
           signature,
         }),
@@ -83,6 +91,7 @@ export default function WantedPage() {
       setRarity("Any");
       setOffering("");
       setNotes("");
+      setExpirySeconds(DEFAULT_EXPIRY_SECONDS);
       queryClient.invalidateQueries({ queryKey: ["wanted"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -169,6 +178,11 @@ export default function WantedPage() {
               maxLength={500}
               onChange={(e) => setNotes(e.target.value)}
             />
+            <ExpirySelector
+              value={expirySeconds}
+              onChange={setExpirySeconds}
+              helpText="Enter any positive duration. The request is hidden once it expires."
+            />
             <Button
               className="w-full"
               disabled={!isConnected || collection.trim().length < 2 || createPost.isPending}
@@ -204,10 +218,18 @@ export default function WantedPage() {
                         Anonymous collector
                         {isMine && <Badge variant="secondary">your post</Badge>}
                       </span>
-                      <span>
+                      <span className="flex items-center gap-2">
                         {formatDistanceToNow(new Date(post.createdAt), {
                           addSuffix: true,
                         })}
+                        {post.expiresAt && (
+                          <Badge variant="secondary">
+                            expires{" "}
+                            {formatDistanceToNow(new Date(post.expiresAt), {
+                              addSuffix: true,
+                            })}
+                          </Badge>
+                        )}
                       </span>
                     </div>
                     <p className="font-medium">

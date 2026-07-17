@@ -12,11 +12,15 @@ import type { Hex } from "viem";
 
 export const dynamic = "force-dynamic";
 
+// One year in seconds — upper bound for a wanted-listing lifetime.
+const MAX_EXPIRY_SECONDS = 365 * 24 * 60 * 60;
+
 const createWantedSchema = z.object({
   walletAddress: addressSchema,
   lookingFor: z.string().min(2).max(280),
   offering: z.string().max(280).optional(),
   notes: z.string().max(500).optional(),
+  expirySeconds: z.number().int().positive().max(MAX_EXPIRY_SECONDS).optional(),
   timestamp: z.number().int(),
   signature: z.string().regex(/^0x[0-9a-fA-F]+$/, "Invalid signature"),
 });
@@ -27,6 +31,8 @@ export async function GET() {
     const { data, error } = await db
       .from("wanted_posts")
       .select("*")
+      // Hide listings that have lapsed; NULL expires_at never expires.
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) throw error;
@@ -38,6 +44,7 @@ export async function GET() {
         offering: p.offering,
         notes: p.notes,
         createdAt: p.created_at,
+        expiresAt: p.expires_at,
       })),
     });
   } catch (err) {
@@ -88,6 +95,9 @@ export async function POST(req: Request) {
   }
 
   try {
+    const expiresAt = input.expirySeconds
+      ? new Date(input.timestamp + input.expirySeconds * 1000).toISOString()
+      : null;
     const db = getServiceClient();
     const { data, error } = await db
       .from("wanted_posts")
@@ -96,6 +106,7 @@ export async function POST(req: Request) {
         looking_for: input.lookingFor,
         offering: input.offering ?? null,
         notes: input.notes ?? null,
+        expires_at: expiresAt,
       })
       .select()
       .single();

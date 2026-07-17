@@ -46,6 +46,11 @@ import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
 import { CollectionSearch } from "@/components/trade/collection-search";
 import {
+  DEFAULT_EXPIRY_SECONDS,
+  ExpirySelector,
+  formatExpiryLabel,
+} from "@/components/trade/expiry-selector";
+import {
   generateNonce,
   getOrderDomain,
   ORDER_TYPES,
@@ -54,13 +59,6 @@ import {
 import { COLLECTION_BID_TOKEN_ID } from "@/lib/collection-bids";
 import { formatMon } from "@/lib/utils";
 import type { CollectionSearchResult, NFTAsset } from "@/lib/types";
-
-const EXPIRY_OPTIONS = [
-  { label: "1 hour", seconds: 3600 },
-  { label: "4 hour", seconds: 14400 },
-  { label: "12 hours", seconds: 43200 },
-  { label: "1 days", seconds: 86400 },
-];
 
 type Intent = "sell" | "buy" | "swap" | "custom";
 type DealStep = "type" | "visibility" | "details" | "review";
@@ -169,12 +167,7 @@ function ProposeDealForm() {
   const [takerAddress, setTakerAddress] = useState(
     isAddress(prefilledTaker) ? prefilledTaker : "",
   );
-  const [expirySeconds, setExpirySeconds] = useState(86400);
-  const [customExpiryValue, setCustomExpiryValue] = useState("");
-  const [customExpiryUnit, setCustomExpiryUnit] = useState<"hours" | "days">(
-    "hours",
-  );
-  const [showCustomExpiry, setShowCustomExpiry] = useState(false);
+  const [expirySeconds, setExpirySeconds] = useState(DEFAULT_EXPIRY_SECONDS);
   const [requestContract, setRequestContract] = useState("");
   const [selectedRequestCollection, setSelectedRequestCollection] =
     useState<CollectionSearchResult | null>(null);
@@ -750,12 +743,6 @@ function ProposeDealForm() {
             needsTaker={needsTaker}
             expirySeconds={expirySeconds}
             setExpirySeconds={setExpirySeconds}
-            customExpiryValue={customExpiryValue}
-            setCustomExpiryValue={setCustomExpiryValue}
-            customExpiryUnit={customExpiryUnit}
-            setCustomExpiryUnit={setCustomExpiryUnit}
-            showCustomExpiry={showCustomExpiry}
-            setShowCustomExpiry={setShowCustomExpiry}
           />
         )}
 
@@ -1299,12 +1286,6 @@ function StepVisibility({
   needsTaker,
   expirySeconds,
   setExpirySeconds,
-  customExpiryValue,
-  setCustomExpiryValue,
-  customExpiryUnit,
-  setCustomExpiryUnit,
-  showCustomExpiry,
-  setShowCustomExpiry,
 }: {
   visibility: Visibility;
   onPick: (v: Visibility) => void;
@@ -1313,27 +1294,7 @@ function StepVisibility({
   needsTaker: boolean;
   expirySeconds: number;
   setExpirySeconds: (v: number) => void;
-  customExpiryValue: string;
-  setCustomExpiryValue: (v: string) => void;
-  customExpiryUnit: "hours" | "days";
-  setCustomExpiryUnit: (v: "hours" | "days") => void;
-  showCustomExpiry: boolean;
-  setShowCustomExpiry: (v: boolean) => void;
 }) {
-  const customExpirySeconds =
-    Number(customExpiryValue) *
-    (customExpiryUnit === "hours" ? 60 * 60 : 24 * 60 * 60);
-
-  function applyCustomExpiry(value: string, unit: "hours" | "days") {
-    setCustomExpiryValue(value);
-    const numeric = Number(value);
-    if (Number.isFinite(numeric) && numeric > 0) {
-      setExpirySeconds(
-        Math.round(numeric * (unit === "hours" ? 60 * 60 : 24 * 60 * 60)),
-      );
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -1396,85 +1357,13 @@ function StepVisibility({
         )}
       </div>
 
-      <div>
-        <label className="mb-1.5 block text-sm font-medium">Expires in</label>
-        <div className="flex flex-wrap gap-2">
-          {EXPIRY_OPTIONS.map((opt) => (
-            <Button
-              key={opt.seconds}
-              type="button"
-              size="sm"
-              variant={expirySeconds === opt.seconds ? "default" : "secondary"}
-              onClick={() => {
-                setExpirySeconds(opt.seconds);
-                setShowCustomExpiry(false);
-              }}
-            >
-              {opt.label}
-            </Button>
-          ))}
-          <Button
-            type="button"
-            size="sm"
-            variant={
-              showCustomExpiry && expirySeconds === customExpirySeconds
-                ? "default"
-                : "secondary"
-            }
-            onClick={() => setShowCustomExpiry(true)}
-          >
-            Custom
-          </Button>
-        </div>
-
-        {showCustomExpiry && (
-          <div className="mt-3 grid gap-2 rounded-lg border border-monad-purple/30 bg-monad-purple/5 p-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
-            <Input
-              placeholder="Custom time"
-              inputMode="decimal"
-              value={customExpiryValue}
-              onChange={(e) =>
-                applyCustomExpiry(e.target.value, customExpiryUnit)
-              }
-            />
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={customExpiryUnit}
-              onChange={(e) => {
-                const unit = e.target.value as "hours" | "days";
-                setCustomExpiryUnit(unit);
-                applyCustomExpiry(customExpiryValue, unit);
-              }}
-            >
-              <option value="hours">Hours</option>
-              <option value="days">Days</option>
-            </select>
-            <p className="text-xs text-muted-foreground sm:col-span-2">
-              Enter any positive duration. The deal expires after this amount of
-              time once you sign it.
-            </p>
-          </div>
-        )}
-      </div>
+      <ExpirySelector
+        value={expirySeconds}
+        onChange={setExpirySeconds}
+        helpText="Enter any positive duration. The deal expires after this amount of time once you sign it."
+      />
     </div>
   );
-}
-
-function formatExpiryLabel(seconds: number) {
-  const preset = EXPIRY_OPTIONS.find((e) => e.seconds === seconds);
-  if (preset) return preset.label;
-
-  if (seconds % 86400 === 0) {
-    const days = seconds / 86400;
-    return `${days} custom day${days === 1 ? "" : "s"}`;
-  }
-
-  if (seconds % 3600 === 0) {
-    const hours = seconds / 3600;
-    return `${hours} custom hour${hours === 1 ? "" : "s"}`;
-  }
-
-  return `${Math.round(seconds / 3600)} custom hours`;
 }
 
 function StepReview({
