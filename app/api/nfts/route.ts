@@ -19,24 +19,35 @@ const contractExistsCache = new Map<string, boolean>();
 // name (e.g. Algebra LP positions -> "Algebra-DUST/WMON") show a real label
 // instead of their address. null = no name / not a readable name().
 const contractNameCache = new Map<string, string | null>();
-const rarityRankCache = new Map<string, number | null>();
 
-async function getOpenSeaRarityRank(
+// One OpenSea token lookup per token, cached. Provides both the rarity rank
+// AND OpenSea's reliable CDN image — the fallback of last resort when neither
+// the indexer nor on-chain IPFS resolves art (e.g. 10kSquad).
+const openSeaTokenCache = new Map<
+  string,
+  { rarityRank: number | null; imageUrl: string | null }
+>();
+
+async function getOpenSeaToken(
   contractAddress: string,
   tokenId: string,
-): Promise<number | null> {
+): Promise<{ rarityRank: number | null; imageUrl: string | null }> {
   const key = `${contractAddress.toLowerCase()}:${tokenId}`;
-  const cached = rarityRankCache.get(key);
+  const cached = openSeaTokenCache.get(key);
   if (cached !== undefined) return cached;
 
   try {
     const token = await openseaProvider.getToken(contractAddress, tokenId);
-    const rank = token?.rarityRank ?? null;
-    rarityRankCache.set(key, rank);
-    return rank;
+    const value = {
+      rarityRank: token?.rarityRank ?? null,
+      imageUrl: token?.imageUrl ?? null,
+    };
+    openSeaTokenCache.set(key, value);
+    return value;
   } catch {
-    rarityRankCache.set(key, null);
-    return null;
+    const value = { rarityRank: null, imageUrl: null };
+    openSeaTokenCache.set(key, value);
+    return value;
   }
 }
 
@@ -161,19 +172,18 @@ export async function GET(req: Request) {
       })
     );
 
-    // Some wallet/list endpoints do not include OpenSea rarity even though the
-    // token detail endpoint does. Hydrate the current provider page directly
-    // from OpenSea so rarity badges appear automatically for supported
-    // collections, while keeping unsupported/no-rarity tokens unchanged.
-    const missingRarity = result.nfts
-      .filter((n) => n.rarityRank == null)
+    // Hydrate from OpenSea for tokens still missing rarity OR art. OpenSea
+    // serves a reliable CDN image for collections the indexer/on-chain path
+    // can't resolve (e.g. 10kSquad, whose IPFS art public gateways won't
+    // serve) — one lookup per token backfills both.
+    const needsOpenSea = result.nfts
+      .filter((n) => n.rarityRank == null || !n.imageUrl)
       .slice(0, 50);
     await Promise.all(
-      missingRarity.map(async (nft) => {
-        nft.rarityRank = await getOpenSeaRarityRank(
-          nft.contractAddress,
-          nft.tokenId,
-        );
+      needsOpenSea.map(async (nft) => {
+        const os = await getOpenSeaToken(nft.contractAddress, nft.tokenId);
+        if (nft.rarityRank == null) nft.rarityRank = os.rarityRank;
+        if (!nft.imageUrl && os.imageUrl) nft.imageUrl = os.imageUrl;
       }),
     );
 
