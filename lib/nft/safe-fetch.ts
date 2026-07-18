@@ -57,70 +57,89 @@ async function hostIsPublic(hostname: string): Promise<boolean> {
   }
 }
 
+async function isPublicUrl(url: URL): Promise<boolean> {
+  if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+  return hostIsPublic(url.hostname);
+}
+
+/**
+ * Fetch that follows redirects MANUALLY, re-validating that every hop's host
+ * is public. IPFS path gateways (ipfs.io, dweb.link, nftstorage.link…)
+ * legitimately 30x-redirect path CIDs to subdomain gateways, so we must follow
+ * them — but doing so with `redirect: "follow"` would defeat the SSRF guard, so
+ * each hop is re-checked and a redirect into a private range is refused.
+ */
+async function safeFetchFollow(
+  url: string,
+  init: RequestInit,
+  maxRedirects = 4,
+): Promise<Response | null> {
+  let current: URL;
+  try {
+    current = new URL(url);
+  } catch {
+    return null;
+  }
+
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    if (!(await isPublicUrl(current))) return null;
+    let res: Response;
+    try {
+      res = await fetch(current.toString(), {
+        ...init,
+        redirect: "manual",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+    } catch {
+      return null;
+    }
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      await res.body?.cancel().catch(() => {});
+      if (!location) return null;
+      try {
+        current = new URL(location, current);
+      } catch {
+        return null;
+      }
+      continue;
+    }
+    return res;
+  }
+  return null; // too many redirects
+}
+
 /**
  * SSRF-guarded content-type probe for an untrusted media URL. Tries HEAD,
  * then a 1-byte ranged GET for hosts that don't support HEAD. Returns the
- * Content-Type (lowercased) or null. Bounded by the same timeout; never
+ * Content-Type (lowercased) or null. Follows gateway redirects safely; never
  * downloads the body.
  */
 export async function safeProbeContentType(url: string): Promise<string | null> {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
-  if (!(await hostIsPublic(parsed.hostname))) return null;
-
   const read = (res: Response) =>
     (res.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
 
-  try {
-    const head = await fetch(parsed.toString(), {
-      method: "HEAD",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      redirect: "error",
-    });
-    if (head.ok && head.headers.get("content-type")) return read(head);
-  } catch {
-    // fall through to ranged GET
-  }
+  const head = await safeFetchFollow(url, { method: "HEAD" });
+  if (head?.ok && head.headers.get("content-type")) return read(head);
 
-  try {
-    const res = await fetch(parsed.toString(), {
-      method: "GET",
-      headers: { range: "bytes=0-0" },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      redirect: "error",
-    });
-    await res.body?.cancel().catch(() => {});
-    if (!res.ok && res.status !== 206) return null;
-    const ct = res.headers.get("content-type");
-    return ct ? read(res) : null;
-  } catch {
-    return null;
-  }
+  const res = await safeFetchFollow(url, {
+    method: "GET",
+    headers: { range: "bytes=0-0" },
+  });
+  if (!res) return null;
+  await res.body?.cancel().catch(() => {});
+  if (!res.ok && res.status !== 206) return null;
+  const ct = res.headers.get("content-type");
+  return ct ? read(res) : null;
 }
 
 /** Fetch untrusted metadata JSON with SSRF and size protections. */
 export async function safeFetchJson(url: string): Promise<unknown | null> {
-  let parsed: URL;
   try {
-    parsed = new URL(url);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
-  if (!(await hostIsPublic(parsed.hostname))) return null;
-
-  try {
-    const res = await fetch(parsed.toString(), {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    const res = await safeFetchFollow(url, {
       headers: { accept: "application/json" },
-      redirect: "error", // don't follow redirects into private ranges
     });
-    if (!res.ok) return null;
+    if (!res || !res.ok) return null;
 
     const contentLength = Number(res.headers.get("content-length") ?? 0);
     if (contentLength > MAX_RESPONSE_BYTES) return null;
