@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ export function OwnedNFTPicker({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isFetchNextPageError,
   } = useWalletNFTsInfinite(address);
 
   const [query, setQuery] = useState("");
@@ -70,6 +71,20 @@ export function OwnedNFTPicker({
     () => data?.pages.flatMap((p) => p.nfts) ?? [],
     [data]
   );
+
+  // Keep walking the wallet in the background after the first page renders.
+  // Existing verified cards remain mounted while subsequent pages load, and
+  // newly discovered collections appear as soon as their checks resolve.
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
+      void fetchNextPage();
+    }
+  }, [
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+  ]);
 
   const collections = useMemo(() => {
     const map = new Map<string, { label: string; count: number }>();
@@ -287,7 +302,7 @@ export function OwnedNFTPicker({
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
             {filtered.length} of {nfts.length} NFTs
-            {isFetchingNextPage && " · loading next page…"}
+            {isFetchingNextPage && " · loading the rest of your wallet…"}
           </p>
           <LayoutToggle layout={layout} onChange={setLayout} />
         </div>
@@ -345,7 +360,7 @@ export function OwnedNFTPicker({
             body="Only NFTs from approved collections are shown. If one is missing, its collection may need to be approved or added."
           />
         )}
-        {hasNextPage && !verificationFailed && (
+        {hasNextPage && isFetchNextPageError && !verificationFailed && (
           <div className="mt-4 flex justify-center">
             <Button
               type="button"
@@ -353,7 +368,7 @@ export function OwnedNFTPicker({
               disabled={isFetchingNextPage}
               onClick={() => fetchNextPage()}
             >
-              {isFetchingNextPage ? "Loading…" : "Load more NFTs"}
+              Retry loading the rest
             </Button>
           </div>
         )}
