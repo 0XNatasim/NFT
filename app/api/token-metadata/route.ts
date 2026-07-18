@@ -41,7 +41,9 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ...meta,
     name: indexed?.name ?? meta.name,
-    image: indexed?.imageUrl ?? meta.image,
+    // Prefer on-chain media here: callers use this endpoint specifically as a
+    // self-healing fallback when an indexer/CDN URL is missing or broken.
+    image: meta.animationUrl ?? meta.image ?? indexed?.imageUrl ?? null,
     collectionName: indexed?.collectionName ?? meta.collectionName,
     rarityRank: openSeaToken?.rarityRank ?? indexed?.rarityRank ?? null,
   });

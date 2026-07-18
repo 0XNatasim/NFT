@@ -86,6 +86,21 @@ function displayLabels(nft: NFTAsset, collectionBid: boolean) {
   };
 }
 
+const ALWAYS_BACKFILL_MEDIA_COLLECTIONS = new Set([
+  // Indexers can return broken/placeholder media for these Monad collections;
+  // keep an on-chain media candidate available so cards can heal themselves.
+  "0x2a0001f3d4c98881376f8d36b3c61f163d84a095", // Erebus
+  "0x818030837e8350ba63e64d7dc01a547fa73c8279", // 10kSquad
+]);
+
+function shouldBackfillMedia(nft: NFTAsset, collectionBid: boolean) {
+  return (
+    !collectionBid &&
+    (!hasMedia(nft) ||
+      ALWAYS_BACKFILL_MEDIA_COLLECTIONS.has(nft.contractAddress.toLowerCase()))
+  );
+}
+
 function hasMedia(nft: NFTAsset) {
   return Boolean(
     nft.imageUrl ||
@@ -108,13 +123,17 @@ function NFTThumbnail({
 }) {
   // When the indexer listed this token without media (common for newly
   // indexed Monad collections), resolve the image on-chain as a fallback.
-  const needsFallback = !collectionBid && !hasMedia(nft);
+  const needsFallback = shouldBackfillMedia(nft, collectionBid);
   const fallback = useNftMediaFallback(nft, needsFallback);
   const resolved: NFTAsset = needsFallback
     ? {
         ...nft,
-        imageUrl: fallback.imageUrl,
-        metadata: nft.metadata ?? fallback.metadata,
+        imageUrl: nft.imageUrl ?? fallback.imageUrl,
+        metadata: {
+          ...(fallback.metadata ?? {}),
+          ...(nft.metadata ?? {}),
+          ...(fallback.imageUrl ? { image_fallback_url: fallback.imageUrl } : {}),
+        },
       }
     : nft;
 

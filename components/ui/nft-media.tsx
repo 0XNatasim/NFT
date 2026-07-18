@@ -100,6 +100,7 @@ export function mediaCandidates({
     metadataString(metadata, "image_original_url"),
     metadataString(metadata, "imageUrlOriginal"),
     imageUrl,
+    metadataString(metadata, "image_fallback_url"),
   ];
 
   return uniqueUrls(ordered.flatMap((url) => normalizeMediaUrls(url ?? null)));
