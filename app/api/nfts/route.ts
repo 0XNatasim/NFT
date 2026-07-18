@@ -172,18 +172,30 @@ export async function GET(req: Request) {
       })
     );
 
-    // Hydrate from OpenSea for tokens still missing rarity OR art. OpenSea
-    // serves a reliable CDN image for collections the indexer/on-chain path
-    // can't resolve (e.g. 10kSquad, whose IPFS art public gateways won't
-    // serve) — one lookup per token backfills both.
-    const needsOpenSea = result.nfts
-      .filter((n) => n.rarityRank == null || !n.imageUrl)
+    // Hydrate rarity from OpenSea (its own budget, so image backfill can't
+    // starve it).
+    const missingRarity = result.nfts
+      .filter((n) => n.rarityRank == null)
       .slice(0, 50);
     await Promise.all(
-      needsOpenSea.map(async (nft) => {
+      missingRarity.map(async (nft) => {
         const os = await getOpenSeaToken(nft.contractAddress, nft.tokenId);
         if (nft.rarityRank == null) nft.rarityRank = os.rarityRank;
         if (!nft.imageUrl && os.imageUrl) nft.imageUrl = os.imageUrl;
+      }),
+    );
+
+    // Then OpenSea's CDN image for anything STILL without art (e.g. 10kSquad,
+    // whose IPFS CIDs public gateways won't serve). getOpenSeaToken is cached,
+    // so tokens already fetched above cost nothing here.
+    const missingImage = result.nfts
+      .filter((n) => !n.imageUrl)
+      .slice(0, 50);
+    await Promise.all(
+      missingImage.map(async (nft) => {
+        const os = await getOpenSeaToken(nft.contractAddress, nft.tokenId);
+        if (!nft.imageUrl && os.imageUrl) nft.imageUrl = os.imageUrl;
+        if (nft.rarityRank == null) nft.rarityRank = os.rarityRank;
       }),
     );
 

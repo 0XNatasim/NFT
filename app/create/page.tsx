@@ -59,7 +59,7 @@ import {
   ZERO_ADDRESS,
 } from "@/lib/orders/eip712";
 import { COLLECTION_BID_TOKEN_ID } from "@/lib/collection-bids";
-import { formatMon } from "@/lib/utils";
+import { formatMon, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { CollectionSearchResult, NFTAsset } from "@/lib/types";
 
 type Intent = "sell" | "buy" | "swap" | "custom";
@@ -955,10 +955,9 @@ function StepDetails(props: {
                       className="flex items-center justify-between gap-2 text-sm"
                     >
                       <span className="truncate">
-                        {nft.name ?? `#${nft.tokenId}`}{" "}
-                        <span className="text-muted-foreground">
-                          ({nft.contractAddress.slice(0, 8)}…)
-                        </span>
+                        {prettyCollectionName(nft.collectionName) ??
+                          shortAddress(nft.contractAddress)}{" "}
+                        <span className="font-medium">#{nft.tokenId}</span>
                       </span>
                       <button
                         type="button"
