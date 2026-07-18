@@ -8,12 +8,12 @@ import { safeFetchJson } from "@/lib/nft/safe-fetch";
  */
 
 const DEFAULT_IPFS_GATEWAYS = [
-  // Dedicated Pinata gateway first (not rate-limited); public gateways as
-  // fallback. Override with the IPFS_GATEWAYS env var.
-  "https://scarlet-worthy-minnow-552.mypinata.cloud/ipfs/",
+  // Public gateways. Override with IPFS_GATEWAYS when a dedicated gateway is
+  // available. The /api/ipfs proxy fronts these for browser image loads.
   "https://ipfs.io/ipfs/",
   "https://dweb.link/ipfs/",
   "https://nftstorage.link/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
 ];
 const ARWEAVE_GATEWAY = process.env.ARWEAVE_GATEWAY ?? "https://arweave.net/";
 const MAX_CACHE_ENTRIES = 5000;
