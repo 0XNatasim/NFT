@@ -6,9 +6,11 @@ import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_IPFS_GATEWAYS = [
+  // Dedicated Pinata gateway first (not rate-limited); public gateways as
+  // fallback. Override with NEXT_PUBLIC_IPFS_GATEWAYS.
+  "https://scarlet-worthy-minnow-552.mypinata.cloud/ipfs/",
   "https://ipfs.io/ipfs/",
   "https://dweb.link/ipfs/",
-  "https://gateway.pinata.cloud/ipfs/",
   "https://nftstorage.link/ipfs/",
 ];
 
