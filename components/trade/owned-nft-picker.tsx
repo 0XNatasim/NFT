@@ -7,7 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
-import { useCollectionApprovals } from "@/hooks/use-approvals";
+import {
+  useAllowedCollections,
+  useCollectionApprovals,
+} from "@/hooks/use-approvals";
 import { ApproveCollectionButton } from "@/components/trade/approve-collection-button";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
@@ -91,18 +94,38 @@ export function OwnedNFTPicker({
   const approvalFor = (contract: string) =>
     approvalState(contract, pendingContracts?.has(contract.toLowerCase()));
 
-  // Only collections approved for trading appear in the selector (plus ones
-  // still loading, so nothing flickers). Confirmed-unapproved ones are surfaced
-  // in the banner with an inline Approve action instead.
+  // Which collections Handshake actually supports (settlement allowlist). The
+  // wallet holds all kinds of NFTs (LP positions, vouchers, spam) that can't
+  // be traded here — those never enter the selector or the approval banner.
+  const {
+    isAllowed,
+    isReady: allowlistReady,
+    data: allowedData,
+  } = useAllowedCollections(collections.map((c) => c.address));
+
+  // Selector: supported + not-confirmed-unapproved (during load, don't filter
+  // by allowlist yet so nothing flickers). Banner: only supported collections
+  // that still need approval — never the wallet's unsupported junk.
   const tradableCollections = useMemo(
-    () => collections.filter((c) => approvalFor(c.address) !== "unapproved"),
+    () =>
+      collections.filter(
+        (c) =>
+          (!allowlistReady || isAllowed(c.address)) &&
+          approvalFor(c.address) !== "unapproved",
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [collections, approvalState, pendingContracts],
+    [collections, approvalState, pendingContracts, allowedData, allowlistReady],
   );
   const unapprovedCollections = useMemo(
-    () => collections.filter((c) => approvalFor(c.address) === "unapproved"),
+    () =>
+      collections.filter(
+        (c) =>
+          allowlistReady &&
+          isAllowed(c.address) &&
+          approvalFor(c.address) === "unapproved",
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [collections, approvalState, pendingContracts],
+    [collections, approvalState, pendingContracts, allowedData, allowlistReady],
   );
 
   const filtered = useMemo(() => {
@@ -112,6 +135,10 @@ export function OwnedNFTPicker({
         selectedCollections.size > 0 &&
         !selectedCollections.has(nft.contractAddress.toLowerCase())
       ) {
+        return false;
+      }
+      // Only NFTs from Handshake-supported collections are tradable.
+      if (allowlistReady && !isAllowed(nft.contractAddress)) {
         return false;
       }
       // We never trade unapproved collections, so hide the ones we've
@@ -127,9 +154,17 @@ export function OwnedNFTPicker({
         .toLowerCase();
       return haystack.includes(q);
     });
-    // approvalFor closes over approvalState/pendingContracts which are covered.
+    // approvalFor/isAllowed close over approvalState/allowedData, covered below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nfts, query, selectedCollections, approvalState, pendingContracts]);
+  }, [
+    nfts,
+    query,
+    selectedCollections,
+    approvalState,
+    pendingContracts,
+    allowedData,
+    allowlistReady,
+  ]);
 
   if (isLoading) {
     return (

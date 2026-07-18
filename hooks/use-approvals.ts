@@ -70,3 +70,41 @@ export function useCollectionApprovals(contracts: string[]) {
 
   return { ...query, stateFor, chainId: MONAD_CHAIN_ID };
 }
+
+/**
+ * Which of `contracts` are tradable on Handshake (settlement allowlist +
+ * timelock). Lets the trade UI show only supported collections rather than the
+ * wallet's entire holdings (LP positions, vouchers, spam, …).
+ */
+export function useAllowedCollections(contracts: string[]) {
+  const unique = useMemo(
+    () => Array.from(new Set(contracts.map((c) => c.toLowerCase()))).sort(),
+    [contracts],
+  );
+
+  const query = useQuery({
+    queryKey: ["collection-allowlist", unique],
+    enabled: unique.length > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const chunks: string[][] = [];
+      for (let i = 0; i < unique.length; i += 50) {
+        chunks.push(unique.slice(i, i + 50));
+      }
+      const results = await Promise.all(
+        chunks.map((chunk) =>
+          fetch(`/api/collections/allowed?contracts=${chunk.join(",")}`)
+            .then((r) => (r.ok ? r.json() : { allowed: {} }))
+            .then((d) => d.allowed as Record<string, boolean>),
+        ),
+      );
+      return Object.assign({}, ...results) as Record<string, boolean>;
+    },
+  });
+
+  const isReady = query.data !== undefined;
+  const isAllowed = (contract: string) =>
+    query.data?.[contract.toLowerCase()] === true;
+
+  return { ...query, isReady, isAllowed };
+}

@@ -8,7 +8,10 @@ import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
 import { ApproveCollectionButton } from "@/components/trade/approve-collection-button";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
-import { useCollectionApprovals } from "@/hooks/use-approvals";
+import {
+  useAllowedCollections,
+  useCollectionApprovals,
+} from "@/hooks/use-approvals";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -54,13 +57,33 @@ export function WalletNFTs({ owner }: { owner: string }) {
     collections.map((c) => c.address)
   );
 
-  const { stateFor: approvalFor } = useCollectionApprovals(
+  const { stateFor: approvalState } = useCollectionApprovals(
     collections.map((c) => c.address)
   );
+  const {
+    isAllowed,
+    isReady: allowlistReady,
+    data: allowedData,
+  } = useAllowedCollections(collections.map((c) => c.address));
+
+  // Approval only applies to Handshake-supported collections. Everything else
+  // the wallet holds (LP positions, vouchers, spam) has no "approve" concept,
+  // so it shows no dot and is never listed as needing approval.
+  const approvalFor = (contract: string) =>
+    allowlistReady && !isAllowed(contract)
+      ? ("unknown" as const)
+      : approvalState(contract);
 
   const unapprovedCollections = useMemo(
-    () => collections.filter((c) => approvalFor(c.address) === "unapproved"),
-    [collections, approvalFor]
+    () =>
+      collections.filter(
+        (c) =>
+          allowlistReady &&
+          isAllowed(c.address) &&
+          approvalState(c.address) === "unapproved",
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collections, approvalState, allowedData, allowlistReady]
   );
 
   const filtered = useMemo(() => {
