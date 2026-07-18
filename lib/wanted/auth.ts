@@ -15,6 +15,7 @@ export function buildCreateWantedMessage(p: {
   lookingFor: string;
   offering?: string | null;
   notes?: string | null;
+  expirySeconds?: number | null;
   timestamp: number;
 }): string {
   return [
@@ -23,6 +24,7 @@ export function buildCreateWantedMessage(p: {
     `Looking for: ${p.lookingFor}`,
     `Offering: ${p.offering ?? ""}`,
     `Notes: ${p.notes ?? ""}`,
+    `Expires in: ${p.expirySeconds ?? ""}`,
     `Timestamp: ${p.timestamp}`,
   ].join("\n");
 }

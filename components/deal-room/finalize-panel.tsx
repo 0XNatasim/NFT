@@ -53,8 +53,19 @@ export function FinalizePanel({
   const publicClient = usePublicClient();
   const { signTypedDataAsync } = useSignTypedData();
   const { writeContractAsync } = useWriteContract();
-  const { finalize, invalidate } = useRoomMutations(room.id);
+  const { finalize, invalidate, cancel } = useRoomMutations(room.id);
   const [working, setWorking] = useState<null | "cancel-source" | "sign">(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+
+  async function handleBackOut() {
+    try {
+      await cancel.mutateAsync({ expectedVersion: room.version });
+      toast.success("You backed out — the deal is off");
+      setConfirmingCancel(false);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to cancel the deal");
+    }
+  }
 
   if (!revision) return null;
 
@@ -289,6 +300,42 @@ export function FinalizePanel({
             Waiting for {shortAddress(revision.makerAddress)} to sign the final
             deal. You&apos;ll settle it right after — one atomic transaction.
           </p>
+        )}
+
+        {/* Back out — nothing is signed or on-chain yet, so either side can
+            still walk away before the maker signs. */}
+        {confirmingCancel ? (
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+            <span className="text-sm text-muted-foreground">
+              Cancel this deal for good?
+            </span>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={cancel.isPending}
+              onClick={handleBackOut}
+            >
+              {cancel.isPending ? "Cancelling…" : "Yes, cancel"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={cancel.isPending}
+              onClick={() => setConfirmingCancel(false)}
+            >
+              Keep it
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-muted-foreground"
+            disabled={working === "sign"}
+            onClick={() => setConfirmingCancel(true)}
+          >
+            No — I don&apos;t want this deal
+          </Button>
         )}
       </CardContent>
     </Card>

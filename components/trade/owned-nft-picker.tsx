@@ -7,6 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
+import {
+  useAllowedCollections,
+  useCollectionApprovals,
+} from "@/hooks/use-approvals";
+import { ApproveCollectionButton } from "@/components/trade/approve-collection-button";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -22,9 +27,12 @@ function nftKey(n: { contractAddress: string; tokenId: string }) {
 export function OwnedNFTPicker({
   selected,
   onToggle,
+  pendingContracts,
 }: {
   selected: NFTAsset[];
   onToggle: (nft: NFTAsset) => void;
+  /** Collections with an in-flight approval tx — shown with a pending dot. */
+  pendingContracts?: Set<string>;
 }) {
   const { address } = useAccount();
   const {
@@ -80,6 +88,46 @@ export function OwnedNFTPicker({
     collections.map((c) => c.address)
   );
 
+  const { stateFor: approvalState } = useCollectionApprovals(
+    collections.map((c) => c.address)
+  );
+  const approvalFor = (contract: string) =>
+    approvalState(contract, pendingContracts?.has(contract.toLowerCase()));
+
+  // Which collections Handshake actually supports (settlement allowlist). The
+  // wallet holds all kinds of NFTs (LP positions, vouchers, spam) that can't
+  // be traded here — those never enter the selector or the approval banner.
+  const {
+    isAllowed,
+    isReady: allowlistReady,
+    data: allowedData,
+  } = useAllowedCollections(collections.map((c) => c.address));
+
+  // Selector: supported + not-confirmed-unapproved (during load, don't filter
+  // by allowlist yet so nothing flickers). Banner: only supported collections
+  // that still need approval — never the wallet's unsupported junk.
+  const tradableCollections = useMemo(
+    () =>
+      collections.filter(
+        (c) =>
+          (!allowlistReady || isAllowed(c.address)) &&
+          approvalFor(c.address) !== "unapproved",
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collections, approvalState, pendingContracts, allowedData, allowlistReady],
+  );
+  const unapprovedCollections = useMemo(
+    () =>
+      collections.filter(
+        (c) =>
+          allowlistReady &&
+          isAllowed(c.address) &&
+          approvalFor(c.address) === "unapproved",
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collections, approvalState, pendingContracts, allowedData, allowlistReady],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return nfts.filter((nft) => {
@@ -89,6 +137,16 @@ export function OwnedNFTPicker({
       ) {
         return false;
       }
+      // Only NFTs from Handshake-supported collections are tradable.
+      if (allowlistReady && !isAllowed(nft.contractAddress)) {
+        return false;
+      }
+      // We never trade unapproved collections, so hide the ones we've
+      // confirmed are unapproved. "unknown" (read failed/loading) and
+      // "pending" stay visible so nothing tradeable is hidden by mistake.
+      if (approvalFor(nft.contractAddress) === "unapproved") {
+        return false;
+      }
       if (!q) return true;
       const haystack = [nft.name, nft.collectionName, nft.tokenId, nft.contractAddress]
         .filter(Boolean)
@@ -96,7 +154,17 @@ export function OwnedNFTPicker({
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [nfts, query, selectedCollections]);
+    // approvalFor/isAllowed close over approvalState/allowedData, covered below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    nfts,
+    query,
+    selectedCollections,
+    approvalState,
+    pendingContracts,
+    allowedData,
+    allowlistReady,
+  ]);
 
   if (isLoading) {
     return (
@@ -118,9 +186,41 @@ export function OwnedNFTPicker({
   }
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row">
-      {/* Left: collections filter */}
-      <aside className="md:w-56 md:shrink-0">
+    <div className="space-y-4">
+      {unapprovedCollections.length > 0 && (
+        <div className="space-y-2 rounded-xl border-l-4 border-l-amber-500 border border-amber-500/40 bg-amber-500/10 p-3">
+          <p className="text-sm font-semibold text-amber-500">
+            {unapprovedCollections.length} of your collection
+            {unapprovedCollections.length === 1 ? " needs" : "s need"} approval
+            to trade
+          </p>
+          <p className="text-xs text-muted-foreground">
+            They&apos;re hidden from the selector below until approved. This is a
+            one-time wallet permission (moves nothing).
+          </p>
+          <div className="flex flex-col gap-2 pt-1">
+            {unapprovedCollections.map((c) => (
+              <div
+                key={c.address}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/60 p-2"
+              >
+                <span className="flex items-center gap-2 truncate text-sm">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 ring-2 ring-background" />
+                  <span className="truncate">{c.label}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    ({c.count})
+                  </span>
+                </span>
+                <ApproveCollectionButton collectionAddress={c.address} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-4 md:flex-row">
+        {/* Left: collections filter */}
+        <aside className="md:w-56 md:shrink-0">
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -142,15 +242,21 @@ export function OwnedNFTPicker({
           )}
         </div>
         <div className="flex max-h-80 flex-row gap-1.5 overflow-x-auto pb-1 md:flex-col md:overflow-y-auto md:overflow-x-visible">
-          {collections.map((c) => (
-            <CollectionRow
-              key={c.address}
-              checked={selectedCollections.has(c.address)}
-              onClick={() => toggleCollection(c.address)}
-              label={c.label}
-              count={c.count}
-            />
-          ))}
+          {tradableCollections.length === 0 ? (
+            <p className="px-1 text-xs text-muted-foreground">
+              No approved collections yet.
+            </p>
+          ) : (
+            tradableCollections.map((c) => (
+              <CollectionRow
+                key={c.address}
+                checked={selectedCollections.has(c.address)}
+                onClick={() => toggleCollection(c.address)}
+                label={c.label}
+                count={c.count}
+              />
+            ))
+          )}
         </div>
       </aside>
 
@@ -173,6 +279,7 @@ export function OwnedNFTPicker({
                   selected={selected.some((n) => nftKey(n) === nftKey(nft))}
                   onClick={() => onToggle(nft)}
                   price={prices?.[nft.contractAddress.toLowerCase()]}
+                  approval={approvalFor(nft.contractAddress)}
                 />
               ))}
             </div>
@@ -185,13 +292,18 @@ export function OwnedNFTPicker({
                   selected={selected.some((n) => nftKey(n) === nftKey(nft))}
                   onClick={() => onToggle(nft)}
                   price={prices?.[nft.contractAddress.toLowerCase()]}
+                  approval={approvalFor(nft.contractAddress)}
                 />
               ))}
             </div>
           )
         ) : (
-          <EmptyState title="No matches" body="No NFTs match your filter." />
+          <EmptyState
+            title="No tradeable NFTs here"
+            body="Only NFTs from approved collections are shown. If one is missing, its collection may need to be approved or added."
+          />
         )}
+        </div>
       </div>
     </div>
   );

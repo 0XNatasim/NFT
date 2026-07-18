@@ -9,6 +9,7 @@ import {
   useWriteContract,
 } from "wagmi";
 import { parseEther, isAddress, type Address } from "viem";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -29,6 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NFTCard } from "@/components/trade/nft-card";
 import { OwnedNFTPicker } from "@/components/trade/owned-nft-picker";
+import { COLLECTION_APPROVALS_KEY } from "@/hooks/use-approvals";
 import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
 import {
@@ -46,6 +48,11 @@ import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
 import { CollectionSearch } from "@/components/trade/collection-search";
 import {
+  DEFAULT_EXPIRY_SECONDS,
+  ExpirySelector,
+  formatExpiryLabel,
+} from "@/components/trade/expiry-selector";
+import {
   generateNonce,
   getOrderDomain,
   ORDER_TYPES,
@@ -54,13 +61,6 @@ import {
 import { COLLECTION_BID_TOKEN_ID } from "@/lib/collection-bids";
 import { formatMon } from "@/lib/utils";
 import type { CollectionSearchResult, NFTAsset } from "@/lib/types";
-
-const EXPIRY_OPTIONS = [
-  { label: "1 hour", seconds: 3600 },
-  { label: "4 hour", seconds: 14400 },
-  { label: "12 hours", seconds: 43200 },
-  { label: "1 days", seconds: 86400 },
-];
 
 type Intent = "sell" | "buy" | "swap" | "custom";
 type DealStep = "type" | "visibility" | "details" | "review";
@@ -146,6 +146,7 @@ function ProposeDealForm() {
   const { signTypedDataAsync } = useSignTypedData();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
+  const queryClient = useQueryClient();
 
   const prefilledTaker = searchParams.get("taker") ?? "";
   const prefilledPrivate =
@@ -169,21 +170,11 @@ function ProposeDealForm() {
   const [takerAddress, setTakerAddress] = useState(
     isAddress(prefilledTaker) ? prefilledTaker : "",
   );
-  const [expirySeconds, setExpirySeconds] = useState(86400);
-  const [customExpiryValue, setCustomExpiryValue] = useState("");
-  const [customExpiryUnit, setCustomExpiryUnit] = useState<"hours" | "days">(
-    "hours",
-  );
-  const [showCustomExpiry, setShowCustomExpiry] = useState(false);
+  const [expirySeconds, setExpirySeconds] = useState(DEFAULT_EXPIRY_SECONDS);
   const [requestContract, setRequestContract] = useState("");
   const [selectedRequestCollection, setSelectedRequestCollection] =
     useState<CollectionSearchResult | null>(null);
   const [requestTokenId, setRequestTokenId] = useState("");
-  const [offerContract, setOfferContract] = useState("");
-  const [selectedOfferCollection, setSelectedOfferCollection] =
-    useState<CollectionSearchResult | null>(null);
-  const [offerTokenId, setOfferTokenId] = useState("");
-  const [addingOffered, setAddingOffered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [approvingCollections, setApprovingCollections] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<Record<string, boolean>>(
@@ -319,82 +310,6 @@ function ProposeDealForm() {
       .catch(() => {});
   }
 
-  async function addOfferedNftManually() {
-    if (!address || !publicClient) return;
-
-    if (!isAddress(offerContract)) {
-      toast.error("Enter a valid NFT contract address");
-      return;
-    }
-
-    if (!/^\d+$/.test(offerTokenId)) {
-      toast.error("Enter a numeric token ID");
-      return;
-    }
-
-    const nft: NFTAsset = {
-      contractAddress: offerContract.toLowerCase(),
-      tokenId: offerTokenId,
-      tokenStandard: "ERC721",
-      name: `#${offerTokenId}`,
-      collectionName:
-        selectedOfferCollection?.name ??
-        FEATURED_COLLECTIONS.find(
-          (c) => c.address.toLowerCase() === offerContract.toLowerCase(),
-        )?.name ??
-        null,
-      imageUrl: null,
-    };
-
-    if (offeredNfts.some((n) => nftKey(n) === nftKey(nft))) {
-      toast.error("Already selected");
-      return;
-    }
-
-    setAddingOffered(true);
-    try {
-      const owner = await publicClient.readContract({
-        address: nft.contractAddress as Address,
-        abi: erc721Abi,
-        functionName: "ownerOf",
-        args: [BigInt(nft.tokenId)],
-      });
-
-      if (owner.toLowerCase() !== address.toLowerCase()) {
-        toast.error("You don't own this token");
-        return;
-      }
-
-      try {
-        const res = await fetch(
-          `/api/token-metadata?contract=${nft.contractAddress}&tokenId=${nft.tokenId}`,
-        );
-        if (res.ok) {
-          const meta = await res.json();
-          nft.name = meta.name ?? nft.name;
-          nft.imageUrl = meta.animationUrl ?? meta.image ?? null;
-          nft.collectionName =
-            nft.collectionName ?? meta.collectionName ?? null;
-          nft.metadata = meta.metadata ?? nft.metadata ?? null;
-          nft.rarityRank = meta.rarityRank ?? nft.rarityRank ?? null;
-        }
-      } catch {
-        // metadata is cosmetic; proceed without it
-      }
-
-      setOfferedNfts((prev) => (prev.length < 20 ? [...prev, nft] : prev));
-      setOfferTokenId("");
-      setSelectedOfferCollection(null);
-      toast.success(`Added ${nft.collectionName ?? "NFT"} #${nft.tokenId}`);
-    } catch {
-      toast.error(
-        "Couldn't verify this token on-chain — check the contract address and token ID",
-      );
-    } finally {
-      setAddingOffered(false);
-    }
-  }
-
   const refreshApprovalStatus = useCallback(async () => {
     if (!address || !publicClient || offeredContracts.length === 0) {
       setApprovalStatus({});
@@ -476,6 +391,8 @@ function ProposeDealForm() {
       }
 
       await refreshApprovalStatus();
+      // Refresh the approval dots on the NFT picker cards.
+      queryClient.invalidateQueries({ queryKey: [COLLECTION_APPROVALS_KEY] });
       toast.success("Collections approved");
     } catch (err: any) {
       toast.error(err?.message ?? "Failed to approve collections");
@@ -715,6 +632,9 @@ function ProposeDealForm() {
             offeredNfts={offeredNfts}
             requestedNfts={requestedNfts}
             toggleOffered={toggleOffered}
+            pendingApprovalContracts={
+              approvingCollections ? new Set(offeredContracts) : undefined
+            }
             offeredMon={offeredMon}
             setOfferedMon={setOfferedMon}
             requestedMon={requestedMon}
@@ -728,14 +648,6 @@ function ProposeDealForm() {
             setRequestTokenId={setRequestTokenId}
             addRequestedNft={addRequestedNft}
             setRequestedNfts={setRequestedNfts}
-            offerContract={offerContract}
-            setOfferContract={setOfferContract}
-            selectedOfferCollection={selectedOfferCollection}
-            setSelectedOfferCollection={setSelectedOfferCollection}
-            offerTokenId={offerTokenId}
-            setOfferTokenId={setOfferTokenId}
-            addingOffered={addingOffered}
-            addOfferedNftManually={addOfferedNftManually}
             requiredMaxRarityRank={requiredMaxRarityRank}
             setRequiredMaxRarityRank={setRequiredMaxRarityRank}
           />
@@ -750,12 +662,6 @@ function ProposeDealForm() {
             needsTaker={needsTaker}
             expirySeconds={expirySeconds}
             setExpirySeconds={setExpirySeconds}
-            customExpiryValue={customExpiryValue}
-            setCustomExpiryValue={setCustomExpiryValue}
-            customExpiryUnit={customExpiryUnit}
-            setCustomExpiryUnit={setCustomExpiryUnit}
-            showCustomExpiry={showCustomExpiry}
-            setShowCustomExpiry={setShowCustomExpiry}
           />
         )}
 
@@ -966,16 +872,9 @@ function StepDetails(props: {
   setRequestTokenId: (v: string) => void;
   addRequestedNft: () => void;
   setRequestedNfts: React.Dispatch<React.SetStateAction<NFTAsset[]>>;
-  offerContract: string;
-  setOfferContract: (v: string) => void;
-  selectedOfferCollection: CollectionSearchResult | null;
-  setSelectedOfferCollection: (v: CollectionSearchResult | null) => void;
-  offerTokenId: string;
-  setOfferTokenId: (v: string) => void;
-  addingOffered: boolean;
-  addOfferedNftManually: () => void;
   requiredMaxRarityRank: string;
   setRequiredMaxRarityRank: (v: string) => void;
+  pendingApprovalContracts?: Set<string>;
 }) {
   const {
     offersNft,
@@ -985,6 +884,7 @@ function StepDetails(props: {
     offeredNfts,
     requestedNfts,
     toggleOffered,
+    pendingApprovalContracts,
     offeredMon,
     setOfferedMon,
     requestedMon,
@@ -998,14 +898,6 @@ function StepDetails(props: {
     setRequestTokenId,
     addRequestedNft,
     setRequestedNfts,
-    offerContract,
-    setOfferContract,
-    selectedOfferCollection,
-    setSelectedOfferCollection,
-    offerTokenId,
-    setOfferTokenId,
-    addingOffered,
-    addOfferedNftManually,
     requiredMaxRarityRank,
     setRequiredMaxRarityRank,
   } = props;
@@ -1016,8 +908,6 @@ function StepDetails(props: {
     if (!selectedRarityNft) setRequiredMaxRarityRank("");
   }, [selectedRarityNft, setRequiredMaxRarityRank]);
 
-  const canAddOfferedNft =
-    isAddress(offerContract) && /^\d+$/.test(offerTokenId) && !addingOffered;
   const canAddRequestedNft =
     isAddress(requestContract) &&
     (/^\d+$/.test(requestTokenId) ||
@@ -1036,70 +926,24 @@ function StepDetails(props: {
                 Your NFTs ({offeredNfts.length} selected, max 20) — pick a
                 collection on the left, then tap to add/remove.
               </p>
-              <OwnedNFTPicker selected={offeredNfts} onToggle={toggleOffered} />
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  NFT not showing? Add it by contract + token ID (ownership is
-                  verified on-chain):
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {FEATURED_COLLECTIONS.map((c) => (
-                    <CollectionButton
-                      key={c.address}
-                      collection={c}
-                      active={
-                        offerContract.toLowerCase() === c.address.toLowerCase()
-                      }
-                      onClick={() => {
-                        setOfferContract(c.address);
-                        setSelectedOfferCollection(null);
-                      }}
-                    />
-                  ))}
-                </div>
-                <CollectionSearch
-                  selected={selectedOfferCollection}
-                  onSelect={(collection) => {
-                    setSelectedOfferCollection(collection);
-                    if (collection.contractAddress) {
-                      setOfferContract(collection.contractAddress);
-                    } else {
-                      setOfferContract("");
-                      toast.info(
-                        "Collection selected, but contract resolution is pending/unavailable.",
-                      );
-                    }
-                  }}
-                />
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="NFT contract address (0x…)"
-                    value={offerContract}
-                    onChange={(e) => {
-                      setOfferContract(e.target.value);
-                      setSelectedOfferCollection(null);
-                    }}
-                  />
-                  <Input
-                    placeholder="Token ID"
-                    className="w-32"
-                    value={offerTokenId}
-                    onChange={(e) => setOfferTokenId(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant={canAddOfferedNft ? "default" : "secondary"}
-                    disabled={addingOffered}
-                    onClick={addOfferedNftManually}
-                  >
-                    {addingOffered ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Add"
-                    )}
-                  </Button>
-                </div>
-              </div>
+              <OwnedNFTPicker
+                selected={offeredNfts}
+                onToggle={toggleOffered}
+                pendingContracts={pendingApprovalContracts}
+              />
+              <p className="rounded-lg border border-border bg-secondary/30 p-3 text-sm text-muted-foreground">
+                Don&apos;t see your NFT? Only approved collections can be
+                traded.{" "}
+                <a
+                  href="https://x.com/Handshake_NFT"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-monad-purple hover:underline"
+                >
+                  Request a collection on X
+                </a>
+                .
+              </p>
               {offeredNfts.length > 0 && (
                 <div className="space-y-1.5 rounded-lg border border-border bg-secondary/30 p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -1299,12 +1143,6 @@ function StepVisibility({
   needsTaker,
   expirySeconds,
   setExpirySeconds,
-  customExpiryValue,
-  setCustomExpiryValue,
-  customExpiryUnit,
-  setCustomExpiryUnit,
-  showCustomExpiry,
-  setShowCustomExpiry,
 }: {
   visibility: Visibility;
   onPick: (v: Visibility) => void;
@@ -1313,27 +1151,7 @@ function StepVisibility({
   needsTaker: boolean;
   expirySeconds: number;
   setExpirySeconds: (v: number) => void;
-  customExpiryValue: string;
-  setCustomExpiryValue: (v: string) => void;
-  customExpiryUnit: "hours" | "days";
-  setCustomExpiryUnit: (v: "hours" | "days") => void;
-  showCustomExpiry: boolean;
-  setShowCustomExpiry: (v: boolean) => void;
 }) {
-  const customExpirySeconds =
-    Number(customExpiryValue) *
-    (customExpiryUnit === "hours" ? 60 * 60 : 24 * 60 * 60);
-
-  function applyCustomExpiry(value: string, unit: "hours" | "days") {
-    setCustomExpiryValue(value);
-    const numeric = Number(value);
-    if (Number.isFinite(numeric) && numeric > 0) {
-      setExpirySeconds(
-        Math.round(numeric * (unit === "hours" ? 60 * 60 : 24 * 60 * 60)),
-      );
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -1396,85 +1214,13 @@ function StepVisibility({
         )}
       </div>
 
-      <div>
-        <label className="mb-1.5 block text-sm font-medium">Expires in</label>
-        <div className="flex flex-wrap gap-2">
-          {EXPIRY_OPTIONS.map((opt) => (
-            <Button
-              key={opt.seconds}
-              type="button"
-              size="sm"
-              variant={expirySeconds === opt.seconds ? "default" : "secondary"}
-              onClick={() => {
-                setExpirySeconds(opt.seconds);
-                setShowCustomExpiry(false);
-              }}
-            >
-              {opt.label}
-            </Button>
-          ))}
-          <Button
-            type="button"
-            size="sm"
-            variant={
-              showCustomExpiry && expirySeconds === customExpirySeconds
-                ? "default"
-                : "secondary"
-            }
-            onClick={() => setShowCustomExpiry(true)}
-          >
-            Custom
-          </Button>
-        </div>
-
-        {showCustomExpiry && (
-          <div className="mt-3 grid gap-2 rounded-lg border border-monad-purple/30 bg-monad-purple/5 p-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
-            <Input
-              placeholder="Custom time"
-              inputMode="decimal"
-              value={customExpiryValue}
-              onChange={(e) =>
-                applyCustomExpiry(e.target.value, customExpiryUnit)
-              }
-            />
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={customExpiryUnit}
-              onChange={(e) => {
-                const unit = e.target.value as "hours" | "days";
-                setCustomExpiryUnit(unit);
-                applyCustomExpiry(customExpiryValue, unit);
-              }}
-            >
-              <option value="hours">Hours</option>
-              <option value="days">Days</option>
-            </select>
-            <p className="text-xs text-muted-foreground sm:col-span-2">
-              Enter any positive duration. The deal expires after this amount of
-              time once you sign it.
-            </p>
-          </div>
-        )}
-      </div>
+      <ExpirySelector
+        value={expirySeconds}
+        onChange={setExpirySeconds}
+        helpText="Enter any positive duration. The deal expires after this amount of time once you sign it."
+      />
     </div>
   );
-}
-
-function formatExpiryLabel(seconds: number) {
-  const preset = EXPIRY_OPTIONS.find((e) => e.seconds === seconds);
-  if (preset) return preset.label;
-
-  if (seconds % 86400 === 0) {
-    const days = seconds / 86400;
-    return `${days} custom day${days === 1 ? "" : "s"}`;
-  }
-
-  if (seconds % 3600 === 0) {
-    const hours = seconds / 3600;
-    return `${hours} custom hour${hours === 1 ? "" : "s"}`;
-  }
-
-  return `${Math.round(seconds / 3600)} custom hours`;
 }
 
 function StepReview({

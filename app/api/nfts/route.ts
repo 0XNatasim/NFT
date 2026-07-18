@@ -144,10 +144,17 @@ export async function GET(req: Request) {
       missing.map(async (nft) => {
         try {
           const meta = await getOnChainTokenMeta(nft.contractAddress, nft.tokenId);
-          nft.imageUrl = meta.animationUrl ?? meta.image ?? nft.imageUrl;
+          // Only BACKFILL a missing image — never clobber a working indexer/CDN
+          // URL with a raw IPFS-gateway URL (public gateways rate-limit/fail for
+          // whole collections, which is why 10kSquad art wasn't loading).
+          if (!nft.imageUrl) {
+            nft.imageUrl = meta.animationUrl ?? meta.image ?? null;
+          }
           nft.name = nft.name ?? meta.name;
           nft.collectionName = nft.collectionName ?? meta.collectionName;
-          nft.metadata = meta.metadata ?? nft.metadata ?? null;
+          // Expose on-chain metadata (animation_url etc.) to the media layer
+          // without discarding metadata the indexer already provided.
+          nft.metadata = nft.metadata ?? meta.metadata ?? null;
         } catch {
           // cosmetic only
         }

@@ -153,11 +153,11 @@ function CollectionFilterBanner({
 }) {
   return (
     <div className="rounded-2xl border border-monad-purple/20 bg-gradient-to-r from-monad-purple/10 via-card/80 to-cyan-400/10 p-3 shadow-lg shadow-monad-purple/5">
-      <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:thin]">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
         <button
           type="button"
           onClick={() => onSelect(null)}
-          className={`flex min-w-28 shrink-0 flex-col items-center gap-2 rounded-xl border px-3 py-3 text-sm transition ${
+          className={`flex flex-col items-center gap-2 rounded-xl border px-3 py-3 text-sm transition ${
             selectedCollection === null
               ? "border-monad-purple bg-monad-purple/15 text-foreground"
               : "border-border bg-secondary/40 text-muted-foreground hover:border-monad-purple/50 hover:text-foreground"
@@ -194,7 +194,7 @@ function CollectionFilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-w-32 shrink-0 flex-col items-center gap-2 rounded-xl border px-3 py-3 text-sm transition ${
+      className={`flex flex-col items-center gap-2 rounded-xl border px-3 py-3 text-sm transition ${
         selected
           ? "border-monad-purple bg-monad-purple/15 text-foreground"
           : "border-border bg-secondary/40 text-muted-foreground hover:border-monad-purple/50 hover:text-foreground"
@@ -206,7 +206,9 @@ function CollectionFilterButton({
         alt={`${collection.name} logo`}
         className="h-12 w-12 rounded-full ring-1 ring-border"
       />
-      <span className="max-w-28 truncate font-medium">{collection.name}</span>
+      <span className="w-full truncate text-center font-medium">
+        {collection.name}
+      </span>
     </button>
   );
 }

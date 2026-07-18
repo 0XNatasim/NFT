@@ -57,6 +57,52 @@ async function hostIsPublic(hostname: string): Promise<boolean> {
   }
 }
 
+/**
+ * SSRF-guarded content-type probe for an untrusted media URL. Tries HEAD,
+ * then a 1-byte ranged GET for hosts that don't support HEAD. Returns the
+ * Content-Type (lowercased) or null. Bounded by the same timeout; never
+ * downloads the body.
+ */
+export async function safeProbeContentType(url: string): Promise<string | null> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  if (!(await hostIsPublic(parsed.hostname))) return null;
+
+  const read = (res: Response) =>
+    (res.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
+
+  try {
+    const head = await fetch(parsed.toString(), {
+      method: "HEAD",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      redirect: "error",
+    });
+    if (head.ok && head.headers.get("content-type")) return read(head);
+  } catch {
+    // fall through to ranged GET
+  }
+
+  try {
+    const res = await fetch(parsed.toString(), {
+      method: "GET",
+      headers: { range: "bytes=0-0" },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      redirect: "error",
+    });
+    await res.body?.cancel().catch(() => {});
+    if (!res.ok && res.status !== 206) return null;
+    const ct = res.headers.get("content-type");
+    return ct ? read(res) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch untrusted metadata JSON with SSRF and size protections. */
 export async function safeFetchJson(url: string): Promise<unknown | null> {
   let parsed: URL;

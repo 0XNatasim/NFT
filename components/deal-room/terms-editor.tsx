@@ -11,7 +11,7 @@ import { NFTMedia } from "@/components/ui/nft-media";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWalletNFTs } from "@/hooks/use-market";
 import { diffDrafts } from "@/lib/deal-rooms/diff";
-import { cn, formatMon, shortAddress } from "@/lib/utils";
+import { cn, formatMon, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { DealRoomDraft, DealRoomRevision, RevisionNFT } from "@/lib/types";
 import type { NFTAsset } from "@/lib/types";
 
@@ -51,6 +51,7 @@ function SidePicker({
   onToggle,
   monValue,
   onMonChange,
+  initialCollection = null,
 }: {
   label: string;
   wallet: string;
@@ -58,17 +59,54 @@ function SidePicker({
   onToggle: (nft: RevisionNFT) => void;
   monValue: string;
   onMonChange: (v: string) => void;
+  /** Pre-select a collection's filter (e.g. seeded from a wanted post). */
+  initialCollection?: string | null;
 }) {
   const { data, isLoading } = useWalletNFTs(wallet);
+  // First-step collection filter: the user picks a collection before any NFTs
+  // are shown, so a large wallet isn't dumped all at once.
+  const [collectionFilter, setCollectionFilter] = useState<string | null>(
+    initialCollection ? initialCollection.toLowerCase() : null,
+  );
   const selectedKeys = useMemo(
     () => new Set(selected.map(nftKey)),
     [selected]
   );
 
+  const collections = useMemo(() => {
+    const map = new Map<string, { label: string; count: number }>();
+    for (const nft of data?.nfts ?? []) {
+      const key = nft.contractAddress.toLowerCase();
+      const label =
+        prettyCollectionName(nft.collectionName) ??
+        shortAddress(nft.contractAddress);
+      const prev = map.get(key);
+      map.set(key, { label, count: (prev?.count ?? 0) + 1 });
+    }
+    return Array.from(map.entries())
+      .map(([addr, v]) => ({ address: addr, ...v }))
+      .sort((a, b) => b.count - a.count);
+  }, [data]);
+
+  const visibleNfts = useMemo(
+    () =>
+      collectionFilter
+        ? (data?.nfts ?? []).filter(
+            (nft) => nft.contractAddress.toLowerCase() === collectionFilter
+          )
+        : [],
+    [data, collectionFilter]
+  );
+
   return (
     <div className="flex-1 space-y-3">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Add MON, NFTs, or both — either side can be MON-only.
+        </p>
       </div>
 
       <div>
@@ -100,49 +138,80 @@ function SidePicker({
         </div>
       )}
 
-      <div className="max-h-56 overflow-y-auto rounded-md border border-border p-2">
-        {isLoading ? (
-          <div className="grid grid-cols-4 gap-2">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="aspect-square rounded-md" />
-            ))}
-          </div>
-        ) : !data?.nfts?.length ? (
-          <div className="py-4 text-center text-xs text-muted-foreground">
-            No NFTs found for {shortAddress(wallet)}
-          </div>
-        ) : (
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-            {data.nfts.map((asset) => {
-              const nft = toRevisionNFT(asset);
-              const active = selectedKeys.has(nftKey(nft));
-              return (
-                <button
-                  key={nftKey(nft)}
-                  type="button"
-                  onClick={() => onToggle(nft)}
-                  className={cn(
-                    "overflow-hidden rounded-md border text-left transition",
-                    active
-                      ? "border-monad-purple ring-1 ring-monad-purple"
-                      : "border-border opacity-80 hover:opacity-100"
-                  )}
-                  title={`${nft.collectionName ?? ""} #${nft.tokenId}`}
-                >
-                  <NFTMedia
-                    imageUrl={nft.imageUrl}
-                    alt={nft.name ?? `#${nft.tokenId}`}
-                    className="aspect-square w-full object-cover"
-                  />
-                  <div className="truncate px-1 py-0.5 text-[10px]">
-                    {nft.name ?? `#${nft.tokenId}`}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          Collection
+        </label>
+        <select
+          className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm disabled:opacity-50"
+          value={collectionFilter ?? ""}
+          disabled={isLoading || collections.length === 0}
+          onChange={(e) => setCollectionFilter(e.target.value || null)}
+        >
+          <option value="">
+            {isLoading
+              ? "Loading collections…"
+              : collections.length === 0
+                ? "No collections found"
+                : "Choose a collection…"}
+          </option>
+          {collections.map((c) => (
+            <option key={c.address} value={c.address}>
+              {c.label} ({c.count})
+            </option>
+          ))}
+        </select>
       </div>
+
+      {!isLoading && !collectionFilter ? (
+        <div className="rounded-md border border-dashed border-border py-4 text-center text-xs text-muted-foreground">
+          Pick a collection to see its NFTs.
+        </div>
+      ) : (
+        <div className="max-h-56 overflow-y-auto rounded-md border border-border p-2">
+          {isLoading ? (
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="aspect-square rounded-md" />
+              ))}
+            </div>
+          ) : !data?.nfts?.length ? (
+            <div className="py-4 text-center text-xs text-muted-foreground">
+              No NFTs found for {shortAddress(wallet)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+              {visibleNfts.map((asset) => {
+                const nft = toRevisionNFT(asset);
+                const active = selectedKeys.has(nftKey(nft));
+                return (
+                  <button
+                    key={nftKey(nft)}
+                    type="button"
+                    onClick={() => onToggle(nft)}
+                    className={cn(
+                      "overflow-hidden rounded-md border text-left transition",
+                      active
+                        ? "border-monad-purple ring-1 ring-monad-purple"
+                        : "border-border opacity-80 hover:opacity-100"
+                    )}
+                    title={`${nft.collectionName ?? ""} #${nft.tokenId}`}
+                  >
+                    <NFTMedia
+                      imageUrl={nft.imageUrl}
+                      alt={nft.name ?? `#${nft.tokenId}`}
+                      className="aspect-square w-full object-cover"
+                    />
+                    <div className="truncate px-1 py-0.5 text-[10px]">
+                      {nft.name ?? `#${nft.tokenId}`}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -153,6 +222,7 @@ export function TermsEditor({
   onSubmit,
   onClose,
   submitting,
+  initialMakerCollection = null,
 }: {
   /** The revision being countered — the editor starts from its terms. */
   base: DealRoomRevision;
@@ -160,6 +230,8 @@ export function TermsEditor({
   onSubmit: (draft: DealRoomDraft, note: string | null) => void;
   onClose: () => void;
   submitting: boolean;
+  /** Pre-select the maker side's collection filter (e.g. from a wanted post). */
+  initialMakerCollection?: string | null;
 }) {
   const [makerNFTs, setMakerNFTs] = useState<RevisionNFT[]>(base.makerNFTs);
   const [takerNFTs, setTakerNFTs] = useState<RevisionNFT[]>(base.takerNFTs);
@@ -243,6 +315,7 @@ export function TermsEditor({
             onToggle={toggle(setMakerNFTs)}
             monValue={makerMon}
             onMonChange={setMakerMon}
+            initialCollection={initialMakerCollection}
           />
           <SidePicker
             label={takerLabel}

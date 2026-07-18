@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
+import { ApproveCollectionButton } from "@/components/trade/approve-collection-button";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
+import {
+  useAllowedCollections,
+  useCollectionApprovals,
+} from "@/hooks/use-approvals";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -23,16 +28,16 @@ export function WalletNFTs({ owner }: { owner: string }) {
   const [collection, setCollection] = useState<string | null>(null);
   const [selectedNft, setSelectedNft] = useState<NFTAsset | null>(null);
   const [layout, setLayout] = useState<"cards" | "list">("cards");
+  const [hideUnapproved, setHideUnapproved] = useState(true);
 
   const nfts = useMemo<NFTAsset[]>(
     () => data?.pages.flatMap((p) => p.nfts) ?? [],
     [data]
   );
 
-  useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
+  // Load the first page only; the user pulls more via "Load more". Previously
+  // this eagerly walked every page on mount (a sequential /api/nfts waterfall,
+  // plus a collection-price refetch per page) which dominated dashboard load.
   const collections = useMemo(() => {
     const map = new Map<string, { label: string; count: number }>();
     for (const nft of nfts) {
@@ -52,10 +57,44 @@ export function WalletNFTs({ owner }: { owner: string }) {
     collections.map((c) => c.address)
   );
 
+  const { stateFor: approvalState } = useCollectionApprovals(
+    collections.map((c) => c.address)
+  );
+  const {
+    isAllowed,
+    isReady: allowlistReady,
+    data: allowedData,
+  } = useAllowedCollections(collections.map((c) => c.address));
+
+  // Approval only applies to Handshake-supported collections. Everything else
+  // the wallet holds (LP positions, vouchers, spam) has no "approve" concept,
+  // so it shows no dot and is never listed as needing approval.
+  const approvalFor = (contract: string) =>
+    allowlistReady && !isAllowed(contract)
+      ? ("unknown" as const)
+      : approvalState(contract);
+
+  const unapprovedCollections = useMemo(
+    () =>
+      collections.filter(
+        (c) =>
+          allowlistReady &&
+          isAllowed(c.address) &&
+          approvalState(c.address) === "unapproved",
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collections, approvalState, allowedData, allowlistReady]
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return nfts.filter((nft) => {
       if (collection && nft.contractAddress.toLowerCase() !== collection) {
+        return false;
+      }
+      // Hide only collections we've confirmed are unapproved; keep unknown
+      // (still loading) visible so nothing flickers out unexpectedly.
+      if (hideUnapproved && approvalFor(nft.contractAddress) === "unapproved") {
         return false;
       }
       if (!q) return true;
@@ -70,7 +109,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [nfts, query, collection]);
+  }, [nfts, query, collection, hideUnapproved, approvalFor]);
 
   if (isLoading) {
     return (
@@ -101,6 +140,15 @@ export function WalletNFTs({ owner }: { owner: string }) {
           className="sm:max-w-xs"
         />
         <div className="flex items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={hideUnapproved}
+              onChange={(e) => setHideUnapproved(e.target.checked)}
+              className="accent-monad-purple"
+            />
+            Hide unapproved
+          </label>
           <LayoutToggle layout={layout} onChange={setLayout} />
           <p className="text-sm text-muted-foreground">
             {filtered.length} of {nfts.length} NFTs
@@ -108,6 +156,39 @@ export function WalletNFTs({ owner }: { owner: string }) {
           </p>
         </div>
       </div>
+
+      {unapprovedCollections.length > 0 && (
+        <div className="space-y-2 rounded-xl border-l-4 border-l-amber-500 border border-amber-500/40 bg-amber-500/10 p-3">
+          <p className="text-sm font-semibold text-amber-500">
+            {unapprovedCollections.length} collection
+            {unapprovedCollections.length === 1 ? "" : "s"} need your approval
+            before trading
+          </p>
+          <p className="text-xs text-muted-foreground">
+            This is a one-time wallet permission (ERC-721 setApprovalForAll) so
+            the settlement contract can move these NFTs only when a deal you
+            accept settles — separate from whether the collection is allowlisted
+            on the protocol. It moves nothing by itself.
+          </p>
+          <div className="flex flex-col gap-2 pt-1">
+            {unapprovedCollections.map((c) => (
+              <div
+                key={c.address}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/60 p-2"
+              >
+                <span className="flex items-center gap-2 truncate text-sm">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 ring-2 ring-background" />
+                  <span className="truncate">{c.label}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    ({c.count})
+                  </span>
+                </span>
+                <ApproveCollectionButton collectionAddress={c.address} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <FilterChip
@@ -137,6 +218,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
                 key={`${nft.contractAddress}:${nft.tokenId}`}
                 nft={nft}
                 price={prices?.[nft.contractAddress.toLowerCase()]}
+                approval={approvalFor(nft.contractAddress)}
                 onClick={() => setSelectedNft(nft)}
               />
             ))}
@@ -148,6 +230,7 @@ export function WalletNFTs({ owner }: { owner: string }) {
                 key={`${nft.contractAddress}:${nft.tokenId}`}
                 nft={nft}
                 price={prices?.[nft.contractAddress.toLowerCase()]}
+                approval={approvalFor(nft.contractAddress)}
                 onClick={() => setSelectedNft(nft)}
               />
             ))}

@@ -13,6 +13,11 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json();
 }
 
+// Dashboard data doesn't change second-to-second; a short freshness window
+// keeps tab-switches and window-focus from refetching everything. Mutations
+// still invalidate their queries explicitly, so this never shows stale writes.
+const DASHBOARD_STALE_MS = 30_000;
+
 export function useOffers(params: {
   status?: string;
   wallet?: string;
@@ -26,6 +31,7 @@ export function useOffers(params: {
   if (params.limit) query.set("limit", String(params.limit));
   return useQuery({
     queryKey: ["offers", params],
+    staleTime: DASHBOARD_STALE_MS,
     queryFn: () =>
       fetchJson<{ offers: TradeOffer[] }>(`/api/offers?${query}`).then(
         (d) => d.offers
@@ -46,6 +52,7 @@ export function useWalletNFTs(owner?: string) {
   return useQuery({
     queryKey: ["wallet-nfts", owner],
     enabled: !!owner,
+    staleTime: DASHBOARD_STALE_MS,
     queryFn: () => fetchJson<WalletNFTsResult>(`/api/nfts?owner=${owner}`),
   });
 }
@@ -59,6 +66,7 @@ export function useWalletNFTsInfinite(owner?: string) {
   return useInfiniteQuery({
     queryKey: ["wallet-nfts-infinite", owner],
     enabled: !!owner,
+    staleTime: DASHBOARD_STALE_MS,
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ owner: owner! });
@@ -111,6 +119,7 @@ export function useReputation(wallet?: string) {
   return useQuery({
     queryKey: ["reputation", wallet],
     enabled: !!wallet,
+    staleTime: DASHBOARD_STALE_MS,
     queryFn: () =>
       fetchJson<{ reputation: WalletReputation }>(
         `/api/reputation?wallet=${wallet}`

@@ -7,8 +7,41 @@ import { safeFetchJson } from "@/lib/nft/safe-fetch";
  * tokenURI() -> metadata JSON -> resolved image URL. Cached per token.
  */
 
-const IPFS_GATEWAY = process.env.IPFS_GATEWAY ?? "https://ipfs.io/ipfs/";
+const DEFAULT_IPFS_GATEWAYS = [
+  // Dedicated Pinata gateway first (not rate-limited); public gateways as
+  // fallback. Override with the IPFS_GATEWAYS env var.
+  "https://scarlet-worthy-minnow-552.mypinata.cloud/ipfs/",
+  "https://ipfs.io/ipfs/",
+  "https://dweb.link/ipfs/",
+  "https://nftstorage.link/ipfs/",
+];
+const ARWEAVE_GATEWAY = process.env.ARWEAVE_GATEWAY ?? "https://arweave.net/";
 const MAX_CACHE_ENTRIES = 5000;
+
+function withTrailingSlash(url: string): string {
+  return url.endsWith("/") ? url : `${url}/`;
+}
+
+/**
+ * Configured IPFS gateways, in priority order. Supports a comma-separated
+ * IPFS_GATEWAYS list (preferred) and the legacy single IPFS_GATEWAY, falling
+ * back to a public default set so a single dead gateway can't block metadata.
+ */
+export function ipfsGateways(): string[] {
+  const configured = (process.env.IPFS_GATEWAYS ?? process.env.IPFS_GATEWAY ?? "")
+    .split(",")
+    .map((g) => g.trim())
+    .filter(Boolean)
+    .map(withTrailingSlash);
+  const list = configured.length > 0 ? configured : DEFAULT_IPFS_GATEWAYS;
+  return Array.from(new Set(list));
+}
+
+/** ipfs://CID/path and ipfs://ipfs/CID/path → the CID-relative path. */
+function ipfsPath(uri: string): string | null {
+  if (!uri.startsWith("ipfs://")) return null;
+  return uri.slice("ipfs://".length).replace(/^ipfs\//, "");
+}
 
 export interface OnChainTokenMeta {
   name: string | null;
@@ -29,30 +62,58 @@ function cacheSet(key: string, value: OnChainTokenMeta) {
   cache.set(key, value);
 }
 
-export function resolveUri(uri: string): string {
-  if (uri.startsWith("ipfs://")) {
-    return IPFS_GATEWAY + uri.replace("ipfs://", "").replace(/^ipfs\//, "");
+/**
+ * All resolvable https URLs for a URI, in fetch-priority order. ipfs:// and
+ * ar:// expand to gateway URLs (ipfs to every configured gateway for
+ * fallback); already-valid http(s)/data URIs pass through unchanged.
+ */
+export function resolveUriCandidates(uri: string): string[] {
+  if (!uri) return [];
+  const path = ipfsPath(uri);
+  if (path) return ipfsGateways().map((gateway) => `${gateway}${path}`);
+  if (uri.startsWith("ar://")) {
+    return [`${withTrailingSlash(ARWEAVE_GATEWAY)}${uri.slice("ar://".length)}`];
   }
-  return uri;
+  // https://…, data:application/json;…, data:image/… — never rewrite.
+  return [uri];
+}
+
+/** Primary resolved URL for a URI (first candidate). */
+export function resolveUri(uri: string): string {
+  return resolveUriCandidates(uri)[0] ?? uri;
+}
+
+function decodeDataJson(uri: string): any | null {
+  const comma = uri.indexOf(",");
+  if (comma < 0) return null;
+  const meta = uri.slice(0, comma);
+  const payload = uri.slice(comma + 1);
+  try {
+    if (meta.includes(";base64")) {
+      return JSON.parse(Buffer.from(payload, "base64").toString("utf8"));
+    }
+    // data:application/json;utf8,{…} or data:application/json,{…}
+    return JSON.parse(decodeURIComponent(payload));
+  } catch {
+    try {
+      // Some encoders don't percent-encode the payload.
+      return JSON.parse(payload);
+    } catch {
+      return null;
+    }
+  }
 }
 
 async function loadMetadataJson(uri: string): Promise<any | null> {
-  if (uri.startsWith("data:application/json;base64,")) {
-    try {
-      return JSON.parse(Buffer.from(uri.split(",")[1], "base64").toString("utf8"));
-    } catch {
-      return null;
-    }
+  if (uri.startsWith("data:application/json")) return decodeDataJson(uri);
+  // http(s)/ipfs/arweave URIs from untrusted contracts: SSRF- and
+  // size-guarded. Try each gateway candidate until one yields JSON so a
+  // single dead gateway doesn't block resolution.
+  for (const candidate of resolveUriCandidates(uri)) {
+    const json = await safeFetchJson(candidate);
+    if (json) return json;
   }
-  if (uri.startsWith("data:application/json,")) {
-    try {
-      return JSON.parse(decodeURIComponent(uri.split(",").slice(1).join(",")));
-    } catch {
-      return null;
-    }
-  }
-  // http(s)/ipfs URIs from untrusted contracts: SSRF- and size-guarded.
-  return safeFetchJson(resolveUri(uri));
+  return null;
 }
 
 export async function getOnChainTokenMeta(
@@ -94,6 +155,12 @@ export async function getOnChainTokenMeta(
       const rawAnimation = meta.animation_url ?? meta.animationUrl ?? null;
       image = typeof rawImage === "string" ? resolveUri(rawImage) : null;
       animationUrl = typeof rawAnimation === "string" ? resolveUri(rawAnimation) : null;
+      // Malformed collections (e.g. Erebus) put the same .mp4 in both `image`
+      // and `animation_url`. Keep it as the animation only so it never lands
+      // in an <img>/next/image; the media layer renders it as <video>.
+      if (image && animationUrl && image === animationUrl) {
+        image = null;
+      }
     }
   }
 
