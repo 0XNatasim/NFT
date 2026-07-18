@@ -135,8 +135,8 @@ export function WalletNFTs({ owner }: { owner: string }) {
       </div>
 
       {unapprovedCollections.length > 0 && (
-        <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-          <p className="text-sm font-medium">
+        <div className="space-y-2 rounded-xl border-l-4 border-l-amber-500 border border-amber-500/40 bg-amber-500/10 p-3">
+          <p className="text-sm font-semibold text-amber-500">
             {unapprovedCollections.length} collection
             {unapprovedCollections.length === 1 ? "" : "s"} need your approval
             before trading

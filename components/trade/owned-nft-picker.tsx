@@ -8,6 +8,7 @@ import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
 import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
 import { useCollectionApprovals } from "@/hooks/use-approvals";
+import { ApproveCollectionButton } from "@/components/trade/approve-collection-button";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { NFTAsset } from "@/lib/types";
 
@@ -90,6 +91,20 @@ export function OwnedNFTPicker({
   const approvalFor = (contract: string) =>
     approvalState(contract, pendingContracts?.has(contract.toLowerCase()));
 
+  // Only collections approved for trading appear in the selector (plus ones
+  // still loading, so nothing flickers). Confirmed-unapproved ones are surfaced
+  // in the banner with an inline Approve action instead.
+  const tradableCollections = useMemo(
+    () => collections.filter((c) => approvalFor(c.address) !== "unapproved"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collections, approvalState, pendingContracts],
+  );
+  const unapprovedCollections = useMemo(
+    () => collections.filter((c) => approvalFor(c.address) === "unapproved"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collections, approvalState, pendingContracts],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return nfts.filter((nft) => {
@@ -136,9 +151,41 @@ export function OwnedNFTPicker({
   }
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row">
-      {/* Left: collections filter */}
-      <aside className="md:w-56 md:shrink-0">
+    <div className="space-y-4">
+      {unapprovedCollections.length > 0 && (
+        <div className="space-y-2 rounded-xl border-l-4 border-l-amber-500 border border-amber-500/40 bg-amber-500/10 p-3">
+          <p className="text-sm font-semibold text-amber-500">
+            {unapprovedCollections.length} of your collection
+            {unapprovedCollections.length === 1 ? " needs" : "s need"} approval
+            to trade
+          </p>
+          <p className="text-xs text-muted-foreground">
+            They&apos;re hidden from the selector below until approved. This is a
+            one-time wallet permission (moves nothing).
+          </p>
+          <div className="flex flex-col gap-2 pt-1">
+            {unapprovedCollections.map((c) => (
+              <div
+                key={c.address}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/60 p-2"
+              >
+                <span className="flex items-center gap-2 truncate text-sm">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 ring-2 ring-background" />
+                  <span className="truncate">{c.label}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    ({c.count})
+                  </span>
+                </span>
+                <ApproveCollectionButton collectionAddress={c.address} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-4 md:flex-row">
+        {/* Left: collections filter */}
+        <aside className="md:w-56 md:shrink-0">
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -160,15 +207,21 @@ export function OwnedNFTPicker({
           )}
         </div>
         <div className="flex max-h-80 flex-row gap-1.5 overflow-x-auto pb-1 md:flex-col md:overflow-y-auto md:overflow-x-visible">
-          {collections.map((c) => (
-            <CollectionRow
-              key={c.address}
-              checked={selectedCollections.has(c.address)}
-              onClick={() => toggleCollection(c.address)}
-              label={c.label}
-              count={c.count}
-            />
-          ))}
+          {tradableCollections.length === 0 ? (
+            <p className="px-1 text-xs text-muted-foreground">
+              No approved collections yet.
+            </p>
+          ) : (
+            tradableCollections.map((c) => (
+              <CollectionRow
+                key={c.address}
+                checked={selectedCollections.has(c.address)}
+                onClick={() => toggleCollection(c.address)}
+                label={c.label}
+                count={c.count}
+              />
+            ))
+          )}
         </div>
       </aside>
 
@@ -215,6 +268,7 @@ export function OwnedNFTPicker({
             body="Only NFTs from approved collections are shown. If one is missing, its collection may need to be approved or added."
           />
         )}
+        </div>
       </div>
     </div>
   );
