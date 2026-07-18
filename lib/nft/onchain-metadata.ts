@@ -8,9 +8,8 @@ import { safeFetchJson } from "@/lib/nft/safe-fetch";
  */
 
 const DEFAULT_IPFS_GATEWAYS = [
-  // Dedicated Pinata gateway first (not rate-limited); public gateways as
-  // fallback. Override with the IPFS_GATEWAYS env var.
-  "https://scarlet-worthy-minnow-552.mypinata.cloud/ipfs/",
+  // Public gateways as defaults. Override with the IPFS_GATEWAYS env var
+  // when a dedicated gateway is available.
   "https://ipfs.io/ipfs/",
   "https://dweb.link/ipfs/",
   "https://nftstorage.link/ipfs/",
