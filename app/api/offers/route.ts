@@ -15,6 +15,7 @@ import {
 import { publicClient } from "@/lib/chains/client";
 import { MONAD_CHAIN_ID } from "@/lib/chains/monad";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { isMissingPostgrestColumn } from "@/lib/db/postgrest-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -107,26 +108,48 @@ export async function POST(req: Request) {
 
   try {
     const db = getServiceClient();
-    const { data: offer, error } = await db
+    const offerRow = {
+      chain_id: input.chainId,
+      maker_address: order.maker,
+      taker_address: input.takerAddress?.toLowerCase() ?? null,
+      status: "open",
+      maker_mon_amount: input.makerMonAmount,
+      taker_mon_amount: input.takerMonAmount,
+      fee_bps: input.feeBps,
+      flat_fee: input.flatFee,
+      nonce: input.nonce,
+      expiry: input.expiry,
+      signature: input.signature,
+      order_hash: orderHash,
+      is_private: input.isPrivate,
+      required_max_rarity_rank: input.requiredMaxRarityRank ?? null,
+    };
+    let { data: offer, error } = await db
       .from("trade_offers")
-      .insert({
-        chain_id: input.chainId,
-        maker_address: order.maker,
-        taker_address: input.takerAddress?.toLowerCase() ?? null,
-        status: "open",
-        maker_mon_amount: input.makerMonAmount,
-        taker_mon_amount: input.takerMonAmount,
-        fee_bps: input.feeBps,
-        flat_fee: input.flatFee,
-        nonce: input.nonce,
-        expiry: input.expiry,
-        signature: input.signature,
-        order_hash: orderHash,
-        is_private: input.isPrivate,
-        required_max_rarity_rank: input.requiredMaxRarityRank ?? null,
-      })
+      .insert(offerRow)
       .select()
       .single();
+    // Rarity targeting is display/discovery metadata, not part of settlement.
+    // Keep offer creation available during a rolling deployment where the
+    // optional rarity migration has not reached Supabase yet.
+    if (isMissingPostgrestColumn(error, "required_max_rarity_rank")) {
+      if (input.requiredMaxRarityRank != null) {
+        return NextResponse.json(
+          {
+            error:
+              "Rarity-targeted offers are temporarily unavailable while the database is upgraded",
+          },
+          { status: 503 },
+        );
+      }
+      const { required_max_rarity_rank: _omitted, ...compatibleRow } = offerRow;
+      void _omitted;
+      ({ data: offer, error } = await db
+        .from("trade_offers")
+        .insert(compatibleRow)
+        .select()
+        .single());
+    }
     if (error) {
       if (error.code === "23505") {
         return NextResponse.json(
@@ -154,7 +177,14 @@ export async function POST(req: Request) {
       rarity_rank: n.rarityRank ?? null,
     }));
     if (nftRows.length > 0) {
-      const { error: nftError } = await db.from("trade_offer_nfts").insert(nftRows);
+      let { error: nftError } = await db.from("trade_offer_nfts").insert(nftRows);
+      // Same rolling-deployment compatibility for optional cached rarity.
+      if (isMissingPostgrestColumn(nftError, "rarity_rank")) {
+        const compatibleRows = nftRows.map(
+          ({ rarity_rank: _omitted, ...row }) => row,
+        );
+        ({ error: nftError } = await db.from("trade_offer_nfts").insert(compatibleRows));
+      }
       if (nftError) {
         await db.from("trade_offers").delete().eq("id", offer.id);
         throw nftError;
