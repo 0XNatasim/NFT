@@ -186,6 +186,7 @@ export function OwnedNFTPicker({
     nfts.length > 0 &&
     (allowlist.isFetching || approvals.isFetching) &&
     filtered.length === 0;
+  const verificationFailed = allowlist.isError || approvals.isError;
 
   if (isLoading || verificationPending) {
     return (
@@ -290,7 +291,27 @@ export function OwnedNFTPicker({
           </p>
           <LayoutToggle layout={layout} onChange={setLayout} />
         </div>
-        {filtered.length > 0 ? (
+        {verificationFailed ? (
+          <div className="rounded-xl border border-dashed border-border py-16 text-center">
+            <p className="font-medium">Couldn&apos;t verify your collections</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Your NFTs were found, but collection verification failed. Check
+              your connection and try again.
+            </p>
+            <div className="mt-4">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  void allowlist.refetch();
+                  void approvals.refetch();
+                }}
+              >
+                Try again
+              </Button>
+            </div>
+          </div>
+        ) : filtered.length > 0 ? (
           layout === "cards" ? (
             <div className="grid max-h-96 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 md:grid-cols-5">
               {filtered.map((nft) => (
@@ -324,7 +345,7 @@ export function OwnedNFTPicker({
             body="Only NFTs from approved collections are shown. If one is missing, its collection may need to be approved or added."
           />
         )}
-        {hasNextPage && (
+        {hasNextPage && !verificationFailed && (
           <div className="mt-4 flex justify-center">
             <Button
               type="button"

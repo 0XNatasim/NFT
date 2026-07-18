@@ -12,6 +12,10 @@ export type ApprovalState = "approved" | "unapproved" | "pending" | "unknown";
 
 export const COLLECTION_APPROVALS_KEY = "collection-approvals";
 
+type ApprovalReadResult =
+  | { status: "success"; result: unknown }
+  | { status: "failure"; error: unknown };
+
 /**
  * Reads isApprovedForAll(owner, settlement) for a set of collection contracts
  * (the connected wallet as owner). Powers the approval dots on NFT cards.
@@ -39,22 +43,44 @@ export function useCollectionApprovals(contracts: string[]) {
     staleTime: 30_000,
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      const reads = await publicClient!.multicall({
-        allowFailure: true,
-        contracts: uniqueContracts.map((contract) => ({
-          address: contract as Address,
-          abi: erc721Abi,
-          functionName: "isApprovedForAll" as const,
-          args: [owner as Address, SETTLEMENT_CONTRACT_ADDRESS] as const,
-        })),
-      });
-      const entries = uniqueContracts.map((contract, index) => {
-        const result = reads[index];
-        return [
-          contract,
-          result?.status === "success" ? Boolean(result.result) : null,
-        ] as const;
-      });
+      const client = publicClient!;
+      const contracts = uniqueContracts.map((contract) => ({
+        address: contract as Address,
+        abi: erc721Abi,
+        functionName: "isApprovedForAll" as const,
+        args: [owner as Address, SETTLEMENT_CONTRACT_ADDRESS] as const,
+      }));
+
+      // Some Monad RPC providers either reject eth_call bundles or return a
+      // failed result for every item. Multicall is the fast path, but approval
+      // verification must retain the individual-read behavior that works on
+      // those providers; otherwise every NFT is incorrectly treated as
+      // unverifiable and the picker shows 0/N.
+      let reads: ApprovalReadResult[] | null = null;
+      try {
+        reads = (await client.multicall({
+          allowFailure: true,
+          contracts,
+        })) as ApprovalReadResult[];
+      } catch {
+        // Fall through and retry every collection individually.
+      }
+
+      const entries = await Promise.all(
+        uniqueContracts.map(async (contract, index) => {
+          const result = reads?.[index];
+          if (result?.status === "success") {
+            return [contract, Boolean(result.result)] as const;
+          }
+
+          try {
+            const approved = await client.readContract(contracts[index]);
+            return [contract, Boolean(approved)] as const;
+          } catch {
+            return [contract, null] as const;
+          }
+        }),
+      );
       return Object.fromEntries(entries) as Record<string, boolean | null>;
     },
   });
@@ -96,9 +122,15 @@ export function useAllowedCollections(contracts: string[]) {
       }
       const results = await Promise.all(
         chunks.map((chunk) =>
-          fetch(`/api/collections/allowed?contracts=${chunk.join(",")}`)
-            .then((r) => (r.ok ? r.json() : { allowed: {} }))
-            .then((d) => d.allowed as Record<string, boolean>),
+          fetch(`/api/collections/allowed?contracts=${chunk.join(",")}`).then(
+            async (response) => {
+              if (!response.ok) {
+                throw new Error(`Allowlist request failed (${response.status})`);
+              }
+              const data = await response.json();
+              return data.allowed as Record<string, boolean>;
+            },
+          ),
         ),
       );
       return Object.assign({}, ...results) as Record<string, boolean>;
