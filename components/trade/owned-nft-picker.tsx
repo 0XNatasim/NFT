@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NFTCard, NFTListItem } from "@/components/trade/nft-card";
 import { EmptyState } from "@/components/empty-state";
@@ -13,16 +14,22 @@ import {
 } from "@/hooks/use-approvals";
 import { ApproveCollectionButton } from "@/components/trade/approve-collection-button";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
+import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import type { NFTAsset } from "@/lib/types";
 
 function nftKey(n: { contractAddress: string; tokenId: string }) {
   return `${n.contractAddress.toLowerCase()}:${n.tokenId}`;
 }
 
+const FEATURED_CONTRACTS = FEATURED_COLLECTIONS.map((collection) =>
+  collection.address.toLowerCase(),
+);
+const FEATURED_CONTRACT_SET = new Set(FEATURED_CONTRACTS);
+
 /**
  * NFT picker with an OpenSea-style collection filter on the left. Loads the
- * wallet's full collection (walking every indexer page) so the filter and
- * search cover everything, not just the first ~25 tokens.
+ * wallet progressively. Every page is verified against the settlement
+ * allowlist and wallet approvals before its NFTs enter the selector.
  */
 export function OwnedNFTPicker({
   selected,
@@ -64,11 +71,6 @@ export function OwnedNFTPicker({
     [data]
   );
 
-  // Eagerly pull the full collection so the filter covers everything.
-  useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
   const collections = useMemo(() => {
     const map = new Map<string, { label: string; count: number }>();
     for (const nft of nfts) {
@@ -88,44 +90,60 @@ export function OwnedNFTPicker({
     collections.map((c) => c.address)
   );
 
-  const { stateFor: approvalState } = useCollectionApprovals(
-    collections.map((c) => c.address)
+  const contractsToVerify = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...FEATURED_CONTRACTS,
+          ...collections.map((collection) => collection.address),
+        ]),
+      ).sort(),
+    [collections],
   );
+
+  // Featured collections are checked as soon as the picker mounts. In most
+  // wallets this warms both caches before the first NFT page has rendered.
+  const approvals = useCollectionApprovals(contractsToVerify);
+  const { stateFor: approvalState } = approvals;
   const approvalFor = (contract: string) =>
     approvalState(contract, pendingContracts?.has(contract.toLowerCase()));
 
   // Which collections Handshake actually supports (settlement allowlist). The
   // wallet holds all kinds of NFTs (LP positions, vouchers, spam) that can't
   // be traded here — those never enter the selector or the approval banner.
+  const allowlist = useAllowedCollections(contractsToVerify);
   const {
     isAllowed,
-    isReady: allowlistReady,
     data: allowedData,
-  } = useAllowedCollections(collections.map((c) => c.address));
+  } = allowlist;
 
-  // Selector: supported + not-confirmed-unapproved (during load, don't filter
-  // by allowlist yet so nothing flickers). Banner: only supported collections
-  // that still need approval — never the wallet's unsupported junk.
+  const isFeatured = (contract: string) =>
+    FEATURED_CONTRACT_SET.has(contract.toLowerCase());
+  const isVerified = (contract: string) =>
+    isAllowed(contract) && approvalFor(contract) === "approved";
+
+  // Featured addresses provide an immediate local rejection path. The
+  // contract allowlist remains authoritative, including for non-featured
+  // collections, and nothing enters the selector until approval is confirmed.
   const tradableCollections = useMemo(
     () =>
       collections.filter(
         (c) =>
-          (!allowlistReady || isAllowed(c.address)) &&
-          approvalFor(c.address) !== "unapproved",
+          (isFeatured(c.address) || isAllowed(c.address)) &&
+          isVerified(c.address),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [collections, approvalState, pendingContracts, allowedData, allowlistReady],
+    [collections, approvalState, pendingContracts, allowedData],
   );
   const unapprovedCollections = useMemo(
     () =>
       collections.filter(
         (c) =>
-          allowlistReady &&
           isAllowed(c.address) &&
           approvalFor(c.address) === "unapproved",
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [collections, approvalState, pendingContracts, allowedData, allowlistReady],
+    [collections, approvalState, pendingContracts, allowedData],
   );
 
   const filtered = useMemo(() => {
@@ -137,14 +155,13 @@ export function OwnedNFTPicker({
       ) {
         return false;
       }
-      // Only NFTs from Handshake-supported collections are tradable.
-      if (allowlistReady && !isAllowed(nft.contractAddress)) {
+      // Reject known non-featured junk immediately, while still allowing the
+      // on-chain allowlist to positively admit supported dynamic collections.
+      if (!isFeatured(nft.contractAddress) && !isAllowed(nft.contractAddress)) {
         return false;
       }
-      // We never trade unapproved collections, so hide the ones we've
-      // confirmed are unapproved. "unknown" (read failed/loading) and
-      // "pending" stay visible so nothing tradeable is hidden by mistake.
-      if (approvalFor(nft.contractAddress) === "unapproved") {
+      // Fail closed while either network check is loading or inconclusive.
+      if (!isVerified(nft.contractAddress)) {
         return false;
       }
       if (!q) return true;
@@ -163,10 +180,14 @@ export function OwnedNFTPicker({
     approvalState,
     pendingContracts,
     allowedData,
-    allowlistReady,
   ]);
 
-  if (isLoading) {
+  const verificationPending =
+    nfts.length > 0 &&
+    (allowlist.isFetching || approvals.isFetching) &&
+    filtered.length === 0;
+
+  if (isLoading || verificationPending) {
     return (
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
         {Array.from({ length: 10 }).map((_, i) => (
@@ -265,7 +286,7 @@ export function OwnedNFTPicker({
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
             {filtered.length} of {nfts.length} NFTs
-            {isFetchingNextPage && " · loading more…"}
+            {isFetchingNextPage && " · loading next page…"}
           </p>
           <LayoutToggle layout={layout} onChange={setLayout} />
         </div>
@@ -302,6 +323,18 @@ export function OwnedNFTPicker({
             title="No tradeable NFTs here"
             body="Only NFTs from approved collections are shown. If one is missing, its collection may need to be approved or added."
           />
+        )}
+        {hasNextPage && (
+          <div className="mt-4 flex justify-center">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isFetchingNextPage}
+              onClick={() => fetchNextPage()}
+            >
+              {isFetchingNextPage ? "Loading…" : "Load more NFTs"}
+            </Button>
+          </div>
         )}
         </div>
       </div>

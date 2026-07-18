@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useAccount, usePublicClient } from "wagmi";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
 import { erc721Abi } from "@/lib/contracts/settlement";
 import type { Address } from "viem";
@@ -15,8 +15,8 @@ export const COLLECTION_APPROVALS_KEY = "collection-approvals";
 /**
  * Reads isApprovedForAll(owner, settlement) for a set of collection contracts
  * (the connected wallet as owner). Powers the approval dots on NFT cards.
- * One read per distinct collection, cached briefly; refetched on demand after
- * the user approves.
+ * Distinct collections are read in one multicall, cached briefly, and
+ * refetched on demand after the user approves.
  */
 export function useCollectionApprovals(contracts: string[]) {
   const { address } = useAccount();
@@ -37,22 +37,24 @@ export function useCollectionApprovals(contracts: string[]) {
     enabled:
       !!owner && !!publicClient && settlementConfigured && uniqueContracts.length > 0,
     staleTime: 30_000,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
-      const entries = await Promise.all(
-        uniqueContracts.map(async (contract) => {
-          try {
-            const approved = await publicClient!.readContract({
-              address: contract as Address,
-              abi: erc721Abi,
-              functionName: "isApprovedForAll",
-              args: [owner as Address, SETTLEMENT_CONTRACT_ADDRESS],
-            });
-            return [contract, Boolean(approved)] as const;
-          } catch {
-            return [contract, null] as const;
-          }
-        }),
-      );
+      const reads = await publicClient!.multicall({
+        allowFailure: true,
+        contracts: uniqueContracts.map((contract) => ({
+          address: contract as Address,
+          abi: erc721Abi,
+          functionName: "isApprovedForAll" as const,
+          args: [owner as Address, SETTLEMENT_CONTRACT_ADDRESS] as const,
+        })),
+      });
+      const entries = uniqueContracts.map((contract, index) => {
+        const result = reads[index];
+        return [
+          contract,
+          result?.status === "success" ? Boolean(result.result) : null,
+        ] as const;
+      });
       return Object.fromEntries(entries) as Record<string, boolean | null>;
     },
   });
@@ -86,6 +88,7 @@ export function useAllowedCollections(contracts: string[]) {
     queryKey: ["collection-allowlist", unique],
     enabled: unique.length > 0,
     staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const chunks: string[][] = [];
       for (let i = 0; i < unique.length; i += 50) {
