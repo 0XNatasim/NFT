@@ -2,7 +2,7 @@
 
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { http } from "wagmi";
-import { monad, MONAD_RPC_URL } from "@/lib/chains/monad";
+import { monad, MONAD_RPC_URLS } from "@/lib/chains/monad";
 
 // Show the Monad logo as the chain icon in the wallet/connect button.
 const monadWithIcon = {
@@ -17,7 +17,7 @@ export const wagmiConfig = getDefaultConfig({
     process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? "handshake-dev",
   chains: [monadWithIcon],
   transports: {
-    [monad.id]: http(MONAD_RPC_URL),
+    [monad.id]: http(MONAD_RPC_URLS[0]),
   },
   ssr: true,
 });
