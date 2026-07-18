@@ -90,6 +90,7 @@ export interface RevisionNFT {
   collectionName?: string | null;
   name?: string | null;
   imageUrl?: string | null;
+  metadata?: Record<string, unknown> | null;
   rarityRank?: number | null;
 }
 

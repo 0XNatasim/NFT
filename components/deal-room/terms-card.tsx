@@ -60,6 +60,7 @@ function AssetSide({
                   >
                     <NFTMedia
                       imageUrl={nft.imageUrl}
+                      metadata={nft.metadata}
                       alt={nft.name ?? `${collectionLabel} #${nft.tokenId}`}
                       className="aspect-square w-full object-cover"
                     />

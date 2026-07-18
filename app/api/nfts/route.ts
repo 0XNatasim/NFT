@@ -153,8 +153,12 @@ export async function GET(req: Request) {
           nft.name = nft.name ?? meta.name;
           nft.collectionName = nft.collectionName ?? meta.collectionName;
           // Expose on-chain metadata (animation_url etc.) to the media layer
-          // without discarding metadata the indexer already provided.
-          nft.metadata = nft.metadata ?? meta.metadata ?? null;
+          // without discarding metadata the indexer already provided. Some
+          // indexers return partial metadata, so merge the on-chain fields in
+          // behind the indexer fields instead of only filling a null object.
+          nft.metadata = meta.metadata
+            ? { ...meta.metadata, ...(nft.metadata ?? {}) }
+            : (nft.metadata ?? null);
         } catch {
           // cosmetic only
         }

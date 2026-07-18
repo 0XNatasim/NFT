@@ -36,6 +36,7 @@ function toRevisionNFT(a: NFTAsset): RevisionNFT {
     collectionName: a.collectionName,
     name: a.name,
     imageUrl: a.imageUrl,
+    metadata: a.metadata ?? null,
     rarityRank: a.rarityRank ?? null,
   };
 }
@@ -199,6 +200,7 @@ function SidePicker({
                   >
                     <NFTMedia
                       imageUrl={nft.imageUrl}
+                      metadata={nft.metadata}
                       alt={nft.name ?? `#${nft.tokenId}`}
                       className="aspect-square w-full object-cover"
                     />

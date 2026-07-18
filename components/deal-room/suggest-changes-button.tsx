@@ -57,6 +57,7 @@ export function SuggestChangesButton({
             collectionName: n.collectionName,
             name: n.name,
             imageUrl: n.imageUrl,
+            metadata: n.metadata ?? null,
             rarityRank: n.rarityRank ?? null,
           })),
         takerNFTs: offer.nfts
@@ -67,6 +68,7 @@ export function SuggestChangesButton({
             collectionName: n.collectionName,
             name: n.name,
             imageUrl: n.imageUrl,
+            metadata: n.metadata ?? null,
             rarityRank: n.rarityRank ?? null,
           })),
         makerMonAmount: offer.makerMonAmount,
