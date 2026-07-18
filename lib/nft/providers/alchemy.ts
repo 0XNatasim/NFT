@@ -39,11 +39,16 @@ function toAsset(raw: any): NFTAsset {
     tokenStandard: "ERC721",
     name: raw.name ?? raw.raw?.metadata?.name ?? null,
     collectionName: raw.contract?.name ?? null,
+    // Prefer Alchemy's already-resolved CDN copy over the raw (often ipfs://)
+    // metadata URL — the CDN copy is reliable and not rate-limited. Animated
+    // tokens still expose animation_url via `metadata`, which the media layer
+    // reads first, so this only changes the still-image source.
     imageUrl:
-      metadataMediaUrl(metadata) ??
       raw.image?.cachedUrl ??
-      raw.image?.originalUrl ??
       raw.image?.thumbnailUrl ??
+      metadataMediaUrl(metadata) ??
+      raw.image?.originalUrl ??
+      raw.image?.pngUrl ??
       null,
     metadata,
   };
