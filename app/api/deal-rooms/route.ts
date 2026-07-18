@@ -13,6 +13,8 @@ import { termsHash } from "@/lib/deal-rooms/canonicalize";
 import { broadcastRoomUpdate } from "@/lib/deal-rooms/broadcast";
 import { requireSession, shortAddr, unauthorized } from "@/lib/deal-rooms/api";
 import { getServiceClient } from "@/lib/supabase/server";
+import { publicClient } from "@/lib/chains/client";
+import { rejectedDealRoomCollections } from "@/lib/deal-rooms/collection-allowlist";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +112,20 @@ export async function POST(req: Request) {
   }
 
   try {
+    const rejected = await rejectedDealRoomCollections(publicClient, [
+      ...input.draft.makerNFTs,
+      ...input.draft.takerNFTs,
+    ]);
+    if (rejected.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Draft contains a collection that Handshake does not support",
+          collections: rejected,
+        },
+        { status: 400 },
+      );
+    }
+
     // Validate the source linkage.
     if (input.sourceOfferId) {
       const offer = await getOfferById(input.sourceOfferId);

@@ -15,6 +15,7 @@ import { finalizeSchema } from "@/lib/validation/deal-rooms";
 import { termsHash } from "@/lib/deal-rooms/canonicalize";
 import { canFinalize } from "@/lib/deal-rooms/state-machine";
 import { isNonceUsed } from "@/lib/deal-rooms/readiness";
+import { rejectedDealRoomCollections } from "@/lib/deal-rooms/collection-allowlist";
 import { broadcastRoomUpdate } from "@/lib/deal-rooms/broadcast";
 import {
   conflict,
@@ -116,6 +117,16 @@ export async function POST(
     const detail = await getRoomDetail(id);
     const revision = detail?.currentRevision;
     if (!revision) return conflict("Room has no current revision");
+
+    const rejected = await rejectedDealRoomCollections(publicClient, [
+      ...revision.makerNFTs,
+      ...revision.takerNFTs,
+    ]);
+    if (rejected.length > 0) {
+      return conflict(
+        "The agreed terms contain a collection that Handshake does not support",
+      );
+    }
 
     // Defense in depth: re-verify both acceptances on the exact revision.
     const accepted = new Set(revision.acceptedBy.map((a) => a.toLowerCase()));

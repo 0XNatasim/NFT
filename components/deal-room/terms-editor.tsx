@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { NFTMedia } from "@/components/ui/nft-media";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWalletNFTs } from "@/hooks/use-market";
+import { useAllowedCollections } from "@/hooks/use-approvals";
 import { diffDrafts } from "@/lib/deal-rooms/diff";
 import { cn, formatMon, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { DealRoomDraft, DealRoomRevision, RevisionNFT } from "@/lib/types";
@@ -63,6 +64,12 @@ function SidePicker({
   initialCollection?: string | null;
 }) {
   const { data, isLoading } = useWalletNFTs(wallet);
+  const contracts = useMemo(
+    () => (data?.nfts ?? []).map((nft) => nft.contractAddress),
+    [data],
+  );
+  const allowlist = useAllowedCollections(contracts);
+  const allowedCollections = allowlist.data;
   // First-step collection filter: the user picks a collection before any NFTs
   // are shown, so a large wallet isn't dumped all at once.
   const [collectionFilter, setCollectionFilter] = useState<string | null>(
@@ -76,6 +83,7 @@ function SidePicker({
   const collections = useMemo(() => {
     const map = new Map<string, { label: string; count: number }>();
     for (const nft of data?.nfts ?? []) {
+      if (allowedCollections?.[nft.contractAddress.toLowerCase()] !== true) continue;
       const key = nft.contractAddress.toLowerCase();
       const label =
         prettyCollectionName(nft.collectionName) ??
@@ -86,16 +94,18 @@ function SidePicker({
     return Array.from(map.entries())
       .map(([addr, v]) => ({ address: addr, ...v }))
       .sort((a, b) => b.count - a.count);
-  }, [data]);
+  }, [data, allowedCollections]);
 
   const visibleNfts = useMemo(
     () =>
       collectionFilter
         ? (data?.nfts ?? []).filter(
-            (nft) => nft.contractAddress.toLowerCase() === collectionFilter
+            (nft) =>
+              nft.contractAddress.toLowerCase() === collectionFilter &&
+              allowedCollections?.[nft.contractAddress.toLowerCase()] === true
           )
         : [],
-    [data, collectionFilter]
+    [data, collectionFilter, allowedCollections]
   );
 
   return (
@@ -145,12 +155,13 @@ function SidePicker({
         <select
           className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm disabled:opacity-50"
           value={collectionFilter ?? ""}
-          disabled={isLoading || collections.length === 0}
+          disabled={isLoading || allowlist.isFetching || collections.length === 0}
           onChange={(e) => setCollectionFilter(e.target.value || null)}
         >
           <option value="">
             {isLoading
-              ? "Loading collections…"
+              || allowlist.isFetching
+              ? "Verifying collections…"
               : collections.length === 0
                 ? "No collections found"
                 : "Choose a collection…"}
@@ -163,7 +174,11 @@ function SidePicker({
         </select>
       </div>
 
-      {!isLoading && !collectionFilter ? (
+      {allowlist.isError ? (
+        <div className="rounded-md border border-destructive/40 py-4 text-center text-xs text-destructive">
+          Could not verify supported collections. Retry when your connection is available.
+        </div>
+      ) : !isLoading && !allowlist.isFetching && !collectionFilter ? (
         <div className="rounded-md border border-dashed border-border py-4 text-center text-xs text-muted-foreground">
           Pick a collection to see its NFTs.
         </div>

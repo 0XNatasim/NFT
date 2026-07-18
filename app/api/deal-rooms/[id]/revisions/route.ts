@@ -20,6 +20,8 @@ import {
   unauthorized,
 } from "@/lib/deal-rooms/api";
 import { counterpartyOf } from "@/lib/db/deal-rooms";
+import { publicClient } from "@/lib/chains/client";
+import { rejectedDealRoomCollections } from "@/lib/deal-rooms/collection-allowlist";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +89,20 @@ export async function POST(
       return NextResponse.json(
         { error: "Draft maker/taker must be the two room participants" },
         { status: 400 }
+      );
+    }
+
+    const rejected = await rejectedDealRoomCollections(publicClient, [
+      ...input.draft.makerNFTs,
+      ...input.draft.takerNFTs,
+    ]);
+    if (rejected.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Draft contains a collection that Handshake does not support",
+          collections: rejected,
+        },
+        { status: 400 },
       );
     }
 
