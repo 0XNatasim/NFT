@@ -5,12 +5,24 @@ import { useEffect, useMemo, useState } from "react";
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const IPFS_GATEWAYS = [
+const DEFAULT_IPFS_GATEWAYS = [
   "https://ipfs.io/ipfs/",
   "https://dweb.link/ipfs/",
   "https://gateway.pinata.cloud/ipfs/",
   "https://nftstorage.link/ipfs/",
 ];
+
+// Prefer configured gateways (e.g. a dedicated, rate-limit-free gateway) over
+// the public defaults. Set NEXT_PUBLIC_IPFS_GATEWAYS to a comma-separated list;
+// the first is tried first, the rest are on-error fallbacks.
+const IPFS_GATEWAYS = (() => {
+  const configured = (process.env.NEXT_PUBLIC_IPFS_GATEWAYS ?? "")
+    .split(",")
+    .map((g) => g.trim())
+    .filter(Boolean)
+    .map((g) => (g.endsWith("/") ? g : `${g}/`));
+  return configured.length > 0 ? configured : DEFAULT_IPFS_GATEWAYS;
+})();
 
 const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "m4v", "ogv"]);
 const IMAGE_EXTENSIONS = new Set([
