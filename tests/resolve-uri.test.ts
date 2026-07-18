@@ -17,13 +17,16 @@ describe("resolveUri", () => {
     delete process.env.IPFS_GATEWAY;
     const candidates = resolveUriCandidates("ipfs://bafyCID/1.json");
     expect(candidates.length).toBe(ipfsGateways().length);
-    expect(candidates[0]).toBe("https://ipfs.io/ipfs/bafyCID/1.json");
+    // First candidate is the first configured gateway + the CID path.
+    expect(candidates[0]).toBe(`${ipfsGateways()[0]}bafyCID/1.json`);
     candidates.forEach((c) => expect(c.endsWith("bafyCID/1.json")).toBe(true));
   });
 
   it("strips the redundant ipfs/ prefix in ipfs://ipfs/CID/path", () => {
+    delete process.env.IPFS_GATEWAYS;
+    delete process.env.IPFS_GATEWAY;
     expect(resolveUri("ipfs://ipfs/bafyCID/meta.json")).toBe(
-      "https://ipfs.io/ipfs/bafyCID/meta.json",
+      `${ipfsGateways()[0]}bafyCID/meta.json`,
     );
   });
 
