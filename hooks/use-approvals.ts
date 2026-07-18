@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useAccount, usePublicClient } from "wagmi";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
 import { erc721Abi } from "@/lib/contracts/settlement";
 import type { Address } from "viem";
@@ -12,11 +12,15 @@ export type ApprovalState = "approved" | "unapproved" | "pending" | "unknown";
 
 export const COLLECTION_APPROVALS_KEY = "collection-approvals";
 
+type ApprovalReadResult =
+  | { status: "success"; result: unknown }
+  | { status: "failure"; error: unknown };
+
 /**
  * Reads isApprovedForAll(owner, settlement) for a set of collection contracts
  * (the connected wallet as owner). Powers the approval dots on NFT cards.
- * One read per distinct collection, cached briefly; refetched on demand after
- * the user approves.
+ * Distinct collections are read in one multicall, cached briefly, and
+ * refetched on demand after the user approves.
  */
 export function useCollectionApprovals(contracts: string[]) {
   const { address } = useAccount();
@@ -37,16 +41,40 @@ export function useCollectionApprovals(contracts: string[]) {
     enabled:
       !!owner && !!publicClient && settlementConfigured && uniqueContracts.length > 0,
     staleTime: 30_000,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
+      const client = publicClient!;
+      const contracts = uniqueContracts.map((contract) => ({
+        address: contract as Address,
+        abi: erc721Abi,
+        functionName: "isApprovedForAll" as const,
+        args: [owner as Address, SETTLEMENT_CONTRACT_ADDRESS] as const,
+      }));
+
+      // Some Monad RPC providers either reject eth_call bundles or return a
+      // failed result for every item. Multicall is the fast path, but approval
+      // verification must retain the individual-read behavior that works on
+      // those providers; otherwise every NFT is incorrectly treated as
+      // unverifiable and the picker shows 0/N.
+      let reads: ApprovalReadResult[] | null = null;
+      try {
+        reads = (await client.multicall({
+          allowFailure: true,
+          contracts,
+        })) as ApprovalReadResult[];
+      } catch {
+        // Fall through and retry every collection individually.
+      }
+
       const entries = await Promise.all(
-        uniqueContracts.map(async (contract) => {
+        uniqueContracts.map(async (contract, index) => {
+          const result = reads?.[index];
+          if (result?.status === "success") {
+            return [contract, Boolean(result.result)] as const;
+          }
+
           try {
-            const approved = await publicClient!.readContract({
-              address: contract as Address,
-              abi: erc721Abi,
-              functionName: "isApprovedForAll",
-              args: [owner as Address, SETTLEMENT_CONTRACT_ADDRESS],
-            });
+            const approved = await client.readContract(contracts[index]);
             return [contract, Boolean(approved)] as const;
           } catch {
             return [contract, null] as const;
@@ -86,6 +114,7 @@ export function useAllowedCollections(contracts: string[]) {
     queryKey: ["collection-allowlist", unique],
     enabled: unique.length > 0,
     staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const chunks: string[][] = [];
       for (let i = 0; i < unique.length; i += 50) {
@@ -93,9 +122,15 @@ export function useAllowedCollections(contracts: string[]) {
       }
       const results = await Promise.all(
         chunks.map((chunk) =>
-          fetch(`/api/collections/allowed?contracts=${chunk.join(",")}`)
-            .then((r) => (r.ok ? r.json() : { allowed: {} }))
-            .then((d) => d.allowed as Record<string, boolean>),
+          fetch(`/api/collections/allowed?contracts=${chunk.join(",")}`).then(
+            async (response) => {
+              if (!response.ok) {
+                throw new Error(`Allowlist request failed (${response.status})`);
+              }
+              const data = await response.json();
+              return data.allowed as Record<string, boolean>;
+            },
+          ),
         ),
       );
       return Object.assign({}, ...results) as Record<string, boolean>;
