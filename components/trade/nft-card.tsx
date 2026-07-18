@@ -12,8 +12,15 @@ const APPROVAL_DOT: Record<
   Exclude<ApprovalState, "unknown">,
   { className: string; label: string }
 > = {
-  approved: { className: "bg-emerald-500", label: "Collection approved" },
-  unapproved: { className: "bg-red-500", label: "Collection not approved" },
+  approved: {
+    className: "bg-emerald-500",
+    label: "You've approved this collection for trading",
+  },
+  unapproved: {
+    className: "bg-red-500",
+    label:
+      "Your wallet hasn't approved this collection yet — one-time permission needed before trading",
+  },
   pending: {
     className: "bg-amber-400 animate-pulse",
     label: "Approval pending — confirming on-chain",

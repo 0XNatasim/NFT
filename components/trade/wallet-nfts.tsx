@@ -138,12 +138,14 @@ export function WalletNFTs({ owner }: { owner: string }) {
         <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
           <p className="text-sm font-medium">
             {unapprovedCollections.length} collection
-            {unapprovedCollections.length === 1 ? "" : "s"} need approval before
-            trading
+            {unapprovedCollections.length === 1 ? "" : "s"} need your approval
+            before trading
           </p>
           <p className="text-xs text-muted-foreground">
-            Approve a collection once so the settlement contract can move its
-            NFTs only when a deal you accept settles.
+            This is a one-time wallet permission (ERC-721 setApprovalForAll) so
+            the settlement contract can move these NFTs only when a deal you
+            accept settles — separate from whether the collection is allowlisted
+            on the protocol. It moves nothing by itself.
           </p>
           <div className="flex flex-col gap-2 pt-1">
             {unapprovedCollections.map((c) => (
