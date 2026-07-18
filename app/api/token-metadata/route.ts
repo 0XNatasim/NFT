@@ -41,7 +41,9 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ...meta,
     name: indexed?.name ?? meta.name,
-    image: indexed?.imageUrl ?? meta.image,
+    // OpenSea's CDN image is the reliable last resort when the indexer and
+    // on-chain IPFS both come up empty (e.g. 10kSquad).
+    image: indexed?.imageUrl ?? meta.image ?? openSeaToken?.imageUrl ?? null,
     collectionName: indexed?.collectionName ?? meta.collectionName,
     rarityRank: openSeaToken?.rarityRank ?? indexed?.rarityRank ?? null,
   });

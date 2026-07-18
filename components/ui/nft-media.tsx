@@ -6,11 +6,12 @@ import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_IPFS_GATEWAYS = [
-  // Public gateways as defaults. Override with NEXT_PUBLIC_IPFS_GATEWAYS
-  // when a dedicated gateway is available.
+  // Public gateways used as on-error fallbacks after the same-origin
+  // /api/ipfs proxy. Override with NEXT_PUBLIC_IPFS_GATEWAYS.
   "https://ipfs.io/ipfs/",
   "https://dweb.link/ipfs/",
   "https://nftstorage.link/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
 ];
 
 // Prefer configured gateways (e.g. a dedicated, rate-limit-free gateway) over
@@ -75,7 +76,12 @@ function normalizeMediaUrls(uri: string | null): string[] {
   if (!uri) return [];
   const path = ipfsPath(uri);
   if (!path) return [uri];
-  return IPFS_GATEWAYS.map((gateway) => `${gateway}${path}`);
+  // Same-origin proxy first (server fetches + CDN-caches, dodging public
+  // gateway rate limits); public gateways stay as on-error fallbacks.
+  return [
+    `/api/ipfs/${path}`,
+    ...IPFS_GATEWAYS.map((gateway) => `${gateway}${path}`),
+  ];
 }
 
 function uniqueUrls(urls: string[]): string[] {
