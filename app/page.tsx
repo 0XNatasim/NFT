@@ -236,9 +236,9 @@ function HeroPreview({
   const carouselSlides = [
     {
       id: "preview",
-      label: "Live deal preview",
-      title: "Recent human deals",
-      badge: "No custody",
+      label: "New on Handshake",
+      title: "Deal Room",
+      badge: "Spark hackathon",
       content: (
         <LivePreviewSlide recentTrades={recentTrades} loadingRecent={loadingRecent} />
       ),
@@ -418,16 +418,17 @@ function LivePreviewSlide({
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-monad-purple/30 bg-background/50 p-5 text-center">
         <Handshake className="mb-3 h-10 w-10 text-monad-purple" />
-        <h4 className="text-base font-semibold">No completed deals yet</h4>
+        <h4 className="text-base font-semibold">Deal Room is live</h4>
         <p className="mt-2 text-sm text-foreground/90">
-          Real settled handshakes will appear here as soon as collectors complete
-          trades on the marketplace.
+          Deal Room is a new way to negotiate on Handshake — open a private
+          room, counter back and forth, and settle in a single signature.
+          Built for the Spark hackathon by buildanything.
         </p>
         <Link
-          href="/create"
+          href="/rooms/new"
           className="mt-4 rounded-full border border-monad-purple/40 bg-monad-purple/10 px-4 py-2 text-sm font-medium text-monad-purple transition hover:bg-monad-purple/20"
         >
-          Propose a Deal
+          Open a Deal Room
         </Link>
       </div>
     );
