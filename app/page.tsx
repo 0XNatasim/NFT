@@ -422,7 +422,16 @@ function LivePreviewSlide({
         <p className="mt-2 text-sm text-foreground/90">
           Deal Room is a new way to negotiate on Handshake — open a private
           room, counter back and forth, and settle in a single signature.
-          Built for the Spark hackathon by buildanything.
+          Built for the Spark hackathon by{" "}
+          <a
+            href="https://buildanything.so/"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-monad-purple underline-offset-4 hover:underline"
+          >
+            BuildAnything
+          </a>
+          .
         </p>
         <Link
           href="/rooms/new"
