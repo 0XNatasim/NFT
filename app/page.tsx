@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  ArrowLeftRight,
   ArrowRight,
   Copy,
   ImageIcon,
@@ -21,23 +20,16 @@ import {
 } from "lucide-react";
 import { useAccount } from "wagmi";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { NFTMedia } from "@/components/ui/nft-media";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
 import { WelcomeTutorial } from "@/components/tutorial/welcome-tutorial";
 import { useMarketStats, useOffers } from "@/hooks/use-market";
 import {
   FEATURED_COLLECTIONS,
 } from "@/lib/featured-collections";
-import type { TradeOffer, TradeOfferNFT } from "@/lib/types";
-import { cn, formatMon, rarityRankBadgeClass, shortAddress } from "@/lib/utils";
+import { formatMon } from "@/lib/utils";
 
 export default function HomePage() {
   const { address } = useAccount();
-  const { data: recentTrades, isLoading: loadingRecent } = useOffers({
-    status: "completed",
-    limit: 6,
-  });
   const { data: stats } = useMarketStats();
   const { data: walletOffers } = useOffers({
     wallet: address,
@@ -105,7 +97,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <HeroPreview recentTrades={recentTrades} loadingRecent={loadingRecent} />
+        <HeroPreview />
       </section>
 
       <WhyMonadSection />
@@ -225,13 +217,7 @@ function WhyMonadCard({ title, body }: { title: string; body: string }) {
   );
 }
 
-function HeroPreview({
-  recentTrades,
-  loadingRecent,
-}: {
-  recentTrades?: TradeOffer[];
-  loadingRecent: boolean;
-}) {
+function HeroPreview() {
   const [activeSlide, setActiveSlide] = useState(0);
   const carouselSlides = [
     {
@@ -239,9 +225,7 @@ function HeroPreview({
       label: "New on Handshake",
       title: "Deal Room",
       badge: "Spark hackathon",
-      content: (
-        <LivePreviewSlide recentTrades={recentTrades} loadingRecent={loadingRecent} />
-      ),
+      content: <LivePreviewSlide />,
     },
     {
       id: "wanted",
@@ -383,253 +367,33 @@ function HeroPreview({
   );
 }
 
-function LivePreviewSlide({
-  recentTrades,
-  loadingRecent,
-}: {
-  recentTrades?: TradeOffer[];
-  loadingRecent: boolean;
-}) {
-  const liveDeals = recentTrades?.slice(0, 3) ?? [];
-
-  if (loadingRecent) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
-        {["top", "middle", "bottom"].map((position) => (
-          <div
-            key={position}
-            className="rounded-xl border border-white/10 bg-background/60 p-3 shadow-lg shadow-monad-purple/5"
-          >
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <DealAssetSkeleton />
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-monad-purple/20">
-                <Handshake className="h-4 w-4 text-monad-purple" />
-              </div>
-              <DealAssetSkeleton align="right" />
-            </div>
-            <Skeleton className="mt-3 h-7 w-full" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (liveDeals.length === 0) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-monad-purple/30 bg-background/50 p-5 text-center">
-        <Handshake className="mb-3 h-10 w-10 text-monad-purple" />
-        <h4 className="text-base font-semibold">Deal Room is live</h4>
-        <p className="mt-2 text-sm text-foreground/90">
-          Deal Room is a new way to negotiate on Handshake — open a private
-          room, counter back and forth, and settle in a single signature.
-          Built for the Spark hackathon by{" "}
-          <a
-            href="https://buildanything.so/"
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium text-monad-purple underline-offset-4 hover:underline"
-          >
-            BuildAnything
-          </a>
-          .
-        </p>
-        <Link
-          href="/rooms/new"
-          className="mt-4 rounded-full border border-monad-purple/40 bg-monad-purple/10 px-4 py-2 text-sm font-medium text-monad-purple transition hover:bg-monad-purple/20"
+function LivePreviewSlide() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-monad-purple/30 bg-background/50 p-5 text-center">
+      <Handshake className="mb-3 h-10 w-10 text-monad-purple" />
+      <h4 className="text-base font-semibold">Deal Room is live</h4>
+      <p className="mt-2 text-sm text-foreground/90">
+        Deal Room is a new way to negotiate on Handshake — open a private
+        room, counter back and forth, and settle in a single signature.
+        Built for the Spark hackathon by{" "}
+        <a
+          href="https://buildanything.so/"
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-monad-purple underline-offset-4 hover:underline"
         >
-          Open a Deal Room
-        </Link>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="space-y-3 overflow-hidden">
-        {liveDeals.map((deal) => {
-          const makerNfts = deal.nfts.filter((nft) => nft.side === "maker");
-          const takerNfts = deal.nfts.filter((nft) => nft.side === "taker");
-
-          return (
-            <div
-              key={deal.id}
-              className="overflow-hidden rounded-xl border border-white/10 bg-background/60 shadow-lg shadow-monad-purple/5"
-            >
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 p-3">
-                <DealAsset
-                  side="Maker gave"
-                  nfts={makerNfts}
-                  monAmount={deal.makerMonAmount}
-                />
-                <div className="flex flex-col items-center gap-1 text-muted-foreground/60">
-                  <div className="hidden h-px w-10 bg-gradient-to-r from-transparent to-muted-foreground/40 sm:block" />
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-monad-purple text-monad-black shadow-lg shadow-monad-purple/30">
-                    <Handshake className="h-4 w-4" />
-                  </div>
-                  <ArrowLeftRight className="h-4 w-4 sm:hidden" />
-                </div>
-                <DealAsset
-                  side="Taker gave"
-                  nfts={takerNfts}
-                  monAmount={deal.takerMonAmount}
-                  align="right"
-                />
-              </div>
-
-              <div className="flex items-center justify-between border-t border-white/10 bg-secondary/35 px-3 py-2 text-[11px]">
-                <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
-                  <span className="inline-flex shrink-0 items-center gap-1 font-medium text-green-400">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Deal settled
-                  </span>
-                  <span aria-hidden="true">•</span>
-                  <span className="truncate">{timeAgo(deal.updatedAt)}</span>
-                </div>
-                <Link
-                  href={`/offers/${deal.id}`}
-                  className="shrink-0 rounded-full border border-monad-purple/40 bg-monad-purple/10 px-3 py-1 font-medium text-monad-purple transition hover:bg-monad-purple/20"
-                >
-                  View deal
-                </Link>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="mt-auto flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground">
-        Deals are peer-to-peer and settled on-chain.
-        <ShieldCheck className="h-3.5 w-3.5" />
+          BuildAnything
+        </a>
+        .
       </p>
+      <Link
+        href="/rooms/new"
+        className="mt-4 rounded-full border border-monad-purple/40 bg-monad-purple/10 px-4 py-2 text-sm font-medium text-monad-purple transition hover:bg-monad-purple/20"
+      >
+        Open a Deal Room
+      </Link>
     </div>
   );
-}
-
-function DealAsset({
-  side,
-  nfts,
-  monAmount,
-  align = "left",
-}: {
-  side: string;
-  nfts: TradeOfferNFT[];
-  monAmount: string;
-  align?: "left" | "right";
-}) {
-  const primaryNft = nfts[0];
-  const mon = BigInt(monAmount);
-  const title = primaryNft
-    ? (primaryNft.name ?? `#${primaryNft.tokenId}`)
-    : mon > 0n
-      ? `${formatMon(mon)} MON`
-      : "Nothing";
-  const subtitle = primaryNft
-    ? (primaryNft.collectionName ?? shortAddress(primaryNft.contractAddress))
-    : mon > 0n
-      ? "Native MON"
-      : "No asset";
-  const extraCount = nfts.length - 1;
-
-  const media = primaryNft ? (
-    <NFTMedia
-      imageUrl={primaryNft.imageUrl}
-      metadata={primaryNft.metadata}
-      alt={primaryNft.name ?? `Token #${primaryNft.tokenId}`}
-      className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-white/10 sm:h-16 sm:w-16"
-      fallbackClassName="h-14 w-14 shrink-0 rounded-xl ring-1 ring-white/10 sm:h-16 sm:w-16"
-    />
-  ) : (
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cyan-300/10 font-bold text-cyan-200 ring-1 ring-white/10 sm:h-16 sm:w-16">
-      MON
-    </div>
-  );
-
-  const details = (
-    <div
-      className={`min-w-0 ${align === "right" ? "text-right" : "text-left"}`}
-    >
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {side}
-      </p>
-      <h4 className="truncate text-sm font-semibold text-foreground sm:text-base">
-        {title}
-      </h4>
-      <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
-      <div className={`${align === "right" ? "justify-end" : "justify-start"} mt-1 flex flex-wrap gap-1`}>
-        <span className="inline-flex rounded border border-monad-purple/40 bg-monad-purple/10 px-1.5 py-0.5 text-[10px] font-medium text-monad-purple">
-          {primaryNft ? "ERC-721" : "MON"}
-          {extraCount > 0 ? ` +${extraCount}` : ""}
-        </span>
-        {primaryNft?.rarityRank != null && (
-          <span
-            className={cn(
-              "inline-flex rounded border px-1.5 py-0.5 text-[10px] font-medium",
-              rarityRankBadgeClass(primaryNft.rarityRank),
-            )}
-          >
-            #{primaryNft.rarityRank.toLocaleString()}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-
-  return (
-    <div
-      className={`flex min-w-0 items-center gap-3 ${
-        align === "right" ? "justify-end" : "justify-start"
-      }`}
-    >
-      {align === "right" ? (
-        <>
-          {details}
-          {media}
-        </>
-      ) : (
-        <>
-          {media}
-          {details}
-        </>
-      )}
-    </div>
-  );
-}
-
-function DealAssetSkeleton({ align = "left" }: { align?: "left" | "right" }) {
-  return (
-    <div
-      className={`flex min-w-0 items-center gap-3 ${
-        align === "right" ? "justify-end" : "justify-start"
-      }`}
-    >
-      {align === "right" && (
-        <div className="space-y-2 text-right">
-          <Skeleton className="ml-auto h-3 w-14" />
-          <Skeleton className="ml-auto h-4 w-20" />
-          <Skeleton className="ml-auto h-3 w-16" />
-        </div>
-      )}
-      <Skeleton className="h-14 w-14 shrink-0 rounded-xl sm:h-16 sm:w-16" />
-      {align === "left" && (
-        <div className="space-y-2">
-          <Skeleton className="h-3 w-14" />
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-3 w-16" />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function timeAgo(date: string) {
-  const diff = Date.now() - new Date(date).getTime();
-  if (!Number.isFinite(diff) || diff < 0) return "just now";
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
 
 function WantedOfferSlide() {
