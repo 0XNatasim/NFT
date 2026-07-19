@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Providers } from "./providers";
 import { Header } from "@/components/layout/header";
 import { NetworkGuard } from "@/components/wallet/network-guard";
+import { DealRoomAutoSignIn } from "@/components/wallet/deal-room-auto-signin";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,6 +30,7 @@ export default function RootLayout({
             <div className="pointer-events-none fixed bottom-[-10rem] left-1/3 -z-10 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
             <Header />
             <NetworkGuard />
+            <DealRoomAutoSignIn />
             <main className="flex-1">{children}</main>
             <footer className="border-t border-monad-purple/20 bg-gradient-to-r from-monad-purple/10 via-fuchsia-500/5 to-cyan-400/10 py-8">
               <div className="container mx-auto flex justify-center px-4 text-sm text-foreground sm:justify-end">
