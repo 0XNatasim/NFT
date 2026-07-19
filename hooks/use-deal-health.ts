@@ -7,7 +7,7 @@ import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
 import { quoteFees } from "@/lib/fees";
 import { isCollectionBid } from "@/lib/collection-bids";
-import { prettyCollectionName, shortAddress } from "@/lib/utils";
+import { formatMon, prettyCollectionName, shortAddress } from "@/lib/utils";
 import type { TradeOffer } from "@/lib/types";
 
 /**
@@ -31,7 +31,8 @@ export type DealBlockerCode =
   | "taker-not-owner"
   | "maker-not-approved"
   | "nonce-used"
-  | "maker-escrow";
+  | "maker-escrow"
+  | "taker-insufficient-mon";
 
 export interface DealBlocker {
   code: DealBlockerCode;
@@ -52,6 +53,7 @@ const PRIORITY: DealBlockerCode[] = [
   "taker-not-owner",
   "maker-not-approved",
   "maker-escrow",
+  "taker-insufficient-mon",
 ];
 
 export function useDealHealth(
@@ -237,6 +239,29 @@ export function useDealHealth(
             message:
               "The maker hasn't funded the MON side of this deal in escrow yet.",
           });
+        }
+      }
+
+      // 6. The taker must be able to cover their MON leg + fees (msg.value).
+      // Gas is on top; we check the value alone so a clear shortfall reads as
+      // "not enough MON" instead of a mystery revert in the eth_call.
+      if (takerOwner) {
+        const required = quoteFees(
+          BigInt(o.makerMonAmount),
+          BigInt(o.takerMonAmount),
+          BigInt(o.feeBps),
+          BigInt(o.flatFee),
+        ).takerPays;
+        if (required > 0n) {
+          const balance = await client
+            .getBalance({ address: takerOwner as Address })
+            .catch(() => null);
+          if (typeof balance === "bigint" && balance < required) {
+            blockers.push({
+              code: "taker-insufficient-mon",
+              message: `You need ${formatMon(required)} MON to accept this deal, but this wallet holds ${formatMon(balance)} MON.`,
+            });
+          }
         }
       }
 
