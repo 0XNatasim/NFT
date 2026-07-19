@@ -26,9 +26,12 @@ import type { DealRoomRevision, RevisionNFT } from "@/lib/types";
  * token id, rarity, explorer link) so a trader always knows exactly what's
  * being swapped — even when the art fails to load.
  *
- * Self-heals the image the same way the offer page does: a Deal Room draft only
- * snapshots an `imageUrl`, which is often missing for freshly indexed Monad
- * collections, so when it's absent we resolve the art on-chain via tokenURI.
+ * Resolves the token's real media on-chain the same way the propose view does.
+ * A Deal Room draft only snapshots a single `imageUrl`, which is missing for
+ * freshly indexed collections and wrong for animated ones (e.g. Erebus, whose
+ * art is an MP4 in `animation_url`, not a still image). So we always resolve
+ * tokenURI → metadata and hand the animation/image to the media layer, with
+ * the snapshot `imageUrl` kept as a last-resort candidate.
  */
 function RevisionNFTTile({ nft }: { nft: RevisionNFT }) {
   const collectionLabel =
@@ -37,15 +40,15 @@ function RevisionNFTTile({ nft }: { nft: RevisionNFT }) {
 
   const fallback = useNftMediaFallback(
     { contractAddress: nft.contractAddress, tokenId: nft.tokenId },
-    !nft.imageUrl,
+    true,
   );
-  const imageUrl = nft.imageUrl ?? fallback.imageUrl;
 
   return (
     <div className="overflow-hidden rounded-md border border-border bg-secondary/20">
       <div className="aspect-square w-full bg-muted">
         <NFTMedia
-          imageUrl={imageUrl}
+          imageUrl={nft.imageUrl}
+          animationUrl={fallback.imageUrl}
           metadata={fallback.metadata}
           alt={nft.name ?? `${collectionLabel} #${nft.tokenId}`}
           className="h-full w-full object-cover"
