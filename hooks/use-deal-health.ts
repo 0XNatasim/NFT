@@ -25,6 +25,7 @@ import type { TradeOffer } from "@/lib/types";
  */
 
 export type DealBlockerCode =
+  | "settlement-paused"
   | "collection-not-allowed"
   | "maker-not-owner"
   | "taker-not-owner"
@@ -44,6 +45,7 @@ export interface DealHealth {
 
 // Most fundamental first — the order shown to the user.
 const PRIORITY: DealBlockerCode[] = [
+  "settlement-paused",
   "collection-not-allowed",
   "nonce-used",
   "maker-not-owner",
@@ -89,6 +91,23 @@ export function useDealHealth(
       );
 
       const blockers: DealBlocker[] = [];
+
+      // 0. A paused settlement contract blocks every trade — check it first so
+      // a global halt reads as exactly that, not a per-NFT problem.
+      const paused = await client
+        .readContract({
+          address: settlement,
+          abi: settlementAbi,
+          functionName: "paused",
+        })
+        .catch(() => null);
+      if (paused === true) {
+        blockers.push({
+          code: "settlement-paused",
+          message:
+            "Handshake settlement is paused right now, so no deal can be filled. This is temporary and affects every trade, not just this one.",
+        });
+      }
 
       // 1. Every collection on the table must be on the settlement allowlist.
       const collections = Array.from(

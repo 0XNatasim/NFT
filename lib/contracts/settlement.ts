@@ -134,6 +134,13 @@ export const settlementAbi = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    type: "function",
+    name: "paused",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
     type: "event",
     name: "TradeExecuted",
     inputs: [
