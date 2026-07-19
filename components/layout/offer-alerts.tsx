@@ -205,7 +205,7 @@ export function OfferAlerts() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-11 z-50 w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-monad-purple/25 bg-background/95 shadow-2xl shadow-monad-purple/15 backdrop-blur md:w-96">
+        <div className="fixed inset-x-4 top-16 z-50 overflow-hidden rounded-2xl border border-monad-purple/25 bg-background/95 shadow-2xl shadow-monad-purple/15 backdrop-blur md:absolute md:inset-x-auto md:right-0 md:top-11 md:w-96">
           <div className="flex items-center justify-between border-b border-monad-purple/15 px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-foreground">Notifications</p>
