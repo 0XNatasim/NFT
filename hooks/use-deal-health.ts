@@ -175,28 +175,47 @@ export function useDealHealth(
         }
       }
 
-      // 3. The maker must have approved settlement for each collection they give.
-      const makerCollections = Array.from(
-        new Set(makerNfts.map((n) => n.contractAddress.toLowerCase())),
-      ) as Address[];
+      // 3. The maker must have approved settlement for each NFT they give.
+      // Match the contract exactly: approval passes if the token is approved
+      // individually (getApproved == settlement) OR the whole collection is
+      // (isApprovedForAll). Checking only the latter would falsely flag a
+      // single-token approval and wrongly disable Accept.
       const approvals = await Promise.all(
-        makerCollections.map((c) =>
-          client
-            .readContract({
-              address: c,
-              abi: erc721Abi,
-              functionName: "isApprovedForAll",
-              args: [maker, settlement],
-            })
-            .then((a) => ({ c, approved: a as boolean }))
-            .catch(() => ({ c, approved: null as boolean | null })),
-        ),
+        makerNfts.map(async (n) => {
+          const c = n.contractAddress as Address;
+          const [all, one] = await Promise.all([
+            client
+              .readContract({
+                address: c,
+                abi: erc721Abi,
+                functionName: "isApprovedForAll",
+                args: [maker, settlement],
+              })
+              .then((v) => v as boolean)
+              .catch(() => null),
+            client
+              .readContract({
+                address: c,
+                abi: erc721Abi,
+                functionName: "getApproved",
+                args: [BigInt(n.tokenId)],
+              })
+              .then((v) => (v as string).toLowerCase())
+              .catch(() => null),
+          ]);
+          // Only conclude "not approved" when both reads succeeded and both
+          // deny — an RPC failure must never fabricate a blocker.
+          const approved =
+            all === true || (one !== null && one === settlement.toLowerCase());
+          const conclusive = all !== null && one !== null;
+          return { n, approved, conclusive };
+        }),
       );
-      for (const { c, approved } of approvals) {
-        if (approved === false) {
+      for (const { n, approved, conclusive } of approvals) {
+        if (conclusive && !approved) {
           blockers.push({
             code: "maker-not-approved",
-            message: `The maker hasn't approved ${labelFor(c)} for settlement yet, so the contract can't move it.`,
+            message: `The maker hasn't approved ${labelFor(n.contractAddress)} #${n.tokenId} for settlement yet, so the contract can't move it.`,
           });
         }
       }

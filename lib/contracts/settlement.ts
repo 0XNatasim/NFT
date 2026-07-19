@@ -261,6 +261,13 @@ export const erc721Abi = [
   },
   {
     type: "function",
+    name: "getApproved",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
     name: "tokenURI",
     stateMutability: "view",
     inputs: [{ name: "tokenId", type: "uint256" }],
