@@ -5,11 +5,14 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
+import { CollectionStatusDot } from "@/components/trade/collection-status-dot";
 import { OfferCard, OfferListItem } from "@/components/trade/offer-card";
 import { EmptyState } from "@/components/empty-state";
 import { useOffers } from "@/hooks/use-market";
+import { useCollectionsAllowed } from "@/hooks/use-collections-allowed";
 import {
   FEATURED_COLLECTIONS,
+  isCollectionTradeLocked,
   type FeaturedCollection,
 } from "@/lib/featured-collections";
 
@@ -151,8 +154,21 @@ function CollectionFilterBanner({
   selectedCollection: string | null;
   onSelect: (collection: string | null) => void;
 }) {
+  const { allowed: onchainAllowed } = useCollectionsAllowed(
+    FEATURED_COLLECTIONS.map((c) => c.address),
+  );
   return (
     <div className="rounded-2xl border border-monad-purple/20 bg-gradient-to-r from-monad-purple/10 via-card/80 to-cyan-400/10 p-3 shadow-lg shadow-monad-purple/5">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <CollectionStatusDot locked={false} />
+          Tradeable
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <CollectionStatusDot locked />
+          Trading locked (awaiting collection approval)
+        </span>
+      </div>
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
         <button
           type="button"
@@ -173,6 +189,7 @@ function CollectionFilterBanner({
             key={collection.address}
             collection={collection}
             selected={selectedCollection === collection.address.toLowerCase()}
+            onchainAllowed={onchainAllowed[collection.address.toLowerCase()]}
             onClick={() => onSelect(collection.address.toLowerCase())}
           />
         ))}
@@ -185,10 +202,12 @@ function CollectionFilterButton({
   collection,
   selected,
   onClick,
+  onchainAllowed,
 }: {
   collection: FeaturedCollection;
   selected: boolean;
   onClick: () => void;
+  onchainAllowed?: boolean;
 }) {
   return (
     <button
@@ -201,11 +220,17 @@ function CollectionFilterButton({
       }`}
       aria-pressed={selected}
     >
-      <SafeCollectionImage
-        collectionAddress={collection.address}
-        alt={`${collection.name} logo`}
-        className="h-12 w-12 rounded-full ring-1 ring-border"
-      />
+      <span className="relative inline-flex">
+        <SafeCollectionImage
+          collectionAddress={collection.address}
+          alt={`${collection.name} logo`}
+          className="h-12 w-12 rounded-full ring-1 ring-border"
+        />
+        <CollectionStatusDot
+          locked={isCollectionTradeLocked(collection, onchainAllowed)}
+          className="absolute right-0 top-0 h-3 w-3"
+        />
+      </span>
       <span className="w-full truncate text-center font-medium">
         {collection.name}
       </span>

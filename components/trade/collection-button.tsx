@@ -1,17 +1,24 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { FeaturedCollection } from "@/lib/featured-collections";
+import {
+  isCollectionTradeLocked,
+  type FeaturedCollection,
+} from "@/lib/featured-collections";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
+import { CollectionStatusDot } from "@/components/trade/collection-status-dot";
 
 export function CollectionButton({
   collection,
   active,
   onClick,
+  onchainAllowed,
 }: {
   collection: FeaturedCollection;
   active: boolean;
   onClick: () => void;
+  /** Live isCollectionAllowed result; when set, drives the status dot. */
+  onchainAllowed?: boolean;
 }) {
   return (
     <button
@@ -24,12 +31,18 @@ export function CollectionButton({
           : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
       )}
     >
-      <SafeCollectionImage
-        collectionAddress={collection.address}
-        alt=""
-        className="h-5 w-5 rounded-sm"
-        fallbackSrc={collection.image}
-      />
+      <span className="relative inline-flex shrink-0">
+        <SafeCollectionImage
+          collectionAddress={collection.address}
+          alt=""
+          className="h-5 w-5 rounded-sm"
+          fallbackSrc={collection.image}
+        />
+        <CollectionStatusDot
+          locked={isCollectionTradeLocked(collection, onchainAllowed)}
+          className="absolute -right-1 -top-1"
+        />
+      </span>
       {collection.name}
     </button>
   );
