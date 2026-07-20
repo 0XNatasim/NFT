@@ -14,7 +14,12 @@ import type { Address } from "viem";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 /** Visual approval state of a collection for the settlement contract. */
-export type ApprovalState = "approved" | "unapproved" | "pending" | "unknown";
+export type ApprovalState =
+  | "approved"
+  | "unapproved"
+  | "pending"
+  | "restricted"
+  | "unknown";
 
 export const COLLECTION_APPROVALS_KEY = "collection-approvals";
 
