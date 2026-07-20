@@ -317,6 +317,23 @@ export const transferValidatorAbi = [
       { name: "errorCode", type: "bytes4" },
     ],
   },
+  // Collection-level overload (no tokenId): probes the operator policy alone,
+  // used to flag a collection as untradeable before a specific token is picked.
+  {
+    type: "function",
+    name: "validateTransferSim",
+    stateMutability: "view",
+    inputs: [
+      { name: "collection", type: "address" },
+      { name: "caller", type: "address" },
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+    ],
+    outputs: [
+      { name: "isTransferAllowed", type: "bool" },
+      { name: "errorCode", type: "bytes4" },
+    ],
+  },
 ] as const;
 
 /**

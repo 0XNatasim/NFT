@@ -11,6 +11,7 @@ import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
 import {
   useAllowedCollections,
   useCollectionApprovals,
+  useTransferRestrictedCollections,
 } from "@/hooks/use-approvals";
 import { ApproveCollectionButton } from "@/components/trade/approve-collection-button";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
@@ -132,10 +133,17 @@ export function OwnedNFTPicker({
     data: allowedData,
   } = allowlist;
 
+  // Collections that pass allowlist + approval but whose own transfer validator
+  // blocks the settlement contract (e.g. The 10k Squad) — untradeable here.
+  const restricted = useTransferRestrictedCollections(contractsToVerify);
+  const { isRestricted, data: restrictedData } = restricted;
+
   const isFeatured = (contract: string) =>
     FEATURED_CONTRACT_SET.has(contract.toLowerCase());
   const isVerified = (contract: string) =>
-    isAllowed(contract) && approvalFor(contract) === "approved";
+    isAllowed(contract) &&
+    approvalFor(contract) === "approved" &&
+    !isRestricted(contract);
 
   // Featured addresses provide an immediate local rejection path. The
   // contract allowlist remains authoritative, including for non-featured
@@ -148,17 +156,26 @@ export function OwnedNFTPicker({
           isVerified(c.address),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [collections, approvalState, pendingContracts, allowedData],
+    [collections, approvalState, pendingContracts, allowedData, restrictedData],
   );
   const unapprovedCollections = useMemo(
     () =>
       collections.filter(
         (c) =>
           isAllowed(c.address) &&
-          approvalFor(c.address) === "unapproved",
+          approvalFor(c.address) === "unapproved" &&
+          !isRestricted(c.address),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [collections, approvalState, pendingContracts, allowedData],
+    [collections, approvalState, pendingContracts, allowedData, restrictedData],
+  );
+  const restrictedCollections = useMemo(
+    () =>
+      collections.filter(
+        (c) => isAllowed(c.address) && isRestricted(c.address),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collections, allowedData, restrictedData],
   );
 
   const filtered = useMemo(() => {
@@ -195,6 +212,7 @@ export function OwnedNFTPicker({
     approvalState,
     pendingContracts,
     allowedData,
+    restrictedData,
   ]);
 
   const verificationPending =
@@ -249,6 +267,36 @@ export function OwnedNFTPicker({
                   </span>
                 </span>
                 <ApproveCollectionButton collectionAddress={c.address} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {restrictedCollections.length > 0 && (
+        <div className="space-y-2 rounded-xl border-l-4 border-l-red-500 border border-red-500/40 bg-red-500/10 p-3">
+          <p className="text-sm font-semibold text-red-400">
+            {restrictedCollections.length} of your collection
+            {restrictedCollections.length === 1 ? "" : "s"} can&apos;t be traded
+            on Handshake
+          </p>
+          <p className="text-xs text-muted-foreground">
+            These collections enforce their own transfer rules and don&apos;t
+            allow Handshake to move their NFTs, so a deal with them can never
+            settle. This is set by the collection — approving won&apos;t help.
+            They&apos;re hidden from the selector below.
+          </p>
+          <div className="flex flex-col gap-2 pt-1">
+            {restrictedCollections.map((c) => (
+              <div
+                key={c.address}
+                className="flex items-center gap-2 rounded-lg border border-border bg-background/60 p-2"
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 ring-2 ring-background" />
+                <span className="truncate text-sm">{c.label}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  ({c.count})
+                </span>
               </div>
             ))}
           </div>
