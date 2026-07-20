@@ -198,6 +198,22 @@ export const settlementAbi = [
   },
   {
     type: "error",
+    name: "TransferNotEffective",
+    inputs: [
+      { name: "nft", type: "address" },
+      { name: "tokenId", type: "uint256" },
+    ],
+  },
+  // ERC-721 implementations can bubble this error through fulfillTrade when
+  // the recipient is a contract that does not implement onERC721Received.
+  // It must be present here for viem to decode the bubbled revert data.
+  {
+    type: "error",
+    name: "ERC721InvalidReceiver",
+    inputs: [{ name: "receiver", type: "address" }],
+  },
+  {
+    type: "error",
     name: "AlreadyAllowed",
     inputs: [{ name: "collection", type: "address" }],
   },
@@ -222,6 +238,10 @@ export const settlementErrorMessages: Record<string, string> = {
   MissingApproval:
     "The maker hasn't approved the settlement contract for one of their NFTs yet. Ask them to open the offer and approve.",
   NativeTransferFailed: "A MON transfer failed.",
+  TransferNotEffective:
+    "The NFT collection reported a transfer, but ownership did not change.",
+  ERC721InvalidReceiver:
+    "Your wallet cannot receive this NFT. Use an EOA or a smart wallet that supports ERC-721 receiving.",
 };
 
 export const erc721Abi = [

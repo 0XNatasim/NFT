@@ -1,5 +1,7 @@
+import { encodeErrorResult } from "viem";
 import { describe, expect, it } from "vitest";
 import { classifyTxError } from "@/lib/chains/tx-errors";
+import { settlementAbi } from "@/lib/contracts/settlement";
 
 describe("classifyTxError", () => {
   it("detects user rejection by EIP-1193 code", () => {
@@ -46,6 +48,33 @@ describe("classifyTxError", () => {
   it("detects a generic on-chain revert", () => {
     const result = classifyTxError(new Error("execution reverted"));
     expect(result.name).toBe("ContractReverted");
+  });
+
+  it("decodes revert data nested in a plain Monad RPC error", () => {
+    const data = encodeErrorResult({
+      abi: settlementAbi,
+      errorName: "TransferNotEffective",
+      args: ["0x818030837e8350ba63e64d7dc01a547fa73c8279", 1918n],
+    });
+    const result = classifyTxError({
+      message: "execution reverted",
+      cause: { code: 3, data },
+    });
+
+    expect(result.name).toBe("TransferNotEffective");
+    expect(result.userMessage).toMatch(/ownership did not change/i);
+  });
+
+  it("explains a bubbled ERC-721 receiver rejection", () => {
+    const data = encodeErrorResult({
+      abi: settlementAbi,
+      errorName: "ERC721InvalidReceiver",
+      args: ["0x2f2a0000000000000000000000000000000047d3"],
+    });
+    const result = classifyTxError({ message: "execution reverted", data });
+
+    expect(result.name).toBe("ERC721InvalidReceiver");
+    expect(result.userMessage).toMatch(/cannot receive this NFT/i);
   });
 
   it("falls back to the raw message for unknown errors", () => {

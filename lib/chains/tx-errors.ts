@@ -7,9 +7,11 @@
 import {
   BaseError,
   ContractFunctionRevertedError,
+  decodeErrorResult,
   type Address,
+  type Hex,
 } from "viem";
-import { settlementErrorMessages } from "@/lib/contracts/settlement";
+import { settlementAbi, settlementErrorMessages } from "@/lib/contracts/settlement";
 
 export interface ClassifiedTxError {
   /** Stable, machine-readable name for logging/metrics. */
@@ -35,6 +37,44 @@ export function decodeRevert(err: unknown): { name: string; message: string } | 
       }
       if (name) return { name, message: `Settlement would revert: ${name}` };
     }
+  }
+
+  // Some Monad RPCs return a plain JSON-RPC error (or put it under `cause`)
+  // instead of letting viem construct ContractFunctionRevertedError. Decode
+  // any revert payload ourselves so useful custom errors are not reduced to
+  // the generic "would revert" message.
+  const data = findRevertData(err);
+  if (data) {
+    try {
+      const decoded = decodeErrorResult({ abi: settlementAbi, data });
+      const name = decoded.errorName;
+      return {
+        name,
+        message:
+          settlementErrorMessages[name] ?? `Settlement would revert: ${name}`,
+      };
+    } catch {
+      // The payload may belong to an unknown third-party NFT implementation.
+    }
+  }
+  return null;
+}
+
+function findRevertData(value: unknown, seen = new Set<unknown>()): Hex | null {
+  if (!value || typeof value !== "object" || seen.has(value)) return null;
+  seen.add(value);
+
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.data === "string" &&
+    /^0x[0-9a-fA-F]{8,}$/.test(record.data)
+  ) {
+    return record.data as Hex;
+  }
+
+  for (const key of ["cause", "error", "details"]) {
+    const nested = findRevertData(record[key], seen);
+    if (nested) return nested;
   }
   return null;
 }
