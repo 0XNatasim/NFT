@@ -3,7 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { usePublicClient } from "wagmi";
 import type { Address } from "viem";
-import { erc721Abi, settlementAbi } from "@/lib/contracts/settlement";
+import {
+  creatorTokenAbi,
+  erc721Abi,
+  settlementAbi,
+  transferValidatorAbi,
+} from "@/lib/contracts/settlement";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
 import { quoteFees } from "@/lib/fees";
 import { isCollectionBid } from "@/lib/collection-bids";
@@ -27,6 +32,7 @@ import type { TradeOffer } from "@/lib/types";
 export type DealBlockerCode =
   | "settlement-paused"
   | "collection-not-allowed"
+  | "transfer-restricted"
   | "maker-not-owner"
   | "taker-not-owner"
   | "maker-not-approved"
@@ -48,6 +54,7 @@ export interface DealHealth {
 const PRIORITY: DealBlockerCode[] = [
   "settlement-paused",
   "collection-not-allowed",
+  "transfer-restricted",
   "nonce-used",
   "maker-not-owner",
   "taker-not-owner",
@@ -217,6 +224,62 @@ export function useDealHealth(
             code: "maker-not-approved",
             message: `The maker hasn't approved ${labelFor(n.contractAddress)} #${n.tokenId} for settlement yet, so the contract can't move it.`,
           });
+        }
+      }
+
+      // 3b. Creator-Token collections (e.g. The 10k Squad) gate every transfer
+      // on an external validator. Even with approval, the validator can reject
+      // the settlement contract as caller — reverting the whole trade with an
+      // undecodable error. Ask the validator directly whether this exact move
+      // is allowed. Needs a concrete recipient, so it runs once a taker exists.
+      const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+      if (takerOwner) {
+        const transfers = [
+          ...makerNfts.map((n) => ({ n, from: maker, to: takerOwner })),
+          ...takerNfts.map((n) => ({ n, from: takerOwner, to: maker })),
+        ];
+        const restricted = await Promise.all(
+          transfers.map(async ({ n, from, to }) => {
+            const c = n.contractAddress as Address;
+            const validator = await client
+              .readContract({
+                address: c,
+                abi: creatorTokenAbi,
+                functionName: "getTransferValidator",
+              })
+              .then((v) => (v as string).toLowerCase())
+              .catch(() => null);
+            // No validator (plain ERC-721) → nothing to enforce.
+            if (!validator || validator === ZERO_ADDR) {
+              return { n, blocked: false };
+            }
+            const sim = await client
+              .readContract({
+                address: validator as Address,
+                abi: transferValidatorAbi,
+                functionName: "validateTransferSim",
+                args: [
+                  c,
+                  settlement,
+                  from as Address,
+                  to as Address,
+                  BigInt(n.tokenId),
+                ],
+              })
+              .then((r) => r as readonly [boolean, string])
+              .catch(() => null);
+            // Only block on a definitive "not allowed"; an RPC/ABI miss never
+            // fabricates a blocker.
+            return { n, blocked: sim !== null && sim[0] === false };
+          }),
+        );
+        for (const { n, blocked } of restricted) {
+          if (blocked) {
+            blockers.push({
+              code: "transfer-restricted",
+              message: `${labelFor(n.contractAddress)} restricts transfers to approved operators, and Handshake isn't authorized — so #${n.tokenId} can't be moved and this deal can't settle. This is set by the collection, not Handshake.`,
+            });
+          }
         }
       }
 

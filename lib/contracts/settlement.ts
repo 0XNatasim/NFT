@@ -283,6 +283,43 @@ export const erc721Abi = [
 ] as const;
 
 /**
+ * Creator Token Standard (Limit Break). Collections like The 10k Squad gate
+ * every transfer on an external validator: getTransferValidator() returns it
+ * (zero / reverts for a plain ERC-721). The validator's validateTransferSim
+ * says whether a given operator may move a token — so we can detect, up front,
+ * a collection whose policy blocks the Handshake settlement contract as caller
+ * (which otherwise reverts the whole trade with an undecodable error).
+ */
+export const creatorTokenAbi = [
+  {
+    type: "function",
+    name: "getTransferValidator",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
+export const transferValidatorAbi = [
+  {
+    type: "function",
+    name: "validateTransferSim",
+    stateMutability: "view",
+    inputs: [
+      { name: "collection", type: "address" },
+      { name: "caller", type: "address" },
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "tokenId", type: "uint256" },
+    ],
+    outputs: [
+      { name: "isTransferAllowed", type: "bool" },
+      { name: "errorCode", type: "bytes4" },
+    ],
+  },
+] as const;
+
+/**
  * Return the subset of `collections` that the settlement contract will reject
  * as not tradable (not allowlisted, or still inside the ADD_DELAY timelock).
  *
