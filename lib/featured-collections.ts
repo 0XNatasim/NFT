@@ -27,15 +27,21 @@ export interface FeaturedCollection {
 }
 
 /**
- * Trade status derived from the transfer-validator gate.
- *  - "locked": collection has a transfer validator and Handshake's settlement
- *    contract is not yet approved by the owner → red dot, not tradeable.
- *  - "open": no transfer-validator gate → green dot, tradeable.
+ * Whether a collection is locked for trading (red dot) or open (green dot).
+ *
+ * Collections without a transfer validator never need owner approval, so they
+ * are always open. Validator-gated collections start locked and flip to open
+ * automatically once Handshake's settlement contract is approved on-chain — the
+ * live signal for that is `isCollectionAllowed` (see /api/collections/allowed),
+ * passed in here as `onchainAllowed`. While that read is still pending
+ * (`onchainAllowed === undefined`) a gated collection stays locked.
  */
 export function isCollectionTradeLocked(
   collection: Pick<FeaturedCollection, "transferValidator">,
+  onchainAllowed?: boolean,
 ): boolean {
-  return collection.transferValidator === true;
+  if (collection.transferValidator !== true) return false;
+  return onchainAllowed !== true;
 }
 
 export const FEATURED_COLLECTIONS: FeaturedCollection[] = [
@@ -138,6 +144,68 @@ export const FEATURED_COLLECTIONS: FeaturedCollection[] = [
     name: "Chewy",
     address: "0xe1ddf619bb352e6eb25367be99606be02836cbbc",
     image: "/collections/Chewy.png",
+    transferValidator: true,
+  },
+  // Logos come from on-chain/indexer metadata (SafeCollectionImage); the
+  // `image` fallback is only used when metadata has no image.
+  {
+    name: "LootGO",
+    address: "0xa3522ea57c0bc48e602e2fe9f3929309d9618d96",
+    image: "/collections/lootgo.png",
+    transferValidator: true,
+  },
+  {
+    name: "D.Y.O.O.R",
+    address: "0x349d8eb480c92cf75371fba5c6344a4d11b9103a",
+    image: "/Logomark.png",
+    transferValidator: true,
+  },
+  {
+    name: "Lil Starrs",
+    address: "0xcabf3c04b90f4fe1b521fcaf4acb25d5df478e52",
+    image: "/collections/lilstarrrs.png",
+    transferValidator: true,
+  },
+  {
+    name: "Mouch",
+    address: "0x54b8048a30919e64c678d5decef5fd8c20f836ff",
+    image: "/Logomark.png",
+    transferValidator: true,
+  },
+  {
+    name: "Mongang",
+    address: "0xec7bf726c8011048e3c14c88fae1a788d22c220f",
+    image: "/collections/mongang.png",
+    transferValidator: true,
+  },
+  {
+    name: "Spiky",
+    address: "0x43577cc08c03d4017177eb1e43f5f8077c41c765",
+    image: "/Logomark.png",
+    transferValidator: true,
+  },
+  {
+    name: "Llamao",
+    address: "0x21d95addcebe87bea4e49534595f242af002d068",
+    image: "/Logomark.png",
+    transferValidator: true,
+  },
+  {
+    name: "Chads",
+    address: "0xe217a5517105a97616b09c05c685a7e125e6e753",
+    image: "/Logomark.png",
+    transferValidator: true,
+  },
+  {
+    name: "Purple Frens",
+    address: "0xbe88e5e5572aefa8fe52b460dbc82e34c78445e2",
+    image: "/Logomark.png",
+    transferValidator: true,
+  },
+  {
+    name: "RealNads",
+    address: "0xe20c4f8cacdb1854151f3e12144bdc919e608b9b",
+    image: "/Logomark.png",
     transferValidator: true,
   },
 ];

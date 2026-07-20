@@ -48,6 +48,7 @@ import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
 import { CollectionStatusDot } from "@/components/trade/collection-status-dot";
 import { CollectionSearch } from "@/components/trade/collection-search";
+import { useCollectionsAllowed } from "@/hooks/use-collections-allowed";
 import {
   DEFAULT_EXPIRY_SECONDS,
   ExpirySelector,
@@ -904,6 +905,9 @@ function StepDetails(props: {
   } = props;
 
   const selectedRarityNft = requestedNfts.find((n) => n.rarityRank != null);
+  const { allowed: onchainAllowed } = useCollectionsAllowed(
+    FEATURED_COLLECTIONS.map((c) => c.address),
+  );
 
   useEffect(() => {
     if (!selectedRarityNft) setRequiredMaxRarityRank("");
@@ -1024,6 +1028,7 @@ function StepDetails(props: {
                     active={
                       requestContract.toLowerCase() === c.address.toLowerCase()
                     }
+                    onchainAllowed={onchainAllowed[c.address.toLowerCase()]}
                     onClick={() => {
                       setRequestContract(c.address);
                       setSelectedRequestCollection(null);
