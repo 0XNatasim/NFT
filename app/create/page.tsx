@@ -46,6 +46,7 @@ import {
 } from "@/lib/contracts/settlement";
 import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
+import { CollectionStatusDot } from "@/components/trade/collection-status-dot";
 import { CollectionSearch } from "@/components/trade/collection-search";
 import {
   DEFAULT_EXPIRY_SECONDS,
@@ -1029,6 +1030,16 @@ function StepDetails(props: {
                     }}
                   />
                 ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <CollectionStatusDot locked={false} />
+                  Tradeable
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CollectionStatusDot locked />
+                  Trading locked (awaiting collection approval)
+                </span>
               </div>
               <CollectionSearch
                 selected={selectedRequestCollection}

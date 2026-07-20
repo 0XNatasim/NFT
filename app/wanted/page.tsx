@@ -13,7 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
-import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
+import {
+  FEATURED_COLLECTIONS,
+  isCollectionTradeLocked,
+} from "@/lib/featured-collections";
 import {
   DEFAULT_EXPIRY_SECONDS,
   ExpirySelector,
@@ -147,7 +150,9 @@ export default function WantedPage() {
               >
                 {FEATURED_COLLECTIONS.map((c) => (
                   <option key={c.address} value={c.name}>
-                    {c.name}
+                    {isCollectionTradeLocked(c)
+                      ? `${c.name} — trading locked`
+                      : c.name}
                   </option>
                 ))}
               </select>
