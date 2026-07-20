@@ -4,11 +4,22 @@ import { useMemo } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { MONAD_CHAIN_ID, SETTLEMENT_CONTRACT_ADDRESS } from "@/lib/chains/monad";
-import { erc721Abi } from "@/lib/contracts/settlement";
+import {
+  creatorTokenAbi,
+  erc721Abi,
+  transferValidatorAbi,
+} from "@/lib/contracts/settlement";
 import type { Address } from "viem";
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
 /** Visual approval state of a collection for the settlement contract. */
-export type ApprovalState = "approved" | "unapproved" | "pending" | "unknown";
+export type ApprovalState =
+  | "approved"
+  | "unapproved"
+  | "pending"
+  | "restricted"
+  | "unknown";
 
 export const COLLECTION_APPROVALS_KEY = "collection-approvals";
 
@@ -142,4 +153,79 @@ export function useAllowedCollections(contracts: string[]) {
     query.data?.[contract.toLowerCase()] === true;
 
   return { ...query, isReady, isAllowed };
+}
+
+/**
+ * Which of `contracts` cannot actually settle on Handshake because the
+ * collection enforces a Creator Token transfer validator that rejects the
+ * settlement contract as operator (e.g. The 10k Squad). These pass the
+ * allowlist + approval checks but still revert at transfer time, so the picker
+ * flags them and keeps them out of the selectable set.
+ *
+ * Fails open: a collection is only marked restricted when its validator
+ * definitively denies the settlement operator. No validator, or any RPC/ABI
+ * miss, leaves it unrestricted.
+ */
+export function useTransferRestrictedCollections(contracts: string[]) {
+  const { address } = useAccount();
+  const publicClient = usePublicClient();
+  const owner = address?.toLowerCase() ?? null;
+
+  const unique = useMemo(
+    () => Array.from(new Set(contracts.map((c) => c.toLowerCase()))).sort(),
+    [contracts],
+  );
+
+  const settlementConfigured =
+    SETTLEMENT_CONTRACT_ADDRESS !== ZERO_ADDRESS;
+
+  const query = useQuery({
+    queryKey: ["transfer-restricted", owner, unique],
+    enabled:
+      !!owner && !!publicClient && settlementConfigured && unique.length > 0,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const client = publicClient!;
+      const entries = await Promise.all(
+        unique.map(async (contract) => {
+          const validator = await client
+            .readContract({
+              address: contract as Address,
+              abi: creatorTokenAbi,
+              functionName: "getTransferValidator",
+            })
+            .then((v) => (v as string).toLowerCase())
+            .catch(() => null);
+          // Plain ERC-721 (no validator) → never restricted.
+          if (!validator || validator === ZERO_ADDRESS) {
+            return [contract, false] as const;
+          }
+          // Probe the operator policy with the connected wallet on both sides,
+          // isolating the caller (operator) check from any receiver rule.
+          const sim = await client
+            .readContract({
+              address: validator as Address,
+              abi: transferValidatorAbi,
+              functionName: "validateTransferSim",
+              args: [
+                contract as Address,
+                SETTLEMENT_CONTRACT_ADDRESS,
+                owner as Address,
+                owner as Address,
+              ],
+            })
+            .then((r) => r as readonly [boolean, string])
+            .catch(() => null);
+          return [contract, sim !== null && sim[0] === false] as const;
+        }),
+      );
+      return Object.fromEntries(entries) as Record<string, boolean>;
+    },
+  });
+
+  const isRestricted = (contract: string) =>
+    query.data?.[contract.toLowerCase()] === true;
+
+  return { ...query, isRestricted };
 }

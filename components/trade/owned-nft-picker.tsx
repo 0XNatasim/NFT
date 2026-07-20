@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +12,8 @@ import { useCollectionPrices, useWalletNFTsInfinite } from "@/hooks/use-market";
 import {
   useAllowedCollections,
   useCollectionApprovals,
+  useTransferRestrictedCollections,
+  type ApprovalState,
 } from "@/hooks/use-approvals";
 import { ApproveCollectionButton } from "@/components/trade/approve-collection-button";
 import { cn, prettyCollectionName, shortAddress } from "@/lib/utils";
@@ -132,10 +135,32 @@ export function OwnedNFTPicker({
     data: allowedData,
   } = allowlist;
 
+  // Collections that pass allowlist + approval but whose own transfer validator
+  // blocks the settlement contract (e.g. The 10k Squad). They stay visible so
+  // the user sees them, but get a red dot and can't be selected.
+  const restricted = useTransferRestrictedCollections(contractsToVerify);
+  const { isRestricted } = restricted;
+
   const isFeatured = (contract: string) =>
     FEATURED_CONTRACT_SET.has(contract.toLowerCase());
   const isVerified = (contract: string) =>
     isAllowed(contract) && approvalFor(contract) === "approved";
+
+  // Dot shown on each card: red for validator-restricted collections, otherwise
+  // the normal approval state.
+  const dotFor = (contract: string): ApprovalState =>
+    isRestricted(contract) ? "restricted" : approvalFor(contract);
+
+  // Block selecting an NFT from a restricted collection and say why.
+  const handleToggle = (nft: NFTAsset) => {
+    if (isRestricted(nft.contractAddress)) {
+      toast.error(
+        "This collection can't be traded on Handshake — the collection blocks Handshake from moving its NFTs.",
+      );
+      return;
+    }
+    onToggle(nft);
+  };
 
   // Featured addresses provide an immediate local rejection path. The
   // contract allowlist remains authoritative, including for non-featured
@@ -334,9 +359,9 @@ export function OwnedNFTPicker({
                   key={nftKey(nft)}
                   nft={nft}
                   selected={selected.some((n) => nftKey(n) === nftKey(nft))}
-                  onClick={() => onToggle(nft)}
+                  onClick={() => handleToggle(nft)}
                   price={prices?.[nft.contractAddress.toLowerCase()]}
-                  approval={approvalFor(nft.contractAddress)}
+                  approval={dotFor(nft.contractAddress)}
                 />
               ))}
             </div>
@@ -347,9 +372,9 @@ export function OwnedNFTPicker({
                   key={nftKey(nft)}
                   nft={nft}
                   selected={selected.some((n) => nftKey(n) === nftKey(nft))}
-                  onClick={() => onToggle(nft)}
+                  onClick={() => handleToggle(nft)}
                   price={prices?.[nft.contractAddress.toLowerCase()]}
-                  approval={approvalFor(nft.contractAddress)}
+                  approval={dotFor(nft.contractAddress)}
                 />
               ))}
             </div>

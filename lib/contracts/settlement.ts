@@ -134,6 +134,13 @@ export const settlementAbi = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    type: "function",
+    name: "paused",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
     type: "event",
     name: "TradeExecuted",
     inputs: [
@@ -274,6 +281,13 @@ export const erc721Abi = [
   },
   {
     type: "function",
+    name: "getApproved",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
     name: "tokenURI",
     stateMutability: "view",
     inputs: [{ name: "tokenId", type: "uint256" }],
@@ -285,6 +299,60 @@ export const erc721Abi = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "string" }],
+  },
+] as const;
+
+/**
+ * Creator Token Standard (Limit Break). Collections like The 10k Squad gate
+ * every transfer on an external validator: getTransferValidator() returns it
+ * (zero / reverts for a plain ERC-721). The validator's validateTransferSim
+ * says whether a given operator may move a token — so we can detect, up front,
+ * a collection whose policy blocks the Handshake settlement contract as caller
+ * (which otherwise reverts the whole trade with an undecodable error).
+ */
+export const creatorTokenAbi = [
+  {
+    type: "function",
+    name: "getTransferValidator",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
+export const transferValidatorAbi = [
+  {
+    type: "function",
+    name: "validateTransferSim",
+    stateMutability: "view",
+    inputs: [
+      { name: "collection", type: "address" },
+      { name: "caller", type: "address" },
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "tokenId", type: "uint256" },
+    ],
+    outputs: [
+      { name: "isTransferAllowed", type: "bool" },
+      { name: "errorCode", type: "bytes4" },
+    ],
+  },
+  // Collection-level overload (no tokenId): probes the operator policy alone,
+  // used to flag a collection as untradeable before a specific token is picked.
+  {
+    type: "function",
+    name: "validateTransferSim",
+    stateMutability: "view",
+    inputs: [
+      { name: "collection", type: "address" },
+      { name: "caller", type: "address" },
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+    ],
+    outputs: [
+      { name: "isTransferAllowed", type: "bool" },
+      { name: "errorCode", type: "bytes4" },
+    ],
   },
 ] as const;
 

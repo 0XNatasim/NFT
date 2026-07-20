@@ -25,6 +25,11 @@ const APPROVAL_DOT: Record<
     className: "bg-amber-400 animate-pulse",
     label: "Approval pending — confirming on-chain",
   },
+  restricted: {
+    className: "bg-red-500",
+    label:
+      "Can't be traded on Handshake — this collection blocks Handshake from moving its NFTs",
+  },
 };
 
 /** Small status dot showing whether a collection is approved for settlement. */

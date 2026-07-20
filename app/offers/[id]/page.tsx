@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { type Address } from "viem";
 import { toast } from "sonner";
-import { ArrowLeftRight, ExternalLink, Loader2, Lock } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ExternalLink, Loader2, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { FeeBreakdown } from "@/components/trade/fee-breakdown";
 import { EmptyState } from "@/components/empty-state";
 import { SuggestChangesButton } from "@/components/deal-room/suggest-changes-button";
 import { useOffer } from "@/hooks/use-market";
+import { useDealHealth } from "@/hooks/use-deal-health";
 import {
   explorerTokenUrl,
   explorerTxUrl,
@@ -86,6 +87,10 @@ export default function OfferDetailPage({
         args: [address! as Address],
       }),
   });
+
+  // Pre-flight: read on-chain preconditions so a doomed accept is caught with
+  // a specific reason instead of a generic "would revert" after the fact.
+  const dealHealth = useDealHealth(offer, address);
 
   const escrowQuery = useQuery({
     queryKey: ["escrow-status", offer?.id, address],
@@ -170,11 +175,14 @@ export default function OfferDetailPage({
     !isMaker &&
     isDesignatedTaker &&
     !hasCollectionBid;
+  const dealBlockers = dealHealth.data?.blockers ?? [];
+  const hasDealBlocker = dealBlockers.length > 0;
   const canAccept =
     showAcceptAction &&
     !isExpired &&
     !isWrongOfferChain &&
-    !isWrongWalletChain;
+    !isWrongWalletChain &&
+    !hasDealBlocker;
 
   function buildOrder(o: TradeOffer) {
     return {
@@ -464,6 +472,19 @@ export default function OfferDetailPage({
 
           {showAcceptAction && (
             <>
+              {hasDealBlocker && (
+                <div className="space-y-1.5 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+                  <div className="flex items-center gap-1.5 font-semibold">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    This deal can&apos;t be settled right now
+                  </div>
+                  <ul className="ml-1 list-inside list-disc space-y-1 text-red-200/90">
+                    {dealBlockers.map((b) => (
+                      <li key={b.code}>{b.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {takerNfts.length > 0 && (
                 <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
                   Accepting first approves the settlement contract to transfer
@@ -489,7 +510,7 @@ export default function OfferDetailPage({
                     : "Accept Deal"
                 )}
               </Button>
-              {!canAccept && (
+              {!canAccept && !hasDealBlocker && (
                 <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
                   {isExpired
                     ? "This deal has expired and can no longer be accepted."
