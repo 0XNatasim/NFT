@@ -44,11 +44,14 @@ import {
   findDisallowedCollections,
   settlementAbi,
 } from "@/lib/contracts/settlement";
-import { FEATURED_COLLECTIONS } from "@/lib/featured-collections";
+import {
+  FEATURED_COLLECTIONS,
+  collectionTradeStatus,
+} from "@/lib/featured-collections";
 import { CollectionButton } from "@/components/trade/collection-button";
 import { CollectionStatusDot } from "@/components/trade/collection-status-dot";
 import { CollectionSearch } from "@/components/trade/collection-search";
-import { useCollectionsAllowed } from "@/hooks/use-collections-allowed";
+import { useCollectionTradeSignals } from "@/hooks/use-collection-trade-signals";
 import {
   DEFAULT_EXPIRY_SECONDS,
   ExpirySelector,
@@ -905,7 +908,7 @@ function StepDetails(props: {
   } = props;
 
   const selectedRarityNft = requestedNfts.find((n) => n.rarityRank != null);
-  const { allowed: onchainAllowed } = useCollectionsAllowed(
+  const { signalsFor } = useCollectionTradeSignals(
     FEATURED_COLLECTIONS.map((c) => c.address),
   );
 
@@ -1028,7 +1031,7 @@ function StepDetails(props: {
                     active={
                       requestContract.toLowerCase() === c.address.toLowerCase()
                     }
-                    onchainAllowed={onchainAllowed[c.address.toLowerCase()]}
+                    status={collectionTradeStatus(c, signalsFor(c.address))}
                     onClick={() => {
                       setRequestContract(c.address);
                       setSelectedRequestCollection(null);
@@ -1038,12 +1041,16 @@ function StepDetails(props: {
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
-                  <CollectionStatusDot locked={false} />
+                  <CollectionStatusDot status="open" />
                   Tradeable
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <CollectionStatusDot locked />
-                  Trading locked (awaiting collection approval)
+                  <CollectionStatusDot status="pending" />
+                  One approval missing
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CollectionStatusDot status="locked" />
+                  Trading locked
                 </span>
               </div>
               <CollectionSearch

@@ -16,7 +16,6 @@ export interface CollectionMetadata {
     | "official"
     | "contractURI"
     | "opensea"
-    | "reservoir"
     | "tokenURI"
     | "local"
     | "placeholder";
@@ -286,47 +285,6 @@ async function fromOpenSea(
   );
 }
 
-function reservoirBase(chainId: number) {
-  return (
-    process.env[`RESERVOIR_API_BASE_${chainId}`] ??
-    process.env.RESERVOIR_API_BASE_URL ??
-    "https://api.reservoir.tools"
-  ).replace(/\/$/, "");
-}
-
-async function fromReservoir(
-  address: string,
-  chainId: number,
-  ctx: ResolveContext,
-): Promise<CollectionMetadata | null> {
-  const headers: HeadersInit = { accept: "application/json" };
-  if (process.env.RESERVOIR_API_KEY) {
-    headers["x-api-key"] = process.env.RESERVOIR_API_KEY;
-  }
-  const res = await fetch(`${reservoirBase(chainId)}/collections/v7?id=${address}`, {
-    headers,
-    next: { revalidate: 600 },
-  });
-  if (!res.ok) return null;
-  const json = await res.json();
-  const c = Array.isArray(json.collections) ? json.collections[0] : null;
-  if (!c) return null;
-  return buildValidated(
-    address,
-    "reservoir",
-    {
-      name: typeof c.name === "string" ? c.name : undefined,
-      image: c.image ?? c.imageUrl ?? c.metadata?.imageUrl ?? undefined,
-      banner: c.banner ?? c.bannerImageUrl ?? null,
-      floorPrice:
-        typeof c.floorAsk?.price?.amount?.decimal === "number"
-          ? c.floorAsk.price.amount.decimal
-          : undefined,
-    },
-    ctx,
-  );
-}
-
 /**
  * LAST external fallback: a representative token's STATIC artwork. Bounded to a
  * tiny candidate set (token IDs 0 and 1), stops at the first valid static
@@ -404,7 +362,6 @@ export async function getCollectionMetadata(
     { source: "official", run: () => fromOfficialOverride(address, ctx) },
     { source: "contractURI", run: () => fromContractURI(address, ctx) },
     { source: "opensea", run: () => fromOpenSea(address, ctx) },
-    { source: "reservoir", run: () => fromReservoir(address, chainId, ctx) },
     { source: "tokenURI", run: () => fromRepresentativeToken(address, ctx) },
   ];
 

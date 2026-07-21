@@ -1,22 +1,40 @@
 import { cn } from "@/lib/utils";
+import type { CollectionTradeStatus } from "@/lib/featured-collections";
 
-const LOCKED_LABEL =
-  "Trading locked — the collection owner must approve Handshake's settlement contract before these NFTs can be traded.";
-const OPEN_LABEL = "Tradeable on Handshake.";
+const CONFIG: Record<
+  CollectionTradeStatus,
+  { color: string; label: string }
+> = {
+  open: {
+    color: "bg-emerald-500",
+    label: "Tradeable on Handshake — both the transfer-validator approval and the Handshake allowlist are in place.",
+  },
+  pending: {
+    color: "bg-amber-400",
+    label:
+      "Almost ready — one of the two approvals (transfer-validator or Handshake allowlist) is still missing.",
+  },
+  locked: {
+    color: "bg-red-500",
+    label:
+      "Trading locked — neither the transfer-validator approval nor the Handshake allowlist is in place yet.",
+  },
+};
 
 /**
- * Small status indicator shown on a collection's logo.
- *  - red  → transfer-validator gated, trading locked until owner approval
- *  - green → no transfer-validator gate, tradeable now
+ * Status indicator shown on a collection's logo.
+ *  - green  → tradeable (both approvals in place)
+ *  - yellow → one approval missing
+ *  - red    → neither approval in place
  */
 export function CollectionStatusDot({
-  locked,
+  status,
   className,
 }: {
-  locked: boolean;
+  status: CollectionTradeStatus;
   className?: string;
 }) {
-  const label = locked ? LOCKED_LABEL : OPEN_LABEL;
+  const { color, label } = CONFIG[status];
   return (
     <span
       role="img"
@@ -24,7 +42,7 @@ export function CollectionStatusDot({
       title={label}
       className={cn(
         "inline-block h-2.5 w-2.5 rounded-full ring-2 ring-background",
-        locked ? "bg-red-500" : "bg-emerald-500",
+        color,
         className,
       )}
     />

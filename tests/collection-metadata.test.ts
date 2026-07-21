@@ -69,7 +69,6 @@ beforeEach(() => {
   mocks.safeProbeContentType.mockResolvedValue(null);
   setChain({}); // everything reverts by default
   delete process.env.OPENSEA_API_KEY;
-  delete process.env.RESERVOIR_API_KEY;
   global.fetch = vi.fn(async () => notOk()) as any;
 });
 
@@ -144,23 +143,19 @@ describe("collection logo resolution", () => {
     expect(meta.image).toBe("https://cdn.test/os.png");
   });
 
-  it("opensea failure falls back to reservoir", async () => {
+  it("opensea failure falls back to a representative token", async () => {
     const address = freshAddress();
     process.env.OPENSEA_API_KEY = "k";
-    setChain({ contractURI: "throw" });
-    global.fetch = vi.fn(async (url: any) => {
-      const u = String(url);
-      if (u.includes("reservoir")) {
-        return ok({
-          collections: [{ name: "Res", image: "https://cdn.test/res.png" }],
-        });
-      }
-      return notOk(); // opensea contract call fails
-    }) as any;
+    setChain({ contractURI: "throw", tokenURI: { "0": "https://meta.test/0" } });
+    mocks.safeFetchJson.mockResolvedValue({
+      name: "Tok",
+      image: "https://cdn.test/token0.png",
+    });
+    global.fetch = vi.fn(async () => notOk()) as any; // opensea calls fail
 
     const meta = await getCollectionMetadata(address, CHAIN);
-    expect(meta.source).toBe("reservoir");
-    expect(meta.image).toBe("https://cdn.test/res.png");
+    expect(meta.source).toBe("tokenURI");
+    expect(meta.image).toBe("https://cdn.test/token0.png");
   });
 
   it("uses a representative token as the last static-image fallback", async () => {

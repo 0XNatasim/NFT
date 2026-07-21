@@ -1,9 +1,9 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import {
-  isCollectionTradeLocked,
-  type FeaturedCollection,
+import type {
+  CollectionTradeStatus,
+  FeaturedCollection,
 } from "@/lib/featured-collections";
 import { SafeCollectionImage } from "@/components/ui/safe-collection-image";
 import { CollectionStatusDot } from "@/components/trade/collection-status-dot";
@@ -12,13 +12,13 @@ export function CollectionButton({
   collection,
   active,
   onClick,
-  onchainAllowed,
+  status,
 }: {
   collection: FeaturedCollection;
   active: boolean;
   onClick: () => void;
-  /** Live isCollectionAllowed result; when set, drives the status dot. */
-  onchainAllowed?: boolean;
+  /** Trade-readiness status driving the dot colour. */
+  status: CollectionTradeStatus;
 }) {
   return (
     <button
@@ -39,7 +39,7 @@ export function CollectionButton({
           fallbackSrc={collection.image}
         />
         <CollectionStatusDot
-          locked={isCollectionTradeLocked(collection, onchainAllowed)}
+          status={status}
           className="absolute -right-1 -top-1"
         />
       </span>
