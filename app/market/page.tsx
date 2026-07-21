@@ -9,10 +9,11 @@ import { CollectionStatusDot } from "@/components/trade/collection-status-dot";
 import { OfferCard, OfferListItem } from "@/components/trade/offer-card";
 import { EmptyState } from "@/components/empty-state";
 import { useOffers } from "@/hooks/use-market";
-import { useCollectionsSettlementApproved } from "@/hooks/use-collections-settlement-approved";
+import { useCollectionTradeSignals } from "@/hooks/use-collection-trade-signals";
 import {
   FEATURED_COLLECTIONS,
-  isCollectionTradeLocked,
+  collectionTradeStatus,
+  type CollectionTradeStatus,
   type FeaturedCollection,
 } from "@/lib/featured-collections";
 
@@ -154,19 +155,23 @@ function CollectionFilterBanner({
   selectedCollection: string | null;
   onSelect: (collection: string | null) => void;
 }) {
-  const { approved: onchainApproved } = useCollectionsSettlementApproved(
+  const { signalsFor } = useCollectionTradeSignals(
     FEATURED_COLLECTIONS.map((c) => c.address),
   );
   return (
     <div className="rounded-2xl border border-monad-purple/20 bg-gradient-to-r from-monad-purple/10 via-card/80 to-cyan-400/10 p-3 shadow-lg shadow-monad-purple/5">
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <CollectionStatusDot locked={false} />
+          <CollectionStatusDot status="open" />
           Tradeable
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <CollectionStatusDot locked />
-          Trading locked (awaiting collection approval)
+          <CollectionStatusDot status="pending" />
+          One approval missing
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <CollectionStatusDot status="locked" />
+          Trading locked
         </span>
       </div>
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
@@ -189,7 +194,7 @@ function CollectionFilterBanner({
             key={collection.address}
             collection={collection}
             selected={selectedCollection === collection.address.toLowerCase()}
-            onchainApproved={onchainApproved[collection.address.toLowerCase()]}
+            status={collectionTradeStatus(collection, signalsFor(collection.address))}
             onClick={() => onSelect(collection.address.toLowerCase())}
           />
         ))}
@@ -202,12 +207,12 @@ function CollectionFilterButton({
   collection,
   selected,
   onClick,
-  onchainApproved,
+  status,
 }: {
   collection: FeaturedCollection;
   selected: boolean;
   onClick: () => void;
-  onchainApproved?: boolean;
+  status: CollectionTradeStatus;
 }) {
   return (
     <button
@@ -227,7 +232,7 @@ function CollectionFilterButton({
           className="h-12 w-12 rounded-full ring-1 ring-border"
         />
         <CollectionStatusDot
-          locked={isCollectionTradeLocked(collection, onchainApproved)}
+          status={status}
           className="absolute right-0 top-0 h-3 w-3"
         />
       </span>

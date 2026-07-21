@@ -15,9 +15,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import {
   FEATURED_COLLECTIONS,
-  isCollectionTradeLocked,
+  collectionTradeStatus,
 } from "@/lib/featured-collections";
-import { useCollectionsSettlementApproved } from "@/hooks/use-collections-settlement-approved";
+import { useCollectionTradeSignals } from "@/hooks/use-collection-trade-signals";
 import {
   DEFAULT_EXPIRY_SECONDS,
   ExpirySelector,
@@ -42,7 +42,7 @@ export default function WantedPage() {
   const { signMessageAsync } = useSignMessage();
   const queryClient = useQueryClient();
   const [collection, setCollection] = useState(FEATURED_COLLECTIONS[0]?.name ?? "");
-  const { approved: onchainApproved } = useCollectionsSettlementApproved(
+  const { signalsFor } = useCollectionTradeSignals(
     FEATURED_COLLECTIONS.map((c) => c.address),
   );
   const [rarity, setRarity] = useState("Any");
@@ -152,16 +152,21 @@ export default function WantedPage() {
                 value={collection}
                 onChange={(e) => setCollection(e.target.value)}
               >
-                {FEATURED_COLLECTIONS.map((c) => (
-                  <option key={c.address} value={c.name}>
-                    {isCollectionTradeLocked(
-                      c,
-                      onchainApproved[c.address.toLowerCase()],
-                    )
-                      ? `${c.name} — trading locked`
-                      : c.name}
-                  </option>
-                ))}
+                {FEATURED_COLLECTIONS.map((c) => {
+                  const status = collectionTradeStatus(c, signalsFor(c.address));
+                  const suffix =
+                    status === "open"
+                      ? ""
+                      : status === "pending"
+                        ? " — approval pending"
+                        : " — trading locked";
+                  return (
+                    <option key={c.address} value={c.name}>
+                      {c.name}
+                      {suffix}
+                    </option>
+                  );
+                })}
               </select>
             </label>
             <label className="block text-sm font-medium">

@@ -1,60 +1,83 @@
 import { describe, it, expect } from "vitest";
 import {
   FEATURED_COLLECTIONS,
-  isCollectionTradeLocked,
+  collectionTradeStatus,
 } from "@/lib/featured-collections";
 
-describe("isCollectionTradeLocked", () => {
-  it("collections without a transfer validator are always open", () => {
-    expect(isCollectionTradeLocked({ transferValidator: false })).toBe(false);
-    expect(isCollectionTradeLocked({})).toBe(false);
-    // On-chain result is irrelevant for ungated collections.
-    expect(isCollectionTradeLocked({ transferValidator: false }, false)).toBe(
-      false,
-    );
-  });
-
-  it("a gated collection is locked until approved", () => {
-    expect(isCollectionTradeLocked({ transferValidator: true })).toBe(true);
-    // Pending/failed on-chain read (undefined/false) keeps it locked.
-    expect(isCollectionTradeLocked({ transferValidator: true }, undefined)).toBe(
-      true,
-    );
-    expect(isCollectionTradeLocked({ transferValidator: true }, false)).toBe(
-      true,
-    );
-  });
-
-  it("a live on-chain approval opens a gated collection", () => {
-    expect(isCollectionTradeLocked({ transferValidator: true }, true)).toBe(
-      false,
-    );
-  });
-
-  it("the manual settlementApproved override opens a gated collection", () => {
+describe("collectionTradeStatus", () => {
+  it("gated collection with neither approval is locked (red)", () => {
     expect(
-      isCollectionTradeLocked({
-        transferValidator: true,
-        settlementApproved: true,
-      }),
-    ).toBe(false);
+      collectionTradeStatus(
+        { transferValidator: true },
+        { validatorApproved: false, handshakeAllowed: false },
+      ),
+    ).toBe("locked");
+    // Missing signals default to not-approved.
+    expect(collectionTradeStatus({ transferValidator: true })).toBe("locked");
   });
 
-  it("every gated collection starts locked with no approval signal", () => {
-    const gated = FEATURED_COLLECTIONS.filter(
-      (c) => c.transferValidator === true,
-    );
-    expect(gated.length).toBeGreaterThan(0);
-    for (const c of gated) {
-      expect(isCollectionTradeLocked(c)).toBe(true);
-    }
+  it("gated collection with exactly one approval is pending (yellow)", () => {
+    expect(
+      collectionTradeStatus(
+        { transferValidator: true },
+        { validatorApproved: true, handshakeAllowed: false },
+      ),
+    ).toBe("pending");
+    expect(
+      collectionTradeStatus(
+        { transferValidator: true },
+        { validatorApproved: false, handshakeAllowed: true },
+      ),
+    ).toBe("pending");
   });
 
-  it("every non-gated collection is open", () => {
-    const open = FEATURED_COLLECTIONS.filter((c) => !c.transferValidator);
-    expect(open.length).toBeGreaterThan(0);
-    for (const c of open) {
-      expect(isCollectionTradeLocked(c)).toBe(false);
+  it("gated collection with both approvals is open (green)", () => {
+    expect(
+      collectionTradeStatus(
+        { transferValidator: true },
+        { validatorApproved: true, handshakeAllowed: true },
+      ),
+    ).toBe("open");
+  });
+
+  it("manual settlementApproved override satisfies the validator condition", () => {
+    // Validator approved manually, Handshake allow still missing → pending.
+    expect(
+      collectionTradeStatus(
+        { transferValidator: true, settlementApproved: true },
+        { handshakeAllowed: false },
+      ),
+    ).toBe("pending");
+    // Both satisfied → open.
+    expect(
+      collectionTradeStatus(
+        { transferValidator: true, settlementApproved: true },
+        { handshakeAllowed: true },
+      ),
+    ).toBe("open");
+  });
+
+  it("non-validator collection needs only the Handshake allowlist", () => {
+    // No validator gate → validator condition is always met.
+    expect(
+      collectionTradeStatus(
+        { transferValidator: false },
+        { handshakeAllowed: true },
+      ),
+    ).toBe("open");
+    // Not yet allowlisted → pending, never locked (nothing else to approve).
+    expect(
+      collectionTradeStatus(
+        { transferValidator: false },
+        { handshakeAllowed: false },
+      ),
+    ).toBe("pending");
+  });
+
+  it("with no live signals, gated collections are locked and open ones pending", () => {
+    for (const c of FEATURED_COLLECTIONS) {
+      const status = collectionTradeStatus(c);
+      expect(status).toBe(c.transferValidator ? "locked" : "pending");
     }
   });
 });
