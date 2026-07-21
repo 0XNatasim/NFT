@@ -24,24 +24,31 @@ export interface FeaturedCollection {
    * with a green dot.
    */
   transferValidator?: boolean;
+  /**
+   * For transfer-validator collections only: set to `true` once the collection
+   * owner has approved Handshake's settlement contract on the validator. That
+   * flips the collection from locked (red) to open (green). Ignored for
+   * collections without a transfer validator (they are always open). Kept as an
+   * explicit, project-controlled flag because the settlement contract's own
+   * `isCollectionAllowed` allowlist does NOT reliably reflect the owner's
+   * validator approval.
+   */
+  settlementApproved?: boolean;
 }
 
 /**
  * Whether a collection is locked for trading (red dot) or open (green dot).
  *
  * Collections without a transfer validator never need owner approval, so they
- * are always open. Validator-gated collections start locked and flip to open
- * automatically once Handshake's settlement contract is approved on-chain — the
- * live signal for that is `isCollectionAllowed` (see /api/collections/allowed),
- * passed in here as `onchainAllowed`. While that read is still pending
- * (`onchainAllowed === undefined`) a gated collection stays locked.
+ * are always open. A validator-gated collection is locked until its owner has
+ * approved Handshake's settlement contract — tracked by the explicit
+ * `settlementApproved` flag. Flip that flag to `true` to turn the dot green.
  */
 export function isCollectionTradeLocked(
-  collection: Pick<FeaturedCollection, "transferValidator">,
-  onchainAllowed?: boolean,
+  collection: Pick<FeaturedCollection, "transferValidator" | "settlementApproved">,
 ): boolean {
   if (collection.transferValidator !== true) return false;
-  return onchainAllowed !== true;
+  return collection.settlementApproved !== true;
 }
 
 export const FEATURED_COLLECTIONS: FeaturedCollection[] = [

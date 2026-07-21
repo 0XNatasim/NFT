@@ -12,13 +12,10 @@ export function CollectionButton({
   collection,
   active,
   onClick,
-  onchainAllowed,
 }: {
   collection: FeaturedCollection;
   active: boolean;
   onClick: () => void;
-  /** Live isCollectionAllowed result; when set, drives the status dot. */
-  onchainAllowed?: boolean;
 }) {
   return (
     <button
@@ -39,7 +36,7 @@ export function CollectionButton({
           fallbackSrc={collection.image}
         />
         <CollectionStatusDot
-          locked={isCollectionTradeLocked(collection, onchainAllowed)}
+          locked={isCollectionTradeLocked(collection)}
           className="absolute -right-1 -top-1"
         />
       </span>

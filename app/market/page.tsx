@@ -9,7 +9,6 @@ import { CollectionStatusDot } from "@/components/trade/collection-status-dot";
 import { OfferCard, OfferListItem } from "@/components/trade/offer-card";
 import { EmptyState } from "@/components/empty-state";
 import { useOffers } from "@/hooks/use-market";
-import { useCollectionsAllowed } from "@/hooks/use-collections-allowed";
 import {
   FEATURED_COLLECTIONS,
   isCollectionTradeLocked,
@@ -154,9 +153,6 @@ function CollectionFilterBanner({
   selectedCollection: string | null;
   onSelect: (collection: string | null) => void;
 }) {
-  const { allowed: onchainAllowed } = useCollectionsAllowed(
-    FEATURED_COLLECTIONS.map((c) => c.address),
-  );
   return (
     <div className="rounded-2xl border border-monad-purple/20 bg-gradient-to-r from-monad-purple/10 via-card/80 to-cyan-400/10 p-3 shadow-lg shadow-monad-purple/5">
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -189,7 +185,6 @@ function CollectionFilterBanner({
             key={collection.address}
             collection={collection}
             selected={selectedCollection === collection.address.toLowerCase()}
-            onchainAllowed={onchainAllowed[collection.address.toLowerCase()]}
             onClick={() => onSelect(collection.address.toLowerCase())}
           />
         ))}
@@ -202,12 +197,10 @@ function CollectionFilterButton({
   collection,
   selected,
   onClick,
-  onchainAllowed,
 }: {
   collection: FeaturedCollection;
   selected: boolean;
   onClick: () => void;
-  onchainAllowed?: boolean;
 }) {
   return (
     <button
@@ -227,7 +220,7 @@ function CollectionFilterButton({
           className="h-12 w-12 rounded-full ring-1 ring-border"
         />
         <CollectionStatusDot
-          locked={isCollectionTradeLocked(collection, onchainAllowed)}
+          locked={isCollectionTradeLocked(collection)}
           className="absolute right-0 top-0 h-3 w-3"
         />
       </span>
