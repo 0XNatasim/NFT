@@ -17,6 +17,7 @@ import {
   FEATURED_COLLECTIONS,
   isCollectionTradeLocked,
 } from "@/lib/featured-collections";
+import { useCollectionsSettlementApproved } from "@/hooks/use-collections-settlement-approved";
 import {
   DEFAULT_EXPIRY_SECONDS,
   ExpirySelector,
@@ -41,6 +42,9 @@ export default function WantedPage() {
   const { signMessageAsync } = useSignMessage();
   const queryClient = useQueryClient();
   const [collection, setCollection] = useState(FEATURED_COLLECTIONS[0]?.name ?? "");
+  const { approved: onchainApproved } = useCollectionsSettlementApproved(
+    FEATURED_COLLECTIONS.map((c) => c.address),
+  );
   const [rarity, setRarity] = useState("Any");
   const [offering, setOffering] = useState("");
   const [notes, setNotes] = useState("");
@@ -150,7 +154,10 @@ export default function WantedPage() {
               >
                 {FEATURED_COLLECTIONS.map((c) => (
                   <option key={c.address} value={c.name}>
-                    {isCollectionTradeLocked(c)
+                    {isCollectionTradeLocked(
+                      c,
+                      onchainApproved[c.address.toLowerCase()],
+                    )
                       ? `${c.name} — trading locked`
                       : c.name}
                   </option>

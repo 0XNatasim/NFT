@@ -12,10 +12,13 @@ export function CollectionButton({
   collection,
   active,
   onClick,
+  onchainApproved,
 }: {
   collection: FeaturedCollection;
   active: boolean;
   onClick: () => void;
+  /** Live validator approval; when true, opens a gated collection (green). */
+  onchainApproved?: boolean;
 }) {
   return (
     <button
@@ -36,7 +39,7 @@ export function CollectionButton({
           fallbackSrc={collection.image}
         />
         <CollectionStatusDot
-          locked={isCollectionTradeLocked(collection)}
+          locked={isCollectionTradeLocked(collection, onchainApproved)}
           className="absolute -right-1 -top-1"
         />
       </span>
